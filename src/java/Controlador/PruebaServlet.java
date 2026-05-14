@@ -21,10 +21,10 @@ public class PruebaServlet extends HttpServlet {
 
         try {
             Connection con = Modelo.Config.Conexion.obtener();
-            out.println("<h1>✅ Conexión exitosa!</h1>");
+            out.println("<h1>Conexión exitosa</h1>");
             con.close();
         } catch (Exception e) {
-            out.println("<h1>❌ Error: " + e.getMessage() + "</h1>");
+            out.println("<h1> Error: " + e.getMessage() + "</h1>");
         }
     }
 }
