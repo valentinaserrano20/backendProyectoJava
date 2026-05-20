@@ -1,4 +1,4 @@
-package Controlador;
+package Modelo.Config;
 
 import java.io.IOException;
 import jakarta.servlet.Filter;
@@ -11,7 +11,9 @@ import jakarta.servlet.annotation.WebFilter;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 
+//el webfilter nos indica que este filtro se debe ejecutar en todas las rutas de la aplicación.
 @WebFilter("/*")
+
 public class CorsFilter implements Filter {
 
     @Override
