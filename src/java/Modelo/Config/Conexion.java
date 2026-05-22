@@ -7,9 +7,9 @@ import java.sql.SQLException;
 //creamos la clase conexion para centralizar los parametros de nuestra base de datos en un solo lugar
 public class Conexion {
    //declaramos las variables globales, las cuales llevan la palabra reservada final lo que significa que no cambiaran.
-    private static final String URL      = "jdbc:mysql://localhost:3306/planEmergenciaDC";
+    private static final String URL = "jdbc:mysql://localhost:3306/planEmergenciaDC";
     private static final String USUARIO  = "root";
-    private static final String PASSWORD = "Sol2004.";
+    private static final String PASSWORD = "#Aprendiz2024";
 
     public static Connection obtener() throws SQLException {
         try {

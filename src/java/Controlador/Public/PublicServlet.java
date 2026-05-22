@@ -1,4 +1,4 @@
-package Controlador;
+package Controlador.Public;
 
 import Modelo.DAO.CatalogoDAO;
 import jakarta.servlet.ServletException;
@@ -20,38 +20,60 @@ public class PublicServlet extends HttpServlet {
 
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
+
         PrintWriter out = response.getWriter();
 
         String pathInfo = request.getPathInfo();
 
         try {
+
+            System.out.println("PATH INFO: " + pathInfo);
+
             CatalogoDAO dao = new CatalogoDAO();
+
             JSONArray data = null;
 
-            if (pathInfo.equals("/generos")) {
+            if ("/generos".equals(pathInfo)) {
+
+                System.out.println("Entró a géneros");
+
                 data = dao.getGeneros();
 
-            } else if (pathInfo.equals("/tipos-documento")) {
+            } else if ("/tipos-documento".equals(pathInfo)) {
+
+                System.out.println("Entró a tipos documento");
+
                 data = dao.getTiposDocumento();
 
-            } else if (pathInfo.equals("/organizaciones")) {
+            } else if ("/organizaciones".equals(pathInfo)) {
+
+                System.out.println("Entró a organizaciones");
+
                 data = dao.getOrganizaciones();
 
             } else {
+
                 response.setStatus(404);
+
                 out.print(new JSONObject()
-                    .put("success", false)
-                    .put("message", "Ruta no encontrada"));
+                        .put("success", false)
+                        .put("message", "Ruta no encontrada"));
+
                 return;
             }
 
             out.print(new JSONObject().put("data", data));
 
         } catch (Exception e) {
+
+            e.printStackTrace();
+
             response.setStatus(500);
+
             out.print(new JSONObject()
-                .put("success", false)
-                .put("message", "Error: " + e.getMessage()));
+                    .put("success", false)
+                    .put("message", e.toString()));
         }
     }
 }
+
