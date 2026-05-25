@@ -26,50 +26,22 @@ public class PublicServlet extends HttpServlet {
         String pathInfo = request.getPathInfo();
 
         try {
-
             System.out.println("PATH INFO: " + pathInfo);
 
-            CatalogoDAO dao = new CatalogoDAO();
+            // MODIFICADO: Uso correcto del servicio de negocio (MVC) en lugar de saltarse la capa llamando directamente al DAO
+            Modelo.Servicios.Public.CatalogoServicio servicio = new Modelo.Servicios.Public.CatalogoServicio();
+            String respuestaJson = servicio.obtenerCatalogo(pathInfo);
 
-            JSONArray data = null;
-
-            if ("/generos".equals(pathInfo)) {
-
-                System.out.println("Entró a géneros");
-
-                data = dao.getGeneros();
-
-            } else if ("/tipos-documento".equals(pathInfo)) {
-
-                System.out.println("Entró a tipos documento");
-
-                data = dao.getTiposDocumento();
-
-            } else if ("/organizaciones".equals(pathInfo)) {
-
-                System.out.println("Entró a organizaciones");
-
-                data = dao.getOrganizaciones();
-
-            } else {
-
+            JSONObject jsonRes = new JSONObject(respuestaJson);
+            if (!jsonRes.getBoolean("success")) {
                 response.setStatus(404);
-
-                out.print(new JSONObject()
-                        .put("success", false)
-                        .put("message", "Ruta no encontrada"));
-
-                return;
             }
 
-            out.print(new JSONObject().put("data", data));
+            out.print(respuestaJson);
 
         } catch (Exception e) {
-
             e.printStackTrace();
-
             response.setStatus(500);
-
             out.print(new JSONObject()
                     .put("success", false)
                     .put("message", e.toString()));

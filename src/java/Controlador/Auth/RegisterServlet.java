@@ -35,32 +35,57 @@ public class RegisterServlet extends HttpServlet {
 
             JSONObject body =JSONUtil.leerJson(request);
 
-            // =========================================
-            // EXTRAER DATOS DEL JSON
-            // =========================================
+            // MODIFICADO: Extracción y validación robusta de datos de entrada (previene excepciones de parseo JSON y HTTP 500)
+            if (!body.has("names") || body.getString("names").trim().isEmpty()) {
+                throw new IllegalArgumentException("El nombre es requerido");
+            }
+            if (!body.has("last_names") || body.getString("last_names").trim().isEmpty()) {
+                throw new IllegalArgumentException("El apellido es requerido");
+            }
+            if (!body.has("email") || body.getString("email").trim().isEmpty()) {
+                throw new IllegalArgumentException("El correo electrónico es requerido");
+            }
+            if (!body.has("password") || body.getString("password").trim().isEmpty()) {
+                throw new IllegalArgumentException("La contraseña es requerida");
+            }
+            if (!body.has("document_number") || body.getString("document_number").trim().isEmpty()) {
+                throw new IllegalArgumentException("El número de documento es requerido");
+            }
+            if (!body.has("birth_date") || body.getString("birth_date").trim().isEmpty()) {
+                throw new IllegalArgumentException("La fecha de nacimiento es requerida");
+            }
+            if (!body.has("phone") || body.getString("phone").trim().isEmpty()) {
+                throw new IllegalArgumentException("El celular o teléfono es requerido");
+            }
+            if (!body.has("document_type_id") || body.getString("document_type_id").trim().isEmpty()) {
+                throw new IllegalArgumentException("El tipo de documento es requerido");
+            }
+            if (!body.has("gender_id") || body.getString("gender_id").trim().isEmpty()) {
+                throw new IllegalArgumentException("El género es requerido");
+            }
+            if (!body.has("organization_id") || body.getString("organization_id").trim().isEmpty()) {
+                throw new IllegalArgumentException("La seccional u organización es requerida");
+            }
 
-            String nombres = body.getString("names");
-
-            String apellidos = body.getString("last_names");
-
-            String email = body.getString("email");
-
+            String nombres = body.getString("names").trim();
+            String apellidos = body.getString("last_names").trim();
+            String email = body.getString("email").trim();
             String password = body.getString("password");
+            String numDocumento = body.getString("document_number").trim();
+            String fechaNac = body.getString("birth_date").trim();
+            String telefono = body.getString("phone").trim();
 
-            String numDocumento = body.getString("document_number");
+            int tipoDocumentoId;
+            int generoId;
+            int organizacionId;
 
-            String fechaNac = body.getString("birth_date");
-
-            String telefono = body.getString("phone");
-
-            int tipoDocumentoId =
-                    Integer.parseInt(body.getString("document_type_id"));
-
-            int generoId =
-                    Integer.parseInt(body.getString("gender_id"));
-
-            int organizacionId =
-                    Integer.parseInt(body.getString("organization_id"));
+            try {
+                tipoDocumentoId = Integer.parseInt(body.getString("document_type_id"));
+                generoId = Integer.parseInt(body.getString("gender_id"));
+                organizacionId = Integer.parseInt(body.getString("organization_id"));
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("Los IDs de tipo de documento, género y organización deben ser numéricos");
+            }
 
             // =========================================
             // LLAMAR AL SERVICIO
@@ -98,11 +123,12 @@ public class RegisterServlet extends HttpServlet {
 
         } catch (Exception e) {
 
-            // =========================================
-            // RESPUESTA DE ERROR
-            // =========================================
-
-            response.setStatus(500);
+            // MODIFICADO: Retornar código HTTP 400 (Bad Request) si es un error de validación o duplicidad, de lo contrario 500
+            if (e instanceof IllegalArgumentException || e.getMessage().contains("ya está registrado")) {
+                response.setStatus(400);
+            } else {
+                response.setStatus(500);
+            }
 
             JSONObject error = new JSONObject();
 

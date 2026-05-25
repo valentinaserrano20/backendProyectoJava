@@ -1,6 +1,7 @@
 package Modelo.Servicios.Auth;
 
 import Modelo.DAO.UsuarioDAO;
+import Modelo.Utilidades.BCrypt;
 
 public class RegistroServicio {
 
@@ -28,18 +29,20 @@ public class RegistroServicio {
             throw new Exception("El correo ya está registrado");
         }
 
-        
         // VALIDAR DOCUMENTO REPETIDO
         if (usuarioDAO.existeDocumento(numDocumento)) {
             throw new Exception("El número de documento ya está registrado");
         }
+
+        // CORREGIDO: Hashear la contraseña con BCrypt antes de persistirla
+        String passwordHashed = BCrypt.hashpw(password, BCrypt.gensalt());
 
         // REGISTRAR USUARIO
         usuarioDAO.registrar(
                 nombres,
                 apellidos,
                 email,
-                password,
+                passwordHashed,
                 numDocumento,
                 fechaNac,
                 telefono,

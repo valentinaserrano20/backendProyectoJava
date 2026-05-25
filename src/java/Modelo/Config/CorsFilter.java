@@ -11,9 +11,8 @@ import jakarta.servlet.annotation.WebFilter;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpServletRequest;
 
-//el webfilter nos indica que este filtro se debe ejecutar en todas las rutas de la aplicación.
+// El webfilter nos indica que este filtro se debe ejecutar en todas las rutas de la aplicación.
 @WebFilter("/*")
-
 public class CorsFilter implements Filter {
 
     @Override
@@ -23,7 +22,23 @@ public class CorsFilter implements Filter {
         HttpServletRequest request   = (HttpServletRequest) req;
         HttpServletResponse response = (HttpServletResponse) res;
 
-        response.setHeader("Access-Control-Allow-Origin", "*");
+        // MODIFICADO: Validación segura de origen CORS contra lista blanca permitida
+        String origin = request.getHeader("Origin");
+        java.util.Set<String> allowedOrigins = new java.util.HashSet<>(java.util.Arrays.asList(
+            "http://localhost:5173", 
+            "http://localhost:3000",
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:3000"
+        ));
+
+        if (origin != null && allowedOrigins.contains(origin)) {
+            response.setHeader("Access-Control-Allow-Origin", origin);
+            response.setHeader("Access-Control-Allow-Credentials", "true");
+        } else {
+            // Por defecto, no permitir credenciales si no coincide el origen
+            response.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");
+        }
+
         response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
         response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
         response.setHeader("Access-Control-Max-Age", "3600");

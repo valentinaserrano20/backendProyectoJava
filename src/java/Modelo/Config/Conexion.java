@@ -4,22 +4,25 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 
-//creamos la clase conexion para centralizar los parametros de nuestra base de datos en un solo lugar
 public class Conexion {
-   //declaramos las variables globales, las cuales llevan la palabra reservada final lo que significa que no cambiaran.
-    private static final String URL = "jdbc:mysql://localhost:3306/planEmergenciaDC";
-    private static final String USUARIO  = "root";
-    private static final String PASSWORD = "#Aprendiz2024";
+
+    // URL directa a tu MySQL local
+    private static final String URL = "jdbc:mysql://localhost:3306/planEmergenciaDC?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
+    private static final String USER = "root"; // Tu usuario de MySQL
+    private static final String PASS = "#Aprendiz2024"; // <--- CAMBIA ESTO
+
+    static {
+        try {
+            // Forzamos la carga del Driver de MySQL en memoria
+            Class.forName("com.mysql.cj.jdbc.Driver");
+        } catch (ClassNotFoundException e) {
+            System.err.println("ERROR: No se encontró el Driver de MySQL en el proyecto.");
+            e.printStackTrace();
+        }
+    }
 
     public static Connection obtener() throws SQLException {
-        try {
-            //carga en memoria y registra el controlador (driver) de MySQL
-            Class.forName("com.mysql.cj.jdbc.Driver");
-            //si hay conexion usa como parametro la url, el usuario y contraseña para que sean llevados a mysql
-            return DriverManager.getConnection(URL, USUARIO, PASSWORD);
-        } catch (ClassNotFoundException e) {
-            //en caso de que no lo encuentre ejecutara el error inidcandonos que el driver no fue encontrado
-            throw new SQLException("Driver MySQL no encontrado", e);
-        }
+        // Conexión directa y limpia sin depender del JNDI de Tomcat
+        return DriverManager.getConnection(URL, USER, PASS);
     }
 }

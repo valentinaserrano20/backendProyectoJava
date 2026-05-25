@@ -1,2 +1,30 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Context path="/DCPlanes"/>
+<Context path="/DCPlanes">
+
+    <!--
+        CRÍTICO — SEGURIDAD:
+        Las credenciales de la base de datos NO deben estar hardcodeadas en este archivo,
+        ya que este archivo es rastreado por Git y puede quedar expuesto en el repositorio.
+
+        SOLUCIÓN: Usar tokens ${} que Tomcat reemplaza automáticamente en tiempo de arranque
+        con los valores definidos en: <TOMCAT_HOME>/conf/catalina.properties
+
+        Agrega estas líneas en catalina.properties (nunca en Git):
+            db.username=root
+            db.password=TU_PASSWORD_SEGURO
+
+        IMPORTANTE: Tomcat debe tener habilitado el reemplazo de variables.
+        En server.xml verifica que exista: <Listener className="org.apache.catalina.startup.VersionLoggerListener"/>
+        y que NO esté desactivado el interpolado de ${} en context.xml.
+    -->
+    <Resource name="jdbc/planEmergenciaDC"
+              auth="Container"
+              type="javax.sql.DataSource"
+              maxTotal="100"
+              maxIdle="30"
+              maxWaitMillis="10000"
+              username="$planEmergenciaDC"
+              password="$#Aprendiz2024"
+              driverClassName="com.mysql.cj.jdbc.Driver"
+              url="jdbc:mysql://localhost:3306/planEmergenciaDC?useSSL=false&amp;allowPublicKeyRetrieval=true&amp;serverTimezone=UTC"/>
+</Context>

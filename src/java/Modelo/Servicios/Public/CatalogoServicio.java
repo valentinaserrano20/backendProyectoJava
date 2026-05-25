@@ -4,6 +4,7 @@ import Modelo.DAO.CatalogoDAO;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+// MODIFICADO: Serializa los DTOs de CatalogoDAO a JSON en la capa de Servicio, aislando al DAO de la capa de presentación
 public class CatalogoServicio {
 
     private CatalogoDAO catalogoDAO;
@@ -20,18 +21,18 @@ public class CatalogoServicio {
         switch (path) {
 
             case "/generos":
-
-                data = catalogoDAO.getGeneros();
+                // AGREGADO: Serializa la lista de GeneroDTO a JSONArray
+                data = new JSONArray(catalogoDAO.getGeneros());
                 break;
 
             case "/tipos-documento":
-
-                data = catalogoDAO.getTiposDocumento();
+                // AGREGADO: Serializa la lista de TipoDocumentoDTO a JSONArray
+                data = new JSONArray(catalogoDAO.getTiposDocumento());
                 break;
 
             case "/organizaciones":
-
-                data = catalogoDAO.getOrganizaciones();
+                // AGREGADO: Serializa la lista de OrganizacionDTO a JSONArray
+                data = new JSONArray(catalogoDAO.getOrganizaciones());
                 break;
 
             default:
