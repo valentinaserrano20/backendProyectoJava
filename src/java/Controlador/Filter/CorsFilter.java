@@ -1,4 +1,4 @@
-package Modelo.Config;
+package Controlador.Filter;
 
 import java.io.IOException;
 import jakarta.servlet.Filter;

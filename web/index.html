@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DCPlanes - Servidor Backend Activo</title>
+    <!-- 
+      Comentarios institucionales y descriptivos de la página de bienvenida 
+      Sirve para: Presentar una confirmación visual de que el backend de Java está levantado y operando con éxito
+      Qué hace: Renderiza una interfaz gráfica moderna (HTML/CSS) con indicaciones de arranque para el frontend
+      Por qué es importante: Evita que el desarrollador se tope con una pantalla en blanco o un error 404 confuso al compilar en NetBeans
+    -->
+    <!-- 
+      Referencia a la hoja de estilos externa unificada 
+      Sirve para: Vincular la estructura HTML con el diseño de style.css.
+      Qué hace: Carga los colores institucionales (Azul y Naranja) y la tipografía compartida con Mailtrap.
+      Por qué es importante: Reduce la duplicación de código y permite que cualquier cambio de diseño se refleje automáticamente en el portal.
+    -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="status-badge">
+            <span class="status-dot"></span>
+            Servidor API de Java Activo
+        </div>
+        <h1>DCPlanes Backend</h1>
+        <div class="institution-title">Defensa Civil Colombiana</div>
+        <p>
+            El entorno de base de datos y servicios API en Java se ha conectado con éxito. 
+            El servidor está listo para recibir y procesar solicitudes del cliente.
+        </p>
+        <div class="instructions-card">
+            <h3>Para ingresar al sistema:</h3>
+            <!-- 
+              Descripción de las instrucciones 
+              Sirve para: Guiar al desarrollador sobre cómo arrancar la interfaz.
+              Qué hace: Aplica la clase instructions-desc para obtener un diseño de texto limpio y uniforme.
+              Por qué es importante: Mantiene los estilos centralizados en el archivo CSS externo.
+            -->
+            <div class="instructions-desc">
+                Abre una terminal en la carpeta del proyecto y ejecuta el servidor de desarrollo del frontend:
+            </div>
+            <div class="code-box">
+                <span class="code-line"><span class="prompt">$</span>cd UIProyectoJava</span>
+                <span class="code-line"><span class="prompt">$</span>npm run dev</span>
+            </div>
+            <!-- 
+              Pie de las instrucciones 
+              Sirve para: Mostrar el enlace o dirección local de acceso al frontend.
+              Qué hace: Aplica la clase instructions-footer y resalta la dirección local con la etiqueta strong usando colores institucionales.
+              Por qué es importante: Proporciona la URL de Vite de forma clara y unificada sin estilos en línea.
+            -->
+            <div class="instructions-footer">
+                Luego accede a la dirección local que te indique Vite (normalmente <strong>http://localhost:5173</strong>).
+            </div>
+        </div>
+    </div>
+</body>
+</html>

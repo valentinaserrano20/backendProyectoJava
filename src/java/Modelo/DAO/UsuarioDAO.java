@@ -173,4 +173,89 @@ public class UsuarioDAO {
             ps.executeUpdate();
         }
     }
+    
+    // =========================================================================
+    // MÓDULO: MI PERFIL (INTERACCIONES PROTEGIDAS)
+    // =========================================================================
+
+    /**
+     * Recupera el perfil del usuario cruzando datos maestros para obtener nombres legibles.
+     */
+    public Usuario obtenerPerfilDetallado(int id) throws SQLException {
+        // Sirve para: Definir la consulta SQL para recuperar el perfil detallado de un usuario con sus nombres de relaciones mapeados.
+        // Qué hace: Realiza LEFT JOINs con tipo_documentos, estado_usuarios y organizaciones para obtener tipo de documento, estado, nombre de organización y seccional directo de la organización.
+        // Por qué es importante: Evita errores al omitir las tablas municipios y departamentos que no existen en el DER físico actual.
+        String sql = "SELECT u.id, u.nombre, u.apellido, u.email, u.numero_documento, u.fecha_nacimiento, u.celular, u.contraseña, "
+                   + "td.descripcion AS tipo_documento_nombre, "
+                   + "eu.nombre AS estado_nombre, "
+                   + "o.nombre AS organizacion_nombre, "
+                   + "o.seccional AS seccional_nombre "
+                   + "FROM usuarios u "
+                   + "LEFT JOIN tipo_documentos td ON u.tipo_documento_id = td.id "
+                   + "LEFT JOIN estado_usuarios eu ON u.estado_id = eu.id "
+                   + "LEFT JOIN organizaciones o ON u.organizacion_id = o.id "
+                   + "WHERE u.id = ?";
+                   
+        try (Connection con = Conexion.obtener();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    Usuario u = new Usuario();
+                    u.setId(rs.getInt("id"));
+                    u.setNombre(rs.getString("nombre"));
+                    u.setApellido(rs.getString("apellido"));
+                    u.setEmail(rs.getString("email"));
+                    u.setContrasena(rs.getString("contraseña")); // Necesario para comprobar validaciones de password
+                    
+                    // Reutilizamos propiedades o el mapeo extendido para los JOINs
+                    u.setEstado(rs.getString("estado_nombre"));
+                    
+                    // Guardaremos temporalmente los nombres de catálogos cruzados en variables o estructura de control
+                    // Para alinearlo con los campos esperados por tu JS
+                    return u;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Actualiza el celular de un usuario por su ID.
+     */
+    public void actualizarTelefono(int id, String nuevoTelefono) throws SQLException {
+        String sql = "UPDATE usuarios SET celular = ? WHERE id = ?";
+        try (Connection con = Conexion.obtener();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, nuevoTelefono);
+            ps.setInt(2, id);
+            ps.executeUpdate();
+        }
+    }
+
+    /**
+     * Actualiza el email de un usuario por su ID.
+     */
+    public void actualizarEmail(int id, String nuevoEmail) throws SQLException {
+        String sql = "UPDATE usuarios SET email = ? WHERE id = ?";
+        try (Connection con = Conexion.obtener();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, nuevoEmail);
+            ps.setInt(2, id);
+            ps.executeUpdate();
+        }
+    }
+
+    /**
+     * Actualiza la contraseña encriptada de un usuario por su ID.
+     */
+    public void actualizarContrasena(int id, String nuevaContrasenaHashed) throws SQLException {
+        String sql = "UPDATE usuarios SET contraseña = ? WHERE id = ?";
+        try (Connection con = Conexion.obtener();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, nuevaContrasenaHashed);
+            ps.setInt(2, id);
+            ps.executeUpdate();
+        }
+    }
 }

@@ -1,0 +1,163 @@
+/* 
+  Hoja de estilos unificada: style.css
+  Sirve para: Establecer el diseño visual responsivo y unificado del backend, compartiendo la paleta institucional con los correos de Mailtrap.
+  Qué hace: Define variables CSS para colores (Azul y Naranja institucional, fondos claros, bordes y fuentes de texto) y aplica estilos al contenedor, estado del servidor e instrucciones.
+  Por qué es importante: Garantiza consistencia visual entre la página de bienvenida del backend y los correos de recuperación de contraseña enviados al usuario, siguiendo la identidad de marca de la Defensa Civil Colombiana.
+*/
+
+:root {
+    /* Paleta unificada institucional */
+    --bg-color: #f4f6f9;               /* Fondo general claro de la app y del correo */
+    --card-bg: #ffffff;                /* Fondo blanco del contenedor y del correo */
+    --primary-blue: #003366;           /* Azul institucional principal */
+    --accent-orange: #FF6600;          /* Naranja de acento y alertas */
+    --text-color: #333333;             /* Texto oscuro principal */
+    --text-muted: #555555;             /* Texto secundario atenuado */
+    --border-color: #e1e8ed;           /* Color de bordes y separadores */
+    --code-bg: #fff9f5;                /* Fondo naranja muy claro para instrucciones o códigos */
+    --glow-color: #2ea44f;             /* Verde de estado activo */
+}
+
+body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    /* Gradiente sutil unificado con colores corporativos */
+    background-image: radial-gradient(circle at top right, rgba(255, 102, 0, 0.03), transparent 45%),
+                      radial-gradient(circle at bottom left, rgba(0, 51, 102, 0.05), transparent 50%);
+}
+
+.container {
+    max-width: 550px;
+    width: 90%;
+    background: var(--card-bg);
+    /* Borde superior e inferior con colores institucionales unificados */
+    border: 1px solid var(--border-color);
+    border-top: 6px solid var(--primary-blue);
+    border-bottom: 6px solid var(--accent-orange);
+    border-radius: 12px;
+    padding: 40px 30px;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    /* Fondo verde muy suave con borde verde claro */
+    background: rgba(46, 164, 79, 0.08);
+    border: 1px solid rgba(46, 164, 79, 0.2);
+    color: var(--glow-color);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    margin-bottom: 25px;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    background-color: var(--glow-color);
+    border-radius: 50%;
+    margin-right: 8px;
+    box-shadow: 0 0 10px var(--glow-color);
+    animation: pulse 1.8s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(46, 164, 79, 0.5); }
+    70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(46, 164, 79, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(46, 164, 79, 0); }
+}
+
+h1 {
+    color: var(--primary-blue);
+    margin: 0 0 5px 0;
+    font-size: 26px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.institution-title {
+    color: var(--accent-orange);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 25px;
+}
+
+p {
+    font-size: 15px;
+    line-height: 1.6;
+    margin: 0 0 25px 0;
+    color: var(--text-muted);
+}
+
+.instructions-card {
+    /* Caja de instrucciones que replica visualmente el contenedor del código de Mailtrap */
+    background: var(--code-bg);
+    border: 2px dashed var(--accent-orange);
+    border-radius: 8px;
+    padding: 20px;
+    text-align: left;
+}
+
+.instructions-card h3 {
+    color: var(--primary-blue);
+    margin: 0 0 10px 0;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.instructions-desc {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+}
+
+.code-box {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    background-color: #ffffff;
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--primary-blue);
+    border: 1px solid var(--border-color);
+    margin: 5px 0 15px 0;
+    overflow-x: auto;
+}
+
+.code-line {
+    display: block;
+    margin-bottom: 4px;
+}
+.code-line:last-child {
+    margin-bottom: 0;
+}
+
+.prompt {
+    color: var(--accent-orange);
+    user-select: none;
+    margin-right: 8px;
+}
+
+.instructions-footer {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+.instructions-footer strong {
+    color: var(--primary-blue);
+    font-weight: bold;
+}

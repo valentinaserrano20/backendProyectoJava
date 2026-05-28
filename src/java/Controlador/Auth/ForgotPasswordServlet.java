@@ -24,11 +24,21 @@ public class ForgotPasswordServlet extends HttpServlet {
 
     private final AuthServicio authServicio = new AuthServicio();
 
+    /**
+     * SOPORTE PARA CORS PRE-FLIGHT (MÉTODO OPTIONS)
+     * El navegador web envía de forma invisible una petición OPTIONS antes del POST
+     * para verificar si el servidor Java acepta llamadas desde el puerto de Vite (5173).
+     */
+    // doOptions() ya no es necesario aquí porque el CorsFilter (@WebFilter("/*"))
+    // intercepta TODAS las rutas, incluyendo las preflight OPTIONS, antes de llegar al servlet.
+    // Mantenerlo causaría headers CORS duplicados que el navegador rechaza.
+
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) 
             throws ServletException, IOException {
         
-        // Formato contractual estandarizado
+        // CORS ya fue configurado globalmente por CorsFilter antes de llegar aquí.
+        // Solo configuramos el formato de respuesta JSON.
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
         PrintWriter out = response.getWriter();
@@ -37,7 +47,7 @@ public class ForgotPasswordServlet extends HttpServlet {
         String path = request.getServletPath();
 
         try {
-            // Leer el body JSON unificado
+            // Leer el body JSON enviado de forma asíncrona desde tu api.js
             JSONObject body = JSONUtil.leerJson(request);
             JSONObject respuestaJson = new JSONObject();
 
@@ -87,7 +97,7 @@ public class ForgotPasswordServlet extends HttpServlet {
             out.print(respuestaJson.toString());
 
         } catch (Exception e) {
-            // Control estricto de errores contractuales
+            // Control estricto de errores contractuales blindado contra bloqueos de CORS en fallos
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST); // 400
             out.print(new JSONObject()
                     .put("success", false)
@@ -95,4 +105,8 @@ public class ForgotPasswordServlet extends HttpServlet {
                     .toString());
         }
     }
+
+    // ELIMINADO: configurarCabecerasCORS() fue removido porque duplicaba la lógica del CorsFilter.
+    // El filtro global en Controlador.Filter.CorsFilter maneja CORS de forma centralizada
+    // para toda la aplicación, evitando headers duplicados que el navegador rechaza.
 }
