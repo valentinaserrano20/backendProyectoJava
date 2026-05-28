@@ -21,28 +21,24 @@ public class JSONUtil {
     // LEER JSON DEL BODY DEL REQUEST
     // =========================================
 
-    public static JSONObject leerJson(
-            HttpServletRequest request
-    ) throws IOException {
-
-        // LECTOR DEL BODY HTTP
-        BufferedReader reader =
-                request.getReader();
-
-        // ACUMULADOR DEL JSON
-        StringBuilder sb =
-                new StringBuilder();
-
-        // VARIABLE TEMPORAL
-        String line;
-
-        // LEER TODAS LAS LÍNEAS
-        while ((line = reader.readLine()) != null) {
-
-            sb.append(line);
-        }
-
-        // CONVERTIR STRING A JSON
-        return new JSONObject(sb.toString());
+    public static JSONObject leerJson(HttpServletRequest request) throws IOException {
+    StringBuilder sb = new StringBuilder();
+    String line;
+    BufferedReader reader = request.getReader();
+    
+    while ((line = reader.readLine()) != null) {
+        sb.append(line);
     }
+    
+    String jsonString = sb.toString().trim();
+    if (jsonString.isEmpty()) {
+        throw new IllegalArgumentException("El cuerpo de la solicitud está vacío");
+    }
+    
+    try {
+        return new JSONObject(jsonString);
+    } catch (Exception e) {
+        throw new IllegalArgumentException("JSON inválido: " + e.getMessage());
+    }
+}
 }

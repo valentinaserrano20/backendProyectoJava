@@ -60,8 +60,8 @@ public class LoginServlet extends HttpServlet {
             // 3. ESTABLECER LA SESIÓN EN EL SERVIDOR (HttpSession)
             // =========================================
             HttpSession session = request.getSession(true);
-            session.setAttribute("usuario_id", usuario.getId());
-            session.setAttribute("rol_id", usuario.getRolId());
+            session.setAttribute("user_id", usuario.getId());
+            session.setMaxInactiveInterval(1800); // 30 minutos de inactividad
 
             // =========================================
             // 4. ARMAR RESPUESTA JSON CON MAPEO DE ROLES
@@ -77,9 +77,9 @@ public class LoginServlet extends HttpServlet {
             int mappedRoleId = usuario.getRolId();
             String permissions;
 
-            if (mappedRoleId == 1) { 
+            if (mappedRoleId == 1) {
                 permissions = "home-frontend.voluntario";
-            } else if (mappedRoleId == 2) { 
+            } else if (mappedRoleId == 2) {
                 permissions = "home-frontend.supervisor,home-frontend.administrador";
             } else {
                 permissions = "home-frontend.desconocido";
@@ -103,7 +103,7 @@ public class LoginServlet extends HttpServlet {
 
         } catch (Exception e) {
             String msg = e.getMessage();
-            
+
             // CORREGIDO: Retornar códigos de estado HTTP correctos en lugar de siempre 500
             if ("Credenciales incorrectas".equals(msg)) {
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED); // 401

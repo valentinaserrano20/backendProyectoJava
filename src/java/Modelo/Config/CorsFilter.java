@@ -19,24 +19,24 @@ public class CorsFilter implements Filter {
     public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain)
             throws IOException, ServletException {
 
-        HttpServletRequest request   = (HttpServletRequest) req;
+        HttpServletRequest request = (HttpServletRequest) req;
         HttpServletResponse response = (HttpServletResponse) res;
 
         // MODIFICADO: Validación segura de origen CORS contra lista blanca permitida
         String origin = request.getHeader("Origin");
         java.util.Set<String> allowedOrigins = new java.util.HashSet<>(java.util.Arrays.asList(
-            "http://localhost:5173", 
-            "http://localhost:3000",
-            "http://127.0.0.1:5173",
-            "http://127.0.0.1:3000"
+                "http://localhost:5173",
+                "http://localhost:3000",
+                "http://127.0.0.1:5173",
+                "http://127.0.0.1:3000"
         ));
 
         if (origin != null && allowedOrigins.contains(origin)) {
             response.setHeader("Access-Control-Allow-Origin", origin);
             response.setHeader("Access-Control-Allow-Credentials", "true");
         } else {
-            // Por defecto, no permitir credenciales si no coincide el origen
-            response.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");
+            // No permitir CORS si el origen no está autorizado
+            response.setHeader("Access-Control-Allow-Origin", "");
         }
 
         response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
@@ -52,6 +52,11 @@ public class CorsFilter implements Filter {
         chain.doFilter(req, res);
     }
 
-    @Override public void init(FilterConfig fc) {}
-    @Override public void destroy() {}
+    @Override
+    public void init(FilterConfig fc) {
+    }
+
+    @Override
+    public void destroy() {
+    }
 }
