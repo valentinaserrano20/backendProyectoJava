@@ -90,4 +90,87 @@ public class UsuarioDAO {
             ps.executeUpdate();
         }
     }
+    
+    // ADICIÓN: Retorna el usuario por ID para la validación del perfil en el Home del Voluntario.
+    // Consulta la columna genero_id real de la tabla usuarios.
+    public Usuario obtenerPorId(int id) throws SQLException {
+        String sql = "SELECT id, nombre, apellido, email, genero_id, rol_id, organizacion_id, estado_id "
+                   + "FROM usuarios WHERE id = ?";
+                   
+        try (Connection con = Conexion.obtener();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setInt(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    Usuario u = new Usuario();
+                    u.setId(rs.getInt("id"));
+                    u.setNombre(rs.getString("nombre"));
+                    u.setApellido(rs.getString("apellido"));
+                    u.setEmail(rs.getString("email"));
+                    u.setRolId(rs.getInt("rol_id"));
+                    u.setEstadoId(rs.getInt("estado_id"));
+                    u.setOrganizacionId(rs.getObject("organizacion_id") != null
+                            ? rs.getInt("organizacion_id")
+                            : null);
+                    
+                    // Como la base de datos usa genero_id (INT) según tu método registrar,
+                    u.setGeneroId(rs.getInt("genero_id"));
+                    
+                    return u;
+                }
+                return null;
+            }
+        }
+    }
+    
+    // =========================================================================
+    // MÓDULO: RECUPERACIÓN DE CONTRASEÑA
+    // =========================================================================
+
+    /**
+     * Inyecta el token temporal y su marca de tiempo de expiración al usuario.
+     */
+    public void guardarTokenRecuperacion(String email, String token, java.sql.Timestamp expiracion) throws SQLException {
+        String sql = "UPDATE usuarios SET reset_token = ?, reset_token_expiry = ? WHERE email = ?";
+        try (Connection con = Conexion.obtener();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, token);
+            ps.setTimestamp(2, expiracion);
+            ps.setString(3, email);
+            ps.executeUpdate();
+        }
+    }
+
+    /**
+     * Busca si existe un usuario con ese token exacto y si aún no ha expirado (reset_token_expiry > NOW()).
+     */
+    public Usuario obtenerPorTokenValido(String token) throws SQLException {
+        String sql = "SELECT id, email FROM usuarios WHERE reset_token = ? AND reset_token_expiry > NOW()";
+        try (Connection con = Conexion.obtener();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, token);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    Usuario u = new Usuario();
+                    u.setId(rs.getInt("id"));
+                    u.setEmail(rs.getString("email"));
+                    return u;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Aplica la nueva contraseña hasheada y borra las credenciales del token por seguridad.
+     */
+    public void actualizarContrasenaYLimpiarToken(int usuarioId, String nuevaContrasenaHashed) throws SQLException {
+        String sql = "UPDATE usuarios SET contraseña = ?, reset_token = NULL, reset_token_expiry = NULL WHERE id = ?";
+        try (Connection con = Conexion.obtener();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, nuevaContrasenaHashed);
+            ps.setInt(2, usuarioId);
+            ps.executeUpdate();
+        }
+    }
 }

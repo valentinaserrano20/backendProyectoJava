@@ -15,6 +15,10 @@
             <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Controlador/Auth/LoginServlet.java</file>
             <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Modelo/Utilidades/ResultSetMapper.java</file>
             <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Controlador/Auth/RegisterServlet.java</file>
+            <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Modelo/Servicios/Auth/AuthServicio.java</file>
+            <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Controlador/Auth/ProfileServlet.java</file>
+            <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Modelo/Utilidades/CorreoUtil.java</file>
+            <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Controlador/Auth/ForgotPasswordServlet.java</file>
         </group>
     </open-files>
 </project-private>
