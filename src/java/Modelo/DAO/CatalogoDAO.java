@@ -6,6 +6,8 @@ import Modelo.Config.Conexion;
 import Modelo.DTO.GeneroDTO;
 import Modelo.DTO.OrganizacionDTO;
 import Modelo.DTO.TipoDocumentoDTO;
+import Modelo.DTO.UbicacionDTO; // CORREGIDO: Importación requerida para mapear las zonas
+
 // Importa las clases de JDBC para manejar conexiones y consultas a MySQL
 import java.sql.Connection;          // Representa la conexión física con la base de datos
 import java.sql.PreparedStatement;  // Permite ejecutar consultas SQL parametrizadas de forma segura
@@ -14,7 +16,7 @@ import java.sql.SQLException;        // Excepción que se lanza cuando ocurre un
 import java.util.ArrayList;          // Implementación de lista dinámica para almacenar los resultados
 import java.util.List;               // Interfaz genérica para trabajar con colecciones de datos
 
-//Retorna colecciones de DTOs en lugar de JSON org.json.JSONArray para cumplir con la arquitectura MVC limpia
+// Retorna colecciones de DTOs en lugar de JSON org.json.JSONArray para cumplir con la arquitectura MVC limpia
 public class CatalogoDAO {
 
     // Método que obtiene todos los tipos de documento de la base de datos
@@ -102,6 +104,60 @@ public class CatalogoDAO {
                 lista.add(dto);
             }
             // Se retorna la lista completa con todas las organizaciones encontradas en la base de datos
+            return lista;
+        }
+    }
+
+    // Método que obtiene los tipos de zona residencial (Urbana / Rural)
+    public List<UbicacionDTO> getTiposZona() throws SQLException {
+        String sql = "SELECT id, nombre FROM tipos_zona WHERE activo = 1";
+        try (Connection con = Conexion.obtener();
+             PreparedStatement ps = con.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            List<UbicacionDTO> lista = new ArrayList<>();
+            while (rs.next()) {
+                lista.add(new UbicacionDTO(rs.getInt("id"), rs.getString("nombre")));
+            }
+            return lista;
+        }
+    }
+
+    // Método que obtiene todos los sectores geográficos activos de la base de datos
+    public List<UbicacionDTO> getSectores() throws SQLException {
+        // Sentencia SQL para seleccionar el ID y nombre de los sectores que se encuentran activos (activo = 1)
+        String sql = "SELECT id, nombre FROM sectores WHERE activo = 1";
+        // Abre la conexión y prepara la consulta parametrizada de JDBC
+        try (Connection con = Conexion.obtener();
+             PreparedStatement ps = con.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            // Inicializa la lista dinámica para almacenar los sectores mapeados a UbicacionDTO
+            List<UbicacionDTO> lista = new ArrayList<>();
+            // Recorre cada registro devuelto por la base de datos
+            while (rs.next()) {
+                // Instancia el DTO genérico UbicacionDTO con el ID y el nombre del sector y lo agrega a la lista
+                lista.add(new UbicacionDTO(rs.getInt("id"), rs.getString("nombre")));
+            }
+            // Retorna el listado completo de sectores
+            return lista;
+        }
+    }
+
+    // Método que obtiene todos los regímenes o calidades de vivienda activos de la base de datos
+    public List<UbicacionDTO> getCalidadesVivienda() throws SQLException {
+        // Sentencia SQL para seleccionar el ID y nombre de las calidades de vivienda que se encuentran activas (activo = 1)
+        String sql = "SELECT id, nombre FROM calidad_vivienda WHERE activo = 1";
+        // Abre la conexión y prepara la consulta de forma segura
+        try (Connection con = Conexion.obtener();
+             PreparedStatement ps = con.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            // Inicializa la lista para almacenar las calidades de vivienda
+            List<UbicacionDTO> lista = new ArrayList<>();
+            // Recorre cada fila devuelta por la consulta
+            while (rs.next()) {
+                // Mapea la fila al DTO UbicacionDTO y lo añade al listado de retorno
+                lista.add(new UbicacionDTO(rs.getInt("id"), rs.getString("nombre")));
+            }
+            // Retorna la lista completa
             return lista;
         }
     }

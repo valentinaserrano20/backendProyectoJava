@@ -34,6 +34,31 @@ public class CatalogoServicio {
                 // AGREGADO: Serializa la lista de OrganizacionDTO a JSONArray
                 data = new JSONArray(catalogoDAO.getOrganizaciones());
                 break;
+            
+            case "/zones":
+                // Mapea la obtención de los tipos de zona (Urbana / Rural)
+                data = new JSONArray(catalogoDAO.getTiposZona());
+                break;
+
+            case "/sectors":
+                // Mapea la obtención de todos los sectores activos desde la base de datos
+                data = new JSONArray(catalogoDAO.getSectores());
+                break;
+
+            case "/housingQualities":
+                // Mapea la obtención de los regímenes de calidad de vivienda activos desde la base de datos
+                data = new JSONArray(catalogoDAO.getCalidadesVivienda());
+                break;
+
+            case "/departments":
+                // Como no manejas tabla departamentos, devolvemos una estructura homogénea fija para cumplir la SPA
+                data = new JSONArray("[{\"id\": 1, \"nombre\": \"Santander\"}]");
+                break;
+
+            case "/cities/department/1":
+                // Mapeamos las ciudades directo a tus organizaciones de la Defensa Civil
+                data = new JSONArray(catalogoDAO.getOrganizaciones());
+                break;
 
             default:
 

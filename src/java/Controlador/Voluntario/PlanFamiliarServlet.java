@@ -1,0 +1,262 @@
+package Controlador.Voluntario;
+
+import Modelo.DTO.RegistroPlanDTO;
+import Modelo.DTO.ActualizarIdentificacionDTO;
+import Modelo.Servicios.Voluntario.PlanFamiliarServicio;
+import Modelo.Servicios.Voluntario.VulnerabilidadServicio;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.annotation.WebServlet;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
+import java.io.BufferedReader;
+import java.io.IOException;
+import org.json.JSONObject;
+
+// Servlet mapeado a /api/familyPlans/* para gestionar el registro inicial y actualizaciones de planes familiares
+@WebServlet("/api/familyPlans/*")
+public class PlanFamiliarServlet extends HttpServlet {
+    // Instancia el servicio de registro y consulta de planes familiares
+    private final PlanFamiliarServicio planServicio = new PlanFamiliarServicio();
+    // Instancia el servicio de vulnerabilidades para el cambio de estado de planes
+    private final VulnerabilidadServicio vulServicio = new VulnerabilidadServicio();
+
+    // Sobrescribe service para capturar peticiones PATCH y redirigirlas a doPatch
+    @Override
+    protected void service(HttpServletRequest req, HttpServletResponse resp) 
+            throws ServletException, IOException {
+        // Obtiene el verbo HTTP de la solicitud
+        String method = req.getMethod();
+        // Si es una petición PATCH, delega a nuestro manejador personalizado
+        if (method.equalsIgnoreCase("PATCH")) {
+            doPatch(req, resp);
+        } else {
+            // Si es otro método (GET/POST), continúa el ciclo de vida estándar
+            super.service(req, resp);
+        }
+    }
+
+    // Intercepta peticiones HTTP GET para consultar el detalle de un plan familiar específico (precarga)
+    @Override
+    protected void doGet(HttpServletRequest request, HttpServletResponse response) 
+            throws ServletException, IOException {
+        
+        // Define el tipo de contenido a JSON
+        response.setContentType("application/json");
+        // Configura la codificación
+        response.setCharacterEncoding("UTF-8");
+
+        // Valida la sesión activa de usuario
+        HttpSession session = request.getSession(false);
+        if (session == null || session.getAttribute("usuarioId") == null) {
+            // Retorna HTTP 401 si no está autenticado
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Inicie sesión.").toString());
+            return;
+        }
+
+        // Obtiene la parte de la URL con el ID del plan solicitado (ej: /12)
+        String pathInfo = request.getPathInfo();
+        if (pathInfo == null || pathInfo.equals("/")) {
+            // Retorna HTTP 400 si no se especificó un ID de plan
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            response.getWriter().write(new JSONObject().put("success", false).put("message", "ID de plan familiar no provisto.").toString());
+            return;
+        }
+
+        // Divide las partes de la ruta de la URL por diagonales
+        String[] partes = pathInfo.split("/");
+        try {
+            // Intenta extraer el ID del plan familiar desde la primera posición
+            int planId = Integer.parseInt(partes[1]);
+            // Invoca al servicio para obtener el JSON del plan detallado
+            String json = planServicio.obtenerPlanDetallado(planId);
+            // Envía la respuesta al frontend
+            response.getWriter().write(json);
+        } catch (NumberFormatException e) {
+            // Si el ID del plan no es numérico, retorna HTTP 400
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            response.getWriter().write(new JSONObject().put("success", false).put("message", "ID del plan debe ser numérico.").toString());
+        } catch (Exception e) {
+            // Captura cualquier otro fallo general
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            response.getWriter().write(new JSONObject().put("success", false).put("message", "Error de lectura en el servidor: " + e.getMessage()).toString());
+        }
+    }
+
+    // Intercepta peticiones HTTP POST para crear e inicializar un nuevo plan familiar (Paso 1)
+    @Override
+    protected void doPost(HttpServletRequest request, HttpServletResponse response) 
+            throws ServletException, IOException {
+        
+        // Define el tipo de contenido a JSON
+        response.setContentType("application/json");
+        // Configura la codificación
+        response.setCharacterEncoding("UTF-8");
+
+        // Obtiene la sesión actual
+        HttpSession session = request.getSession(false);
+        // Valida la sesión
+        if (session == null || session.getAttribute("usuarioId") == null) {
+            // Establece HTTP 401 si no está autorizado
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Inicie sesión.").toString());
+            return;
+        }
+
+        // Inicializa un buffer de cadenas para leer el stream
+        StringBuilder buffer = new StringBuilder();
+        String linea;
+        // Abre el lector para procesar el cuerpo de la petición
+        try (BufferedReader reader = request.getReader()) {
+            while ((linea = reader.readLine()) != null) {
+                // Acumula la línea
+                buffer.append(linea);
+            }
+        }
+
+        try {
+            // Parsea la cadena leída a objeto JSON
+            JSONObject json = new JSONObject(buffer.toString());
+            
+            // Instancia el DTO para el registro inicial del plan familiar
+            RegistroPlanDTO dto = new RegistroPlanDTO();
+            // Asigna los apellidos familiares
+            dto.setLastNames(json.optString("last_names"));
+            // Asigna el ID de la zona
+            dto.setZoneId(json.optInt("zone_id"));
+            // Asigna el ID de la organización
+            dto.setOrganizacionId(json.optInt("city_id"));
+            // Inyecta de forma segura el ID de usuario desde la sesión
+            dto.setUserId((int) session.getAttribute("usuarioId"));
+
+            // Invoca al servicio para registrar el plan familiar e inicializarlo
+            String jsonRespuesta = planServicio.registrarNuevoPlan(dto);
+            // Envía el JSON al cliente
+            response.getWriter().write(jsonRespuesta);
+
+        } catch (Exception e) {
+            // Establece HTTP 400 si el JSON está mal formado o hay errores inesperados
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            response.getWriter().write(new JSONObject().put("success", false).put("message", "JSON mal formado.").toString());
+        }
+    }
+
+    // Manejador personalizado para procesar peticiones HTTP PATCH (ej. cambiar estado o guardar identificación)
+    protected void doPatch(HttpServletRequest request, HttpServletResponse response) 
+            throws ServletException, IOException {
+        
+        // Define el tipo de contenido a JSON
+        response.setContentType("application/json");
+        // Configura la codificación
+        response.setCharacterEncoding("UTF-8");
+
+        // Obtiene la sesión activa
+        HttpSession session = request.getSession(false);
+        // Valida la sesión
+        if (session == null || session.getAttribute("usuarioId") == null) {
+            // Establece HTTP 401 si no está autorizado
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Inicie sesión.").toString());
+            return;
+        }
+
+        // Obtiene la ruta relativa solicitada (ej. /12/identify)
+        String pathInfo = request.getPathInfo();
+        // Valida que la ruta no esté vacía
+        if (pathInfo == null || pathInfo.equals("/")) {
+            // Establece HTTP 400
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            response.getWriter().write(new JSONObject().put("success", false).put("message", "Acción no especificada.").toString());
+            return;
+        }
+
+        // Divide la ruta por diagonales para extraer el ID y la acción
+        String[] partes = pathInfo.split("/");
+        // Si no cumple con la estructura esperada /id/accion
+        if (partes.length < 3) {
+            // Establece HTTP 400
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            response.getWriter().write(new JSONObject().put("success", false).put("message", "URL mal estructurada.").toString());
+            return;
+        }
+
+        try {
+            // Obtiene el ID del plan familiar desde la ruta de la URL
+            int planId = Integer.parseInt(partes[1]);
+            // Obtiene el nombre de la acción (ej. identify / change-status)
+            String accion = partes[2];
+
+            // Escenario 1: Cambiar el estado del plan
+            if (accion.equals("change-status")) {
+                // Lee el cuerpo de la petición HTTP
+                StringBuilder buffer = new StringBuilder();
+                String linea;
+                try (BufferedReader reader = request.getReader()) {
+                    while ((linea = reader.readLine()) != null) {
+                        buffer.append(linea);
+                    }
+                }
+                
+                // Parsea el cuerpo a objeto JSON
+                JSONObject json = new JSONObject(buffer.toString());
+                // Obtiene el ID del nuevo estado solicitado
+                int statusPlanId = json.getInt("status_plan_id");
+
+                // Llama al servicio para actualizar el estado del plan familiar
+                String resJson = vulServicio.cambiarEstadoPlan(planId, statusPlanId);
+                // Envía el JSON de confirmación al cliente
+                response.getWriter().write(resJson);
+            } 
+            // Escenario 2: Guardar los datos de identificación detallados de la vivienda (PATCH de identificación)
+            else if (accion.equals("identify")) {
+                // Lee el cuerpo de la petición HTTP
+                StringBuilder buffer = new StringBuilder();
+                String linea;
+                try (BufferedReader reader = request.getReader()) {
+                    while ((linea = reader.readLine()) != null) {
+                        buffer.append(linea);
+                    }
+                }
+
+                // Parsea el JSON del cuerpo
+                JSONObject json = new JSONObject(buffer.toString());
+                
+                // Instancia el DTO para capturar los datos de la vivienda
+                ActualizarIdentificacionDTO dto = new ActualizarIdentificacionDTO();
+                // Asigna los apellidos familiares
+                dto.setLastNames(json.getString("last_names"));
+                // Asigna la dirección
+                dto.setAddress(json.getString("address"));
+                // Asigna el identificador del sector
+                dto.setSectorId(json.getInt("sector_id"));
+                // Asigna el nombre de barrio/sector
+                dto.setSectorName(json.getString("sector_name"));
+                // Asigna el teléfono fijo
+                dto.setLandlinePhone(json.optString("landline_phone"));
+                // Asigna el identificador de calidad de vivienda
+                dto.setHousingQualityId(json.getInt("housing_quality_id"));
+
+                // Invoca al servicio para actualizar los datos detallados de la vivienda
+                String resJson = planServicio.guardarIdentificacion(planId, dto);
+                // Envía la respuesta JSON al cliente
+                response.getWriter().write(resJson);
+            }
+            // Si la acción solicitada no está implementada
+            else {
+                // Establece HTTP 404 (No Encontrado)
+                response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+                response.getWriter().write(new JSONObject().put("success", false).put("message", "Acción no reconocida.").toString());
+            }
+        } catch (NumberFormatException e) {
+            // Establece HTTP 400 si el ID del plan en la URL no es numérico
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            response.getWriter().write(new JSONObject().put("success", false).put("message", "ID del plan debe ser un número entero.").toString());
+        } catch (Exception e) {
+            // Captura cualquier otro fallo general y establece HTTP 400
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            response.getWriter().write(new JSONObject().put("success", false).put("message", "Error al procesar la petición PATCH: " + e.getMessage()).toString());
+        }
+    }
+}

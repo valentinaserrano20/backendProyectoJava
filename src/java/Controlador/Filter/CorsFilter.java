@@ -39,7 +39,8 @@ public class CorsFilter implements Filter {
             response.setHeader("Access-Control-Allow-Origin", "");
         }
 
-        response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        // MODIFICADO: Se añade 'PATCH' a la lista de métodos HTTP permitidos en CORS para posibilitar el guardado parcial de formularios como la identificación familiar
+        response.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
         response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
         response.setHeader("Access-Control-Max-Age", "3600");
 
