@@ -35,14 +35,18 @@ public class AuthServicio {
         // Buscar usuario en BD por su email únicamente
         Usuario usuario = usuarioDAO.obtenerPorEmail(email);
 
-        // Validación #1: Si no existe el email
+        // Sirve para: Verificar si el correo ingresado existe en la base de datos
+        // Qué hace: Lanza una excepción específica si no se encuentra ningún registro
+        // Por qué es importante: Provee feedback claro al usuario indicando que el correo no está registrado
         if (usuario == null) {
-            throw new Exception("Credenciales incorrectas");
+            throw new Exception("El correo electrónico no se encuentra registrado.");
         }
 
-        // Validación #2: Verificar la contraseña con el hash guardado en la BD
+        // Sirve para: Validar la contraseña contra el hash de BCrypt almacenado
+        // Qué hace: Lanza una excepción específica si la contraseña no coincide
+        // Por qué es importante: Indica de forma precisa que la contraseña ingresada para el correo es incorrecta
         if (!BCrypt.checkpw(password, usuario.getContrasena())) {
-            throw new Exception("Credenciales incorrectas");
+            throw new Exception("La contraseña ingresada es incorrecta.");
         }
 
         // Validación #3: Verificar estado de cuenta

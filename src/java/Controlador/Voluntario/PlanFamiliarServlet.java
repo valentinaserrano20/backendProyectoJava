@@ -8,7 +8,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletResponse; 
 import jakarta.servlet.http.HttpSession;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -37,7 +37,7 @@ public class PlanFamiliarServlet extends HttpServlet {
         }
     }
 
-    // Intercepta peticiones HTTP GET para consultar el detalle de un plan familiar específico (precarga)
+    // Intercepta peticiones HTTP GET para consultar el detalle de un plan familiar específico o acciones de validación
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) 
             throws ServletException, IOException {
@@ -56,10 +56,10 @@ public class PlanFamiliarServlet extends HttpServlet {
             return;
         }
 
-        // Obtiene la parte de la URL con el ID del plan solicitado (ej: /12)
+        // Obtiene la parte de la URL con el ID del plan o la acción solicitada (ej: /check-access/11 o /12)
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || pathInfo.equals("/")) {
-            // Retorna HTTP 400 si no se especificó un ID de plan
+            // Retorna HTTP 400 si no se especificó un ID de plan o acción
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
             response.getWriter().write(new JSONObject().put("success", false).put("message", "ID de plan familiar no provisto.").toString());
             return;
@@ -67,13 +67,53 @@ public class PlanFamiliarServlet extends HttpServlet {
 
         // Divide las partes de la ruta de la URL por diagonales
         String[] partes = pathInfo.split("/");
+        
+        // Sirve para: Enrutar dinámicamente las solicitudes GET de consulta y validación del plan familiar
+        // Qué hace: Evalúa si el primer segmento solicita 'check-access' o 'has-members' para procesarlas de manera especializada; de lo contrario, asume que es el ID del plan familiar directo
+        // Por qué es importante: Evita errores de parseo numérico cuando el frontend consulta sub-recursos bajo /api/familyPlans
         try {
-            // Intenta extraer el ID del plan familiar desde la primera posición
-            int planId = Integer.parseInt(partes[1]);
-            // Invoca al servicio para obtener el JSON del plan detallado
-            String json = planServicio.obtenerPlanDetallado(planId);
-            // Envía la respuesta al frontend
-            response.getWriter().write(json);
+            if (partes[1].equals("check-access")) {
+                // Sirve para: Validar si la petición de acceso trae un ID de plan
+                // Qué hace: Comprueba la longitud de los segmentos y devuelve HTTP 400 si no está el ID del plan
+                // Por qué es importante: Previene fallas por índices fuera de rango al acceder a partes[2]
+                if (partes.length < 3) {
+                    response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                    response.getWriter().write(new JSONObject().put("success", false).put("message", "ID de plan no provisto para verificación.").toString());
+                    return;
+                }
+                // Parsea el ID del plan desde el segundo segmento
+                int planId = Integer.parseInt(partes[2]);
+                // Obtiene el ID del usuario en sesión
+                int usuarioId = (int) session.getAttribute("usuarioId");
+                // Llama al servicio para validar los permisos
+                String jsonRespuesta = planServicio.verificarAccesoAPlan(planId, usuarioId);
+                // Retorna la respuesta de acceso en formato JSON
+                response.getWriter().write(jsonRespuesta);
+                
+            } else if (partes[1].equals("has-members")) {
+                // Sirve para: Validar si la petición de conteo de integrantes trae un ID de plan
+                // Qué hace: Comprueba la longitud de los segmentos y devuelve HTTP 400 si falta el ID
+                // Por qué es importante: Garantiza que se envíe el ID de plan necesario para la consulta en base de datos
+                if (partes.length < 3) {
+                    response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                    response.getWriter().write(new JSONObject().put("success", false).put("message", "ID de plan no provisto para validar integrantes.").toString());
+                    return;
+                }
+                // Parsea el ID del plan del segundo segmento
+                int planId = Integer.parseInt(partes[2]);
+                // Llama al servicio para validar si tiene integrantes
+                String jsonRespuesta = planServicio.verificarTieneIntegrantes(planId);
+                // Retorna la respuesta de integrantes en formato JSON
+                response.getWriter().write(jsonRespuesta);
+                
+            } else {
+                // Intenta extraer el ID del plan familiar desde la primera posición
+                int planId = Integer.parseInt(partes[1]);
+                // Invoca al servicio para obtener el JSON del plan detallado
+                String json = planServicio.obtenerPlanDetallado(planId);
+                // Envía la respuesta al frontend
+                response.getWriter().write(json);
+            }
         } catch (NumberFormatException e) {
             // Si el ID del plan no es numérico, retorna HTTP 400
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
@@ -81,7 +121,7 @@ public class PlanFamiliarServlet extends HttpServlet {
         } catch (Exception e) {
             // Captura cualquier otro fallo general
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Error de lectura en el servidor: " + e.getMessage()).toString());
+            response.getWriter().write(new JSONObject().put("success", false).put("message", "Error al procesar la petición GET: " + e.getMessage()).toString());
         }
     }
 
@@ -210,6 +250,9 @@ public class PlanFamiliarServlet extends HttpServlet {
                 response.getWriter().write(resJson);
             } 
             // Escenario 2: Guardar los datos de identificación detallados de la vivienda (PATCH de identificación)
+            // Sirve para: Interceptar la petición de actualización de datos de la vivienda y del sector
+            // Qué hace: Lee el stream del JSON body, parsea dirección, sector, barrio, zona, teléfono y calidad, y llama al servicio
+            // Por qué es importante: Permite persistir los cambios hechos en el formulario del frontend de forma estructurada
             else if (accion.equals("identify")) {
                 // Lee el cuerpo de la petición HTTP
                 StringBuilder buffer = new StringBuilder();
@@ -237,6 +280,8 @@ public class PlanFamiliarServlet extends HttpServlet {
                 dto.setLandlinePhone(json.optString("landline_phone"));
                 // Asigna el identificador de calidad de vivienda
                 dto.setHousingQualityId(json.getInt("housing_quality_id"));
+                // Asigna el identificador del tipo de zona
+                dto.setZoneId(json.getInt("zone_id"));
 
                 // Invoca al servicio para actualizar los datos detallados de la vivienda
                 String resJson = planServicio.guardarIdentificacion(planId, dto);

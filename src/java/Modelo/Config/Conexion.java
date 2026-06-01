@@ -6,10 +6,10 @@ import java.sql.SQLException;
 
 public class Conexion {
 
-    // URL directa a tu MySQL local
+    // URL directa a  MySQL local
     private static final String URL = "jdbc:mysql://localhost:3306/planEmergenciaDC?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
-    private static final String USER = "root"; // Tu usuario de MySQL
-    private static final String PASS = "Sol2004."; // <--- CAMBIA ESTO
+    private static final String USER = "root"; //usuario de MySQL
+    private static final String PASS = "#Aprendiz2024"; 
 
     static {
         try {

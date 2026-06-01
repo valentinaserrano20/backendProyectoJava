@@ -105,13 +105,16 @@ public class LoginServlet extends HttpServlet {
         } catch (Exception e) {
             String msg = e.getMessage();
 
-            // CORREGIDO: Retornar códigos de estado HTTP correctos en lugar de siempre 500
-            if ("Credenciales incorrectas".equals(msg)) {
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED); // 401
+            // Sirve para: Retornar los códigos de estado HTTP correspondientes según la naturaleza de la excepción
+            // Qué hace: Si el correo no está registrado o la contraseña es inválida, retorna 401. Si la cuenta está inactiva, retorna 403. Para otros errores, retorna 500.
+            // Por qué es importante: Permite al cliente frontend diferenciar las validaciones de negocio de los fallos internos del servidor
+            if ("El correo electrónico no se encuentra registrado.".equals(msg) || 
+                "La contraseña ingresada es incorrecta.".equals(msg)) {
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED); // 401 Unauthorized
             } else if ("Tu cuenta aún no está activa".equals(msg)) {
-                response.setStatus(HttpServletResponse.SC_FORBIDDEN); // 403
+                response.setStatus(HttpServletResponse.SC_FORBIDDEN); // 403 Forbidden
             } else {
-                response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR); // 500
+                response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR); // 500 Internal Server Error
             }
 
             JSONObject error = new JSONObject();
