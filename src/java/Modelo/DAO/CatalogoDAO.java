@@ -7,6 +7,7 @@ import Modelo.DTO.GeneroDTO;
 import Modelo.DTO.OrganizacionDTO;
 import Modelo.DTO.TipoDocumentoDTO;
 import Modelo.DTO.UbicacionDTO; // CORREGIDO: Importación requerida para mapear las zonas
+import Modelo.DTO.TipoRecursoDTO;
 
 // Importa las clases de JDBC para manejar conexiones y consultas a MySQL
 import java.sql.Connection;          // Representa la conexión física con la base de datos
@@ -161,4 +162,141 @@ public class CatalogoDAO {
             return lista;
         }
     }
-}
+
+    // Qué hace: Obtiene todos los parentescos activos de la base de datos para mapearlos a objetos UbicacionDTO.
+    // Por qué existe: Suministra las opciones de parentesco para la creación de integrantes en el formulario familiar.
+    // Qué problema resuelve: Permite poblar dinámicamente las relaciones de parentesco en la UI en lugar de dejarlas fijas en el código.
+    public List<UbicacionDTO> getParentescos() throws SQLException {
+        String sql = "SELECT id, nombre FROM parentescos WHERE activo = 1";
+        try (Connection con = Conexion.obtener();
+             PreparedStatement ps = con.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            List<UbicacionDTO> lista = new ArrayList<>();
+            while (rs.next()) {
+                lista.add(new UbicacionDTO(rs.getInt("id"), rs.getString("nombre")));
+            }
+            return lista;
+        }
+    }
+
+    // Qué hace: Obtiene todos los grupos sanguíneos activos de la base de datos y los mapea a UbicacionDTO.
+    // Por qué existe: Provee las opciones de tipos de sangre para la ficha demográfica y de salud del integrante.
+    // Qué problema resuelve: Evita la captura libre de texto o listas harcodeadas propensas a errores ortográficos o inconsistencias médicas.
+    public List<UbicacionDTO> getGruposSanguineos() throws SQLException {
+        String sql = "SELECT id, nombre FROM grupos_sanguineos WHERE activo = 1";
+        try (Connection con = Conexion.obtener();
+             PreparedStatement ps = con.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            List<UbicacionDTO> lista = new ArrayList<>();
+            while (rs.next()) {
+                lista.add(new UbicacionDTO(rs.getInt("id"), rs.getString("nombre")));
+            }
+            return lista;
+        }
+    }
+
+    // Qué hace: Obtiene todas las nacionalidades activas de la base de datos y las mapea a UbicacionDTO.
+    // Por qué existe: Suministra las opciones de país/nacionalidad de origen del familiar en los formularios del plan de emergencia.
+    // Qué problema resuelve: Garantiza que los registros de nacionalidad coincidan estrictamente con las opciones homologadas en la base de datos.
+    public List<UbicacionDTO> getNacionalidades() throws SQLException {
+        String sql = "SELECT id, nombre FROM nacionalidades WHERE activo = 1";
+        try (Connection con = Conexion.obtener();
+             PreparedStatement ps = con.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            List<UbicacionDTO> lista = new ArrayList<>();
+            while (rs.next()) {
+                lista.add(new UbicacionDTO(rs.getInt("id"), rs.getString("nombre")));
+            }
+            return lista;
+        }
+    }
+
+    // Qué hace: Obtiene todas las especies de mascotas activas de la base de datos y las mapea a UbicacionDTO.
+    // Por qué existe: Suministra las opciones de especie animal para la creación y edición de mascotas de la familia.
+    // Qué problema resuelve: Permite poblar dinámicamente las especies registradas en MySQL para evitar valores inconsistentes.
+    public List<UbicacionDTO> getEspeciesMascota() throws SQLException {
+        String sql = "SELECT id, nombre FROM especies_mascota WHERE activo = 1";
+        try (Connection con = Conexion.obtener();
+             PreparedStatement ps = con.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            List<UbicacionDTO> lista = new ArrayList<>();
+            while (rs.next()) {
+                lista.add(new UbicacionDTO(rs.getInt("id"), rs.getString("nombre")));
+            }
+            return lista;
+        }
+    }
+
+    // Qué hace: Obtiene los géneros de mascota activos de la base de datos.
+    // Por qué existe: Suministra las opciones de género para la creación y edición de mascotas.
+    // Qué problema resuelve: Permite poblar dinámicamente los géneros de mascota registrados.
+    public List<UbicacionDTO> getGenerosMascota() throws SQLException {
+        String sql = "SELECT id, nombre FROM generos_mascota WHERE activo = 1";
+        try (Connection con = Conexion.obtener();
+             PreparedStatement ps = con.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            List<UbicacionDTO> lista = new ArrayList<>();
+            while (rs.next()) {
+                lista.add(new UbicacionDTO(rs.getInt("id"), rs.getString("nombre")));
+            }
+            return lista;
+        }
+    }
+
+    // Qué hace: Obtiene todas las amenazas o tipos de riesgo activos de la base de datos.
+    // Por qué existe: Provee las opciones de amenazas para el select del formulario de factores de riesgo.
+    // Qué problema resuelve: Permite poblar dinámicamente las amenazas registradas en la base de datos.
+    public List<UbicacionDTO> getAmenazas() throws SQLException {
+        String sql = "SELECT id, nombre FROM amenazas WHERE activo = 1";
+        try (Connection con = Conexion.obtener();
+             PreparedStatement ps = con.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            List<UbicacionDTO> lista = new ArrayList<>();
+            while (rs.next()) {
+                lista.add(new UbicacionDTO(rs.getInt("id"), rs.getString("nombre")));
+            }
+            return lista;
+        }
+    }
+
+    // Qué hace: Obtiene todas las vulnerabilidades activas de la base de datos.
+    // Por qué existe: Suministra las opciones para asociar una vulnerabilidad a un factor de riesgo.
+    // Qué problema resuelve: Permite listar dinámicamente las vulnerabilidades de la base de datos.
+    public List<UbicacionDTO> getVulnerabilidades() throws SQLException {
+        String sql = "SELECT id, nombre FROM vulnerabilidades WHERE activo = 1";
+        try (Connection con = Conexion.obtener();
+             PreparedStatement ps = con.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            List<UbicacionDTO> lista = new ArrayList<>();
+            while (rs.next()) {
+                lista.add(new UbicacionDTO(rs.getInt("id"), rs.getString("nombre")));
+            }
+            return lista;
+        }
+    }
+
+    // Qué hace: Obtiene todos los tipos de recursos activos con sus respectivos servicios de emergencia asociados.
+    // Por qué existe: Alimenta el dropdown enlazado del formulario de creación y edición de recursos en el frontend.
+    // Qué problema resuelve: Combina de forma óptima las tablas de tipos de recurso y servicios mediante un LEFT JOIN en SQL.
+    public List<TipoRecursoDTO> getTiposRecurso() throws SQLException {
+        String sql = "SELECT tr.id, tr.nombre, tr.activo, se.nombre AS servicio "
+                   + "FROM tipos_recurso tr "
+                   + "LEFT JOIN servicios_emergencia se ON tr.servicio_id = se.id "
+                   + "WHERE tr.activo = 1";
+        
+        try (Connection con = Conexion.obtener();
+             PreparedStatement ps = con.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            List<TipoRecursoDTO> lista = new ArrayList<>();
+            while (rs.next()) {
+                TipoRecursoDTO dto = new TipoRecursoDTO();
+                dto.setId(rs.getInt("id"));
+                dto.setNombre(rs.getString("nombre"));
+                dto.setServicio(rs.getString("servicio") != null ? rs.getString("servicio") : "Otro");
+                dto.setActivo(rs.getInt("activo"));
+                lista.add(dto);
+            }
+            return lista;
+        }
+    }
+}

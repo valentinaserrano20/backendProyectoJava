@@ -215,4 +215,42 @@ public class IdentificacionPlanDTO {
     public void setHousingQualityId(int housingQualityId) {
         this.housingQualityId = housingQualityId;
     }
+
+    // Sirve para: Almacenar el ID del estado actual del plan familiar en progreso
+    // Qué hace: Guarda el entero que representa el estado (estado_id en la BD)
+    // Por qué es importante: Permite al frontend validar si el plan es editable o de solo lectura
+    private int statusPlanId;
+
+    // Sirve para: Almacenar la última observación de rechazo o comentario del supervisor
+    // Qué hace: Guarda la cadena de texto con las observaciones del seguimiento
+    // Por qué es importante: Informa al voluntario por qué fue devuelto el plan familiar para su corrección
+    private String comentary;
+
+    // Sirve para: Obtener el ID del estado del plan
+    // Qué hace: Retorna el entero statusPlanId
+    // Por qué es importante: Determina los permisos de edición basados en el estado del plan
+    public int getStatusPlanId() {
+        return statusPlanId;
+    }
+
+    // Sirve para: Asignar el ID del estado del plan
+    // Qué hace: Escribe el valor entero en statusPlanId
+    // Por qué es importante: Permite sincronizar el estado del plan desde la base de datos
+    public void setStatusPlanId(int statusPlanId) {
+        this.statusPlanId = statusPlanId;
+    }
+
+    // Sirve para: Obtener el comentario de observaciones
+    // Qué hace: Retorna la cadena comentary
+    // Por qué es importante: Permite desplegar el texto explicativo de las observaciones
+    public String getComentary() {
+        return comentary;
+    }
+
+    // Sirve para: Asignar el comentario de observaciones
+    // Qué hace: Escribe la cadena de texto en comentary
+    // Por qué es importante: Almacena la nota descriptiva asociada al rechazo/cambio de estado
+    public void setComentary(String comentary) {
+        this.comentary = comentary;
+    }
 }

@@ -1,4 +1,4 @@
-package Controlador.Voluntario;
+package Controlador.Voluntario.TestVulnerabilidad;
 
 import Modelo.DTO.RespuestaTestDTO;
 import Modelo.Servicios.Voluntario.VulnerabilidadServicio;
@@ -24,9 +24,9 @@ public class TestVulnerabilidadServlet extends HttpServlet {
 
     // Intercepta peticiones HTTP GET para la precarga de respuestas de la familia
     @Override
-    protected void doGet(HttpServletRequest request, HttpServletResponse response) 
+    protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        
+
         // Define el tipo de respuesta a JSON
         response.setContentType("application/json");
         // Establece la codificación UTF-8
@@ -73,9 +73,9 @@ public class TestVulnerabilidadServlet extends HttpServlet {
 
     // Intercepta peticiones HTTP POST para guardar el lote de respuestas y calificar la vulnerabilidad
     @Override
-    protected void doPost(HttpServletRequest request, HttpServletResponse response) 
+    protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        
+
         // Configura el tipo de contenido a JSON
         response.setContentType("application/json");
         // Establece la codificación de caracteres
@@ -98,7 +98,7 @@ public class TestVulnerabilidadServlet extends HttpServlet {
         String linea;
         // Abre el lector de flujo del cuerpo de la petición HTTP
         try (BufferedReader reader = request.getReader()) {
-            // Lee línea por línea el JSON enviado por el cliente
+            // Lee línea por línea el JSON enviado al cliente
             while ((linea = reader.readLine()) != null) {
                 // Acumula la línea en el buffer
                 buffer.append(linea);
@@ -108,12 +108,12 @@ public class TestVulnerabilidadServlet extends HttpServlet {
         try {
             // Instancia el objeto JSON a partir de la cadena leída del stream
             JSONObject json = new JSONObject(buffer.toString());
-            
+
             // Extrae el ID del plan familiar en progreso
             int planId = json.getInt("family_plan_id");
             // Extrae el arreglo JSON que contiene las respuestas (answers)
             JSONArray answersArray = json.getJSONArray("answers");
-            
+
             // Inicializa la lista de respuestas DTO
             List<RespuestaTestDTO> respuestas = new ArrayList<>();
             // Itera sobre los elementos del arreglo JSON de respuestas

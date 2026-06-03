@@ -59,9 +59,30 @@ public class PlanFamiliarServlet extends HttpServlet {
         // Obtiene la parte de la URL con el ID del plan o la acción solicitada (ej: /check-access/11 o /12)
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || pathInfo.equals("/")) {
-            // Retorna HTTP 400 si no se especificó un ID de plan o acción
-            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "ID de plan familiar no provisto.").toString());
+            // Sirve para: Resolver el listado paginado de planes cuando no hay un pathInfo específico
+            // Qué hace: Obtiene el ID del voluntario de la sesión, extrae la página de los parámetros de consulta y llama al servicio
+            // Por qué es importante: El frontend llama a /api/familyPlans pasándole el parámetro de página para pintar el listado principal
+            try {
+                // Recupera el ID del voluntario en sesión
+                int usuarioId = (int) session.getAttribute("usuarioId");
+                // Recupera el parámetro 'page' de la URL
+                String pageParam = request.getParameter("page");
+                // Inicializa la página por defecto en 1
+                int page = 1;
+                // Si el parámetro existe y no está vacío
+                if (pageParam != null && !pageParam.trim().isEmpty()) {
+                    // Parsea la página recibida
+                    page = Integer.parseInt(pageParam);
+                }
+                // Llama al servicio para obtener los planes de forma paginada
+                String jsonRespuesta = planServicio.listarPlanesPaginado(usuarioId, page);
+                // Escribe la respuesta JSON en el body
+                response.getWriter().write(jsonRespuesta);
+            } catch (Exception e) {
+                // Si ocurre un error inesperado, responde con HTTP 500
+                response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+                response.getWriter().write(new JSONObject().put("success", false).put("message", "Error al procesar listado de planes: " + e.getMessage()).toString());
+            }
             return;
         }
 
@@ -243,9 +264,14 @@ public class PlanFamiliarServlet extends HttpServlet {
                 JSONObject json = new JSONObject(buffer.toString());
                 // Obtiene el ID del nuevo estado solicitado
                 int statusPlanId = json.getInt("status_plan_id");
+                
+                // Obtiene el comentario opcional si existe en el JSON
+                String comentary = json.has("comentary") && !json.isNull("comentary") ? json.getString("comentary") : null;
+                // Obtiene de forma segura el ID del usuario gestor activo desde la sesión
+                int usuarioId = (int) session.getAttribute("usuarioId");
 
-                // Llama al servicio para actualizar el estado del plan familiar
-                String resJson = vulServicio.cambiarEstadoPlan(planId, statusPlanId);
+                // Llama al servicio para actualizar el estado del plan familiar e insertar en el seguimiento
+                String resJson = vulServicio.cambiarEstadoPlan(planId, statusPlanId, comentary, usuarioId);
                 // Envía el JSON de confirmación al cliente
                 response.getWriter().write(resJson);
             } 
@@ -280,8 +306,8 @@ public class PlanFamiliarServlet extends HttpServlet {
                 dto.setLandlinePhone(json.optString("landline_phone"));
                 // Asigna el identificador de calidad de vivienda
                 dto.setHousingQualityId(json.getInt("housing_quality_id"));
-                // Asigna el identificador del tipo de zona
-                dto.setZoneId(json.getInt("zone_id"));
+                // Asigna el identificador del tipo de zona (es opcional en el cuerpo del JSON)
+                dto.setZoneId(json.optInt("zone_id", 0));
 
                 // Invoca al servicio para actualizar los datos detallados de la vivienda
                 String resJson = planServicio.guardarIdentificacion(planId, dto);

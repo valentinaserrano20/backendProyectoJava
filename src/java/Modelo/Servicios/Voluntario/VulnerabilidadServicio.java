@@ -207,13 +207,17 @@ public class VulnerabilidadServicio {
         return res.toString();
     }
     
-    // Cambia el estado del plan familiar de manera aislada
-    public String cambiarEstadoPlan(int planId, int estadoId) {
+    // Cambia el estado del plan familiar e inserta un registro en la bitácora de seguimiento
+    public String cambiarEstadoPlan(int planId, int estadoId, String comentario, int usuarioId) {
         // Inicializa el JSON
         JSONObject res = new JSONObject();
         try {
-            // Solicita al DAO actualizar el estado
+            // Solicita al DAO actualizar el estado del plan familiar
             dao.actualizarEstadoPlan(planId, estadoId);
+            
+            // Registra el seguimiento con el comentario del supervisor y el ID de usuario gestor
+            dao.registrarSeguimiento(planId, usuarioId, estadoId, comentario);
+            
             // Agrega éxito y el mensaje informativo
             res.put("success", true);
             res.put("message", "Estado del plan familiar actualizado con éxito.");
@@ -222,7 +226,7 @@ public class VulnerabilidadServicio {
             res.put("success", false);
             res.put("message", "Error al actualizar estado: " + e.getMessage());
         }
-        // Retorna la cadena JSON
+        // Devuelve la respuesta en formato de cadena JSON
         return res.toString();
     }
 }

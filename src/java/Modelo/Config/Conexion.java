@@ -9,7 +9,7 @@ public class Conexion {
     // URL directa a  MySQL local
     private static final String URL = "jdbc:mysql://localhost:3306/planEmergenciaDC?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
     private static final String USER = "root"; //usuario de MySQL
-    private static final String PASS = "#Aprendiz2024"; 
+    private static final String PASS = "Sol2004."; 
 
     static {
         try {

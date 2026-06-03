@@ -233,4 +233,21 @@ public class VulnerabilidadDAO {
             ps.executeUpdate();
         }
     }
+
+    // Sirve para: Registrar una bitácora de seguimiento cada vez que el plan cambia de estado
+    // Qué hace: Inserta observaciones, el ID del plan, el ID del supervisor gestor y el nuevo estado en seguimiento_plan
+    // Por qué es importante: Permite auditar el flujo del plan familiar y mostrar observaciones al voluntario en caso de rechazo
+    public void registrarSeguimiento(int planId, int usuarioId, int estadoId, String observaciones) throws SQLException {
+        // Sentencia SQL para insertar el seguimiento de estado del plan
+        String sql = "INSERT INTO seguimiento_plan (observaciones, plan_id, usuario_gestor_id, estado_id, leido) VALUES (?, ?, ?, ?, ?)";
+        try (Connection con = Conexion.obtener();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            ps.setString(1, observaciones != null ? observaciones.trim() : "");
+            ps.setInt(2, planId);
+            ps.setInt(3, usuarioId);
+            ps.setInt(4, estadoId);
+            ps.setBoolean(5, false); // Leído = false por defecto hasta que el voluntario lo vea
+            ps.executeUpdate();
+        }
+    }
 }
