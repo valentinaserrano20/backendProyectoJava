@@ -9,7 +9,8 @@ import org.json.JSONObject;
 // Qué hace: DAO genérico CRUD para todas las tablas paramétricas del módulo de datos maestros.
 // Por qué existe: Unifica el acceso a la base de datos de las 12 entidades paramétricas sin duplicar código.
 // Qué problema resuelve: Provee métodos reutilizables de consulta, inserción, actualización, eliminación y auditoría.
-public class DatoM    // Sirve para: Registrar una acción de inserción, actualización o eliminación en la bitácora de auditoría de datos maestros.
+public class DatoMaestroDAO {
+    // Sirve para: Registrar una acción de inserción, actualización o eliminación en la bitácora de auditoría de datos maestros.
     // Qué hace: Inserta una fila en la tabla historial_datos_maestros con el detalle del cambio realizado.
     // Explicación de consulta SQL:
     // - Operación: Inserción de registro.
