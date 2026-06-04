@@ -550,10 +550,10 @@ public class UsuariosServlet extends HttpServlet {
                 String nuevoStr = "estado_id: 1 (Activo); rol_id: " + rolId + " (" + rolNombre + ")";
 
                 // Registrar en auditoría
-                // Qué hace: Registra el evento de aprobación de alta en la tabla de auditoría.
-                // Por qué existe: Documenta el evento de aprobación administrativa.
-                // Qué problema resuelve: Deja constancia del paso de usuario Pendiente a Activo.
-                usuarioDAO.registrarAuditoria("usuarios", "APROBAR", anteriorStr, nuevoStr, userId);
+                // Qué hace: Registra el evento de aprobación de alta como un UPDATE en la tabla de auditoría
+                // Por qué existe: Documenta el evento de aprobación administrativa manteniendo compatibilidad con el ENUM('INSERT','UPDATE','DELETE') de la base de datos
+                // Qué problema resuelve: Previene el error 'Data truncated for column accion' al usar la acción 'UPDATE' que es la soportada
+                usuarioDAO.registrarAuditoria("usuarios", "UPDATE", anteriorStr, nuevoStr, userId);
 
                 // Qué hace: Informa al cliente que la aprobación fue exitosa.
                 // Por qué existe: Provee feedback visual a la UI de gestión de peticiones.

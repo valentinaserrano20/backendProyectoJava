@@ -41,9 +41,14 @@ public class NotificacionServlet extends HttpServlet {
             // Obtener conteo de notificaciones no leídas
             if ("/count".equals(pathInfo)) {
                 int count = notificacionDAO.contarNoLeidas(userId);
+                JSONObject datos = new JSONObject();
+                datos.put("count", count);
+                
                 JSONObject respuesta = new JSONObject();
                 respuesta.put("success", true);
-                respuesta.put("count", count);
+                respuesta.put("message", "");
+                respuesta.put("data", datos);
+                
                 response.setStatus(HttpServletResponse.SC_OK);
                 out.print(respuesta.toString());
                 return;
