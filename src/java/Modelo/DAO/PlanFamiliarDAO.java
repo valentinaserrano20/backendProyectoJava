@@ -6,6 +6,13 @@ import java.sql.*;
 
 public class PlanFamiliarDAO {
 
+    // Sirve para: Crear la cabecera de un nuevo plan familiar y su respectiva ficha de identificación en una transacción atómica.
+    // Qué hace: Realiza dos sentencias INSERT dentro de una transacción ACID, recuperando la clave primaria generada del plan.
+    // Explicación de consultas SQL:
+    // - Inserción 1: INSERT INTO planes_familiares (enviado, voluntario_id, estado_id) VALUES (?, ?, ?).
+    //   * Inserta la cabecera inicial del plan asignándolo al voluntario creador y poniéndolo en estado 2 (Pendiente).
+    // - Inserción 2: INSERT INTO identificacion_familiar (nombre_familia, apellidos_familia, direccion, barrio_comuna_localidad, consentimiento_datos, plan_id, tipo_zona_id) VALUES (?, ?, ?, ?, ?, ?, ?).
+    //   * Inserta el registro básico inicial de identificación familiar enlazado al plan recién creado.
     public int registrarPasoInicial(RegistroPlanDTO dto) throws SQLException {
         String sqlPlan = "INSERT INTO planes_familiares (enviado, voluntario_id, estado_id) VALUES (?, ?, ?)";
         String sqlIdentificacion = "INSERT INTO identificacion_familiar "
@@ -19,43 +26,57 @@ public class PlanFamiliarDAO {
         int idPlanGenerado = -1;
 
         try {
+            // Qué hace: Obtiene la conexión física al motor de base de datos MySQL.
             con = Conexion.obtener();
-            con.setAutoCommit(false); // Transacción ACID abierta
+            // Qué hace: Desactiva el auto-commit manual para iniciar una transacción controlada (ACID).
+            // Por qué existe: Asegura que si falla la creación de la identificación familiar, la cabecera tampoco se persista (consistencia).
+            con.setAutoCommit(false); 
 
-            // 1. Crear la cabecera del plan familiar
+            // Qué hace: Prepara el statement para la cabecera y configura recuperar las llaves primarias autogeneradas.
             psPlan = con.prepareStatement(sqlPlan, Statement.RETURN_GENERATED_KEYS);
-            psPlan.setBoolean(1, false); // No enviado aún (Pendiente)
+            // Qué hace: Enlaza los parámetros de enviado (falso/borrador), voluntario_id y el estado_id inicial (2 = Pendiente).
+            psPlan.setBoolean(1, false); 
             psPlan.setInt(2, dto.getUserId());
-            psPlan.setInt(3, 2); // Estado ID 2 = 'Pendiente' en tu tabla estados_plan
+            psPlan.setInt(3, 2); 
+            // Qué hace: Ejecuta la inserción de la cabecera en la base de datos.
             psPlan.executeUpdate();
 
+            // Qué hace: Obtiene las llaves primarias autogeneradas de la base de datos.
             rsKeys = psPlan.getGeneratedKeys();
             if (rsKeys.next()) {
+                // Qué hace: Recupera el ID numérico asignado de forma automática por la base de datos.
                 idPlanGenerado = rsKeys.getInt(1);
             } else {
                 throw new SQLException("Incapaz de recuperar el ID generado para planes_familiares.");
             }
 
-            // 2. Crear el registro de Identificación Familiar asociado
+            // Qué hace: Prepara el statement para la inserción en identificacion_familiar.
             psIdent = con.prepareStatement(sqlIdentificacion);
+            // Qué hace: Enlaza los campos de nombres familiares temporales, el consentimiento de tratamiento de datos personales, el ID del plan generado y la zona.
             psIdent.setString(1, "Familia " + dto.getLastNames());
             psIdent.setString(2, dto.getLastNames());
-            psIdent.setString(3, "Por definir"); // Salvaguarda contra la restricción NOT NULL de la BD
-            psIdent.setString(4, "Por definir"); // Salvaguarda contra la restricción NOT NULL de la BD
-            psIdent.setBoolean(5, true);         // Consentimiento otorgado legalmente por el paso previo
+            psIdent.setString(3, "Por definir"); // Asigna un valor predeterminado para evitar restricciones NOT NULL
+            psIdent.setString(4, "Por definir"); 
+            psIdent.setBoolean(5, true);         
             psIdent.setInt(6, idPlanGenerado);
             psIdent.setInt(7, dto.getZoneId());
+            // Qué hace: Ejecuta la inserción del registro relacional de identificación.
             psIdent.executeUpdate();
 
-            con.commit(); // Éxito absoluto, consolidamos en el disco
+            // Qué hace: Confirma y consolida todos los cambios de la transacción de forma definitiva en la base de datos.
+            con.commit(); 
+            // Qué hace: Retorna el identificador del plan familiar generado.
             return idPlanGenerado;
 
         } catch (SQLException e) {
+            // Qué hace: Si ocurre un error, cancela los cambios realizados en la transacción.
+            // Por qué existe: Restaura la base de datos a su estado anterior en caso de excepciones (rollback).
             if (con != null) {
                 try { con.rollback(); } catch (SQLException ex) { System.err.println(ex.getMessage()); }
             }
             throw e;
         } finally {
+            // Qué hace: Cierra de forma explícita todos los recursos abiertos para liberar memoria y conexiones.
             if (rsKeys != null) rsKeys.close();
             if (psPlan != null) psPlan.close();
             if (psIdent != null) psIdent.close();
@@ -63,13 +84,18 @@ public class PlanFamiliarDAO {
         }
     }
 
-    // Sirve para: Recuperar la información detallada de precarga del plan familiar por su ID único
-    // Qué hace: Realiza un SELECT con múltiples JOINs en la BD para traer apellidos, tipo de familia, dirección, zona, sector, comuna, teléfono y calidad de vivienda.
-    // Por qué es importante: Provee toda la información que el frontend necesita desplegar en la pantalla de datos básicos para evitar pérdida de datos.
+    // Sirve para: Recuperar la información detallada de precarga del plan familiar por su ID único.
+    // Qué hace: Realiza un SELECT con múltiples LEFT JOINs en la BD para traer apellidos, tipo de familia, dirección, zona, sector, comuna, teléfono y calidad de vivienda.
+    // Explicación de consulta SQL:
+    // - Información buscada: pf.id, pf.estado_id (status_plan_id), ifa.apellidos_familia, tf.nombre (tipo_familia_nombre), ifa.direccion, ifa.barrio_comuna_localidad, ifa.telefono_fijo, ifa.calidad_vivienda_id, ifa.sector_id, ifa.tipo_zona_id y u.organizacion_id (city_id).
+    // - Tablas participantes: planes_familiares pf (principal), identificacion_familiar ifa (ficha vivienda), tipos_familia tf (catálogo familiar), usuarios u (voluntario responsable).
+    // - Relaciones (JOINs):
+    //   1. LEFT JOIN identificacion_familiar ifa ON pf.id = ifa.plan_id (cruza con la ficha de identificación).
+    //   2. LEFT JOIN tipos_familia tf ON pf.tipo_familia_id = tf.id (cruza con catálogo de tipos de familia).
+    //   3. LEFT JOIN usuarios u ON pf.voluntario_id = u.id (cruza con el usuario que cargó el plan).
+    // - Filtros aplicados: pf.id = ? (el identificador único del plan familiar).
     public Modelo.DTO.IdentificacionPlanDTO obtenerDetallePlan(int id) throws SQLException {
-        // Inicializa la variable DTO de retorno como null
         Modelo.DTO.IdentificacionPlanDTO plan = null;
-        // Consulta SQL completa para traer los datos detallados de identificación e incluye el estado del plan
         String sql = "SELECT pf.id, pf.estado_id AS status_plan_id, ifa.apellidos_familia, tf.nombre AS tipo_familia_nombre, "
                 + "ifa.direccion, ifa.barrio_comuna_localidad, ifa.telefono_fijo, "
                 + "ifa.calidad_vivienda_id, ifa.sector_id, ifa.tipo_zona_id, "
@@ -80,25 +106,21 @@ public class PlanFamiliarDAO {
                 + "LEFT JOIN usuarios u ON pf.voluntario_id = u.id "
                 + "WHERE pf.id = ?";
 
-        // Abre la conexión y prepara la sentencia
+        // Qué hace: Obtiene la conexión y compila el statement parametrizado.
         try (Connection con = Conexion.obtener();
              PreparedStatement ps = con.prepareStatement(sql)) {
-            // Reemplaza el marcador con el ID del plan familiar solicitado
+            // Qué hace: Configura el ID del plan familiar en la consulta.
             ps.setInt(1, id);
-            // Ejecuta la consulta
+            // Qué hace: Ejecuta la consulta y lee el ResultSet.
             try (ResultSet rs = ps.executeQuery()) {
-                // Si el plan existe en el sistema
                 if (rs.next()) {
-                    // Instancia el DTO con el ID, apellidos y el tipo de familia de las tablas cruzadas
+                    // Qué hace: Instancia el objeto DTO y mapea los resultados del ResultSet.
                     plan = new Modelo.DTO.IdentificacionPlanDTO(
                         rs.getInt("id"),
                         rs.getString("apellidos_familia"),
                         rs.getString("tipo_familia_nombre")
                     );
                     
-                    // Sirve para: Mapear las columnas de vivienda y geografía recuperadas al DTO
-                    // Qué hace: Invoca a los setters del DTO con los resultados del ResultSet
-                    // Por qué es importante: Garantiza que los campos editables no queden nulos y conserven su valor previo en la base de datos
                     plan.setAddress(rs.getString("direccion"));
                     plan.setSectorName(rs.getString("barrio_comuna_localidad"));
                     plan.setLandlinePhone(rs.getString("telefono_fijo"));
@@ -106,16 +128,18 @@ public class PlanFamiliarDAO {
                     plan.setSectorId(rs.getInt("sector_id"));
                     plan.setZoneId(rs.getInt("tipo_zona_id"));
                     plan.setCityId(rs.getInt("city_id"));
-                    plan.setDepartmentId(1); // Santander es el departamento predeterminado fijo (ID 1)
-                    
-                    // Asigna el estado del plan obtenido directamente de la tabla principal
+                    plan.setDepartmentId(1); // Departamento por defecto de la seccional (Santander = ID 1)
                     plan.setStatusPlanId(rs.getInt("status_plan_id"));
                 }
             }
 
-            // Si el plan existe, consulta la última observación de rechazo registrada en la bitácora
+            // Qué hace: Si el plan existe, consulta la última observación de rechazo o aprobación registrada.
+            // Explicación de consulta SQL:
+            // - Información buscada: observaciones de seguimiento.
+            // - Tablas participantes: seguimiento_plan.
+            // - Filtros aplicados: plan_id = ? (el plan en progreso).
+            // - Ordenamiento: Ordenado por id descendente, limitado a 1 para traer el último registro.
             if (plan != null) {
-                // Consulta SQL para obtener la última observación registrada
                 String sqlSeguimiento = "SELECT observaciones FROM seguimiento_plan WHERE plan_id = ? ORDER BY id DESC LIMIT 1";
                 try (PreparedStatement psSeg = con.prepareStatement(sqlSeguimiento)) {
                     psSeg.setInt(1, id);
@@ -127,15 +151,17 @@ public class PlanFamiliarDAO {
                 }
             }
         }
-        // Devuelve el DTO (será null si el plan no fue encontrado)
         return plan;
     }
 
-    // Sirve para: Actualizar la información detallada de la vivienda en el plan familiar
-    // Qué hace: Ejecuta un UPDATE sobre identificacion_familiar modificando dirección, barrio, teléfono, calidad de vivienda, sector y zona
-    // Por qué es importante: Registra de manera permanente las modificaciones provistas por el usuario en la interfaz
+    // Sirve para: Actualizar la información detallada de la vivienda en el plan familiar.
+    // Qué hace: Ejecuta una sentencia UPDATE sobre la tabla identificacion_familiar.
+    // Explicación de consulta SQL:
+    // - Operación: Actualización de columnas.
+    // - Tabla afectada: identificacion_familiar.
+    // - Columnas modificadas: apellidos_familia, nombre_familia, direccion, barrio_comuna_localidad, telefono_fijo, calidad_vivienda_id, sector_id, tipo_zona_id.
+    // - Filtros aplicados: plan_id = ? (identificador único del plan).
     public void actualizarIdentificacion(int planId, Modelo.DTO.ActualizarIdentificacionDTO dto) throws SQLException {
-        // Sentencia SQL para actualizar la información de identificación de la vivienda
         String sql = "UPDATE identificacion_familiar SET "
                 + "apellidos_familia = ?, "
                 + "nombre_familia = ?, "
@@ -147,132 +173,132 @@ public class PlanFamiliarDAO {
                 + "tipo_zona_id = ? "
                 + "WHERE plan_id = ?";
 
-        // Abre la conexión y prepara la actualización parametrizada
+        // Qué hace: Obtiene la conexión JDBC y prepara la actualización parametrizada.
         try (Connection con = Conexion.obtener();
              PreparedStatement ps = con.prepareStatement(sql)) {
-            // Asigna los apellidos familiares (ej. García Pérez)
+            // Qué hace: Enlaza secuencialmente todos los parámetros correspondientes del DTO.
             ps.setString(1, dto.getLastNames());
-            // Asigna el nombre formal del plan (ej. Familia García Pérez) para mantener consistencia
             ps.setString(2, "Familia " + dto.getLastNames());
-            // Asigna la dirección o calle de la vivienda
             ps.setString(3, dto.getAddress());
-            // Asigna la aclaración textual del barrio/comuna
             ps.setString(4, dto.getSectorName());
-            // Asigna el teléfono de contacto fijo
             ps.setString(5, dto.getLandlinePhone());
-            // Asigna el ID de calidad de vivienda relacional
             ps.setInt(6, dto.getHousingQualityId());
-            // Asigna el ID del sector seleccionado
             ps.setInt(7, dto.getSectorId());
-            // Asigna el ID del tipo de zona geográfica seleccionado (Urbana/Rural)
             ps.setInt(8, dto.getZoneId());
-            // Asigna el ID del plan familiar en progreso como condición del WHERE
             ps.setInt(9, planId);
-            // Ejecuta el comando de actualización en la base de datos
+            // Qué hace: Ejecuta la actualización física en base de datos.
             ps.executeUpdate();
         }
     }
 
-    // Sirve para: Validar si un usuario tiene permisos de acceso sobre un plan familiar específico
-    // Qué hace: Consulta el rol del usuario y el voluntario_id del plan; autoriza si es supervisor o si es el voluntario creador
-    // Por qué es importante: Evita que voluntarios no autorizados accedan o modifiquen información de otros planes familiares
+    // Sirve para: Validar si un usuario tiene permisos de acceso sobre un plan familiar específico.
+    // Qué hace: Consulta el rol del usuario y el voluntario_id del plan; autoriza si es supervisor o si es el voluntario creador.
+    // Explicación de consultas SQL:
+    // - Consulta 1: SELECT rol_id FROM usuarios WHERE id = ?.
+    //   * Busca el identificador del rol del usuario de sesión en la tabla usuarios.
+    // - Consulta 2: SELECT voluntario_id FROM planes_familiares WHERE id = ?.
+    //   * Busca el ID del voluntario que creó y es responsable de ese plan familiar.
+    // - Filtros aplicados: id = ? (clave primaria del usuario) en la primera y id = ? (clave primaria del plan) en la segunda.
     public boolean verificarAcceso(int planId, int usuarioId) throws SQLException {
-        // Consulta el rol del usuario de la sesión
         String sqlUsuario = "SELECT rol_id FROM usuarios WHERE id = ?";
-        // Consulta el id del voluntario que creó el plan
         String sqlPlan = "SELECT voluntario_id FROM planes_familiares WHERE id = ?";
-        // Establece conexiones y declaraciones JDBC seguras
+        // Qué hace: Abre la conexión a la base de datos y compila los statements para la consulta parametrizada.
         try (Connection con = Conexion.obtener();
              PreparedStatement psUser = con.prepareStatement(sqlUsuario);
              PreparedStatement psPlan = con.prepareStatement(sqlPlan)) {
-            // Asigna el parámetro del id de usuario
+            // Qué hace: Enlaza el ID de usuario.
             psUser.setInt(1, usuarioId);
-            // Variable para almacenar el ID de rol
             int rolId = -1;
-            // Ejecuta la consulta del usuario
+            // Qué hace: Ejecuta la consulta de rol.
             try (ResultSet rsUser = psUser.executeQuery()) {
-                // Si el usuario existe, extrae su rol
                 if (rsUser.next()) {
                     rolId = rsUser.getInt("rol_id");
                 }
             }
-            // Si el rol no fue encontrado, se deniega el acceso
+            // Qué hace: Si no se encuentra el usuario, deniega el acceso.
             if (rolId == -1) {
                 return false;
             }
-            // Si el rol es de Supervisor (2), tiene permiso total
+            // Qué hace: Si el usuario posee rol_id = 2 (Supervisor_Admin), se le concede acceso inmediato global.
             if (rolId == 2) {
                 return true;
             }
-            // Asigna el parámetro del id del plan
+            // Qué hace: Enlaza el ID del plan familiar en el segundo statement.
             psPlan.setInt(1, planId);
-            // Variable para almacenar el ID del voluntario
             int voluntarioId = -1;
-            // Ejecuta la consulta del plan
+            // Qué hace: Ejecuta la consulta para determinar el voluntario creador.
             try (ResultSet rsPlan = psPlan.executeQuery()) {
-                // Si el plan existe, extrae su voluntario
                 if (rsPlan.next()) {
                     voluntarioId = rsPlan.getInt("voluntario_id");
                 }
             }
-            // Compara si el voluntario creador coincide con el usuario consultado
+            // Qué hace: Otorga acceso únicamente si el usuario solicitante es el creador del plan.
             return voluntarioId == usuarioId;
         }
     }
 
-    // Sirve para: Determinar si un plan familiar ya posee integrantes en el sistema
-    // Qué hace: Realiza una cuenta de las filas asociadas en la tabla integrantes
-    // Por qué es importante: El frontend requiere esta validación antes de permitir el análisis de factores de riesgo
+    // Sirve para: Determinar si un plan familiar ya posee integrantes cargados en el censo.
+    // Qué hace: Ejecuta una consulta COUNT en la tabla integrantes filtrada por el ID del plan.
+    // Explicación de consulta SQL:
+    // - Información buscada: Cantidad de registros (total).
+    // - Tablas participantes: integrantes.
+    // - Filtros aplicados: plan_id = ? (el plan consultado).
     public boolean tieneIntegrantes(int planId) throws SQLException {
-        // Consulta SQL para contar integrantes del plan
         String sql = "SELECT COUNT(*) AS total FROM integrantes WHERE plan_id = ?";
-        // Establece conexión segura con try-with-resources
+        // Qué hace: Obtiene la conexión JDBC y prepara el statement de conteo.
         try (Connection con = Conexion.obtener();
              PreparedStatement ps = con.prepareStatement(sql)) {
-            // Asigna el ID de plan consultado
+            // Qué hace: Enlaza el planId al marcador posicional.
             ps.setInt(1, planId);
-            // Ejecuta la consulta
+            // Qué hace: Ejecuta la consulta de conteo.
             try (ResultSet rs = ps.executeQuery()) {
-                // Si obtiene resultado, retorna si el conteo es mayor a cero
                 if (rs.next()) {
+                    // Qué hace: Retorna true si el conteo es mayor que cero.
                     return rs.getInt("total") > 0;
                 }
             }
         }
-        // Retorna falso por defecto en caso de no encontrar registros
         return false;
     }
 
-    // Sirve para: Contar el número total de planes asociados a un voluntario
-    // Qué hace: Ejecuta una consulta COUNT en la tabla planes_familiares filtrada por el ID del voluntario
-    // Por qué es importante: El resultado permite al frontend calcular la paginación correcta
+    // Sirve para: Contar el número total de planes asociados a un voluntario (para cálculo de paginación).
+    // Qué hace: Ejecuta una consulta SELECT COUNT(*) en planes_familiares.
+    // Explicación de consulta SQL:
+    // - Información buscada: Cantidad total de registros.
+    // - Tablas participantes: planes_familiares.
+    // - Filtros aplicados: voluntario_id = ? (el ID del voluntario consultado).
     public int contarPlanesPorVoluntario(int voluntarioId) throws SQLException {
-        // Sentencia SQL para contar los registros
         String sql = "SELECT COUNT(*) AS total FROM planes_familiares WHERE voluntario_id = ?";
-        // Obtiene la conexión y prepara la sentencia
+        // Qué hace: Obtiene la conexión y compila el statement.
         try (Connection con = Conexion.obtener();
              PreparedStatement ps = con.prepareStatement(sql)) {
-            // Asigna el ID del voluntario como parámetro
+            // Qué hace: Enlaza el voluntarioId.
             ps.setInt(1, voluntarioId);
-            // Ejecuta la consulta
+            // Qué hace: Ejecuta el conteo.
             try (ResultSet rs = ps.executeQuery()) {
-                // Si hay resultados, retorna el conteo
                 if (rs.next()) {
                     return rs.getInt("total");
                 }
             }
         }
-        // Retorna cero por defecto si no hay registros
         return 0;
     }
 
-    // Sirve para: Obtener una lista de planes familiares pertenecientes a un voluntario, de forma paginada y con sus relaciones
-    // Qué hace: Hace un SELECT con LEFT JOIN a identificacion_familiar, estados_plan, tipos_familia, usuarios y organizaciones
-    // Por qué es importante: Retorna en un mapa llave-valor toda la información requerida por el componente de la tarjeta del plan familiar
+    // Sirve para: Obtener una lista de planes familiares pertenecientes a un voluntario, de forma paginada y cruzando catálogos relacionales.
+    // Qué hace: Hace un SELECT con múltiples LEFT JOINs a las tablas de identificacion_familiar, estados_plan, tipos_familia y organizaciones.
+    // Explicación de consulta SQL:
+    // - Información buscada: El ID del plan, los apellidos familiares (ifa.apellidos_familia), el ID de estado del plan, el nombre legible del estado (ep.nombre), el ID y nombre del tipo de familia (tf.nombre), el departamento (org.seccional), la ciudad (org.nombre) y la fecha formateada de actualización (date_create).
+    // - Tablas participantes: planes_familiares pf (principal), identificacion_familiar ifa (ficha), estados_plan ep (catálogo estados), tipos_familia tf (catálogo familiar), usuarios u (voluntario), organizaciones org (catálogo organizaciones).
+    // - Relaciones (JOINs):
+    //   1. LEFT JOIN identificacion_familiar ifa ON pf.id = ifa.plan_id.
+    //   2. LEFT JOIN estados_plan ep ON pf.estado_id = ep.id.
+    //   3. LEFT JOIN tipos_familia tf ON pf.tipo_familia_id = tf.id.
+    //   4. LEFT JOIN usuarios u ON pf.voluntario_id = u.id.
+    //   5. LEFT JOIN organizaciones org ON u.organizacion_id = org.id.
+    // - Filtros aplicados: pf.voluntario_id = ? (el creador del plan).
+    // - Ordenamiento y paginación: ORDER BY pf.updated_at DESC, pf.id DESC LIMIT ? OFFSET ?.
     public java.util.List<java.util.Map<String, Object>> listarPlanesPorVoluntario(int voluntarioId, int limit, int offset) throws SQLException {
-        // Inicializa la lista de retorno
         java.util.List<java.util.Map<String, Object>> planes = new java.util.ArrayList<>();
-        // Sentencia SQL con cruce de tablas y paginación LIMIT/OFFSET
         String sql = "SELECT pf.id, "
                 + "COALESCE(ifa.apellidos_familia, 'Por definir') AS last_names, "
                 + "pf.estado_id AS status_id, "
@@ -292,45 +318,169 @@ public class PlanFamiliarDAO {
                 + "ORDER BY pf.updated_at DESC, pf.id DESC "
                 + "LIMIT ? OFFSET ?";
 
-        // Obtiene la conexión y prepara la consulta
+        // Qué hace: Abre la conexión a la base de datos y compila el statement parametrizado.
         try (Connection con = Conexion.obtener();
              PreparedStatement ps = con.prepareStatement(sql)) {
-            // Asigna el parámetro del ID del voluntario
+            // Qué hace: Enlaza el voluntarioId, límite y desplazamiento.
             ps.setInt(1, voluntarioId);
-            // Asigna el límite de registros
             ps.setInt(2, limit);
-            // Asigna el desplazamiento para la paginación
             ps.setInt(3, offset);
-            // Ejecuta la consulta
+            // Qué hace: Ejecuta la consulta y lee el ResultSet.
             try (ResultSet rs = ps.executeQuery()) {
-                // Itera sobre el conjunto de resultados
                 while (rs.next()) {
-                    // Crea un mapa para representar el registro del plan
+                    // Qué hace: Mapea los resultados para retornar una lista flexible de mapas.
                     java.util.Map<String, Object> map = new java.util.HashMap<>();
-                    // Mapea el ID único del plan
                     map.put("id", rs.getInt("id"));
-                    // Mapea los apellidos familiares para la tarjeta
                     map.put("last_names", rs.getString("last_names"));
-                    // Mapea el ID de estado del plan
                     map.put("status_id", rs.getInt("status_id"));
-                    // Mapea la etiqueta legible del estado del plan
                     map.put("status", rs.getString("status"));
-                    // Mapea el ID de tipo de familia
                     map.put("family_type_id", rs.getInt("family_type_id"));
-                    // Mapea el nombre legible del tipo de familia
                     map.put("family_type", rs.getString("family_type"));
-                    // Mapea el departamento geográfico
                     map.put("department", rs.getString("department"));
-                    // Mapea la ciudad o seccional municipal
                     map.put("city", rs.getString("city"));
-                    // Mapea la fecha y hora de la última edición
                     map.put("date_create", rs.getString("date_create"));
-                    // Agrega el mapa a la lista
                     planes.add(map);
                 }
             }
         }
         // Retorna la lista resultante
+        return planes;
+    }
+
+    // Sirve para: Obtener el identificador del rol asignado a un usuario específico en el sistema.
+    // Qué hace: Consulta el campo rol_id de la tabla usuarios filtrando por el ID de usuario proporcionado.
+    // Explicación de consulta SQL:
+    // - Información buscada: El campo rol_id del usuario.
+    // - Tablas participantes: usuarios.
+    // - Filtros aplicados: id = ? (clave primaria del usuario).
+    public int obtenerRolUsuario(int usuarioId) throws SQLException {
+        String sql = "SELECT rol_id FROM usuarios WHERE id = ?";
+        // Qué hace: Obtiene la conexión a la base de datos MySQL y compila el statement parametrizado.
+        try (Connection con = Conexion.obtener();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            // Qué hace: Enlaza el ID del usuario como parámetro de filtro.
+            ps.setInt(1, usuarioId);
+            // Qué hace: Ejecuta la consulta y lee el ResultSet.
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    // Qué hace: Retorna el ID numérico del rol obtenido.
+                    return rs.getInt("rol_id");
+                }
+            }
+        }
+        // Qué hace: Retorna -1 si no se encontró ningún usuario con ese ID.
+        return -1;
+    }
+
+    // Qué hace: Cuenta el número total de planes familiares registrados de forma global en el censo que ya fueron enviados por el voluntario.
+    // Por qué existe: Permite calcular la paginación correcta para el supervisor excluyendo borradores no enviados (estados 2 y 3).
+    // Qué problema resuelve: Evita que el supervisor visualice planes pendientes o en desarrollo que el voluntario aún no ha remitido.
+    public int contarTodosLosPlanes() throws SQLException {
+        // Qué hace: Define la consulta SQL para contar el total de planes que no estén en estado borrador (2 y 3).
+        // Por qué existe: Garantiza que los borradores del voluntario permanezcan ocultos al supervisor.
+        // Qué problema resuelve: Evita mostrar información incompleta o no autorizada para revisión.
+        // Explicación de consulta SQL:
+        // - Información buscada: Total de planes familiares que no están en borrador (estado_id diferente de 2 y 3).
+        // - Tablas participantes: planes_familiares.
+        // - Filtros aplicados: estado_id NOT IN (2, 3) para excluir planes no enviados.
+        String sql = "SELECT COUNT(*) AS total FROM planes_familiares WHERE estado_id NOT IN (2, 3)";
+        // Qué hace: Abre una conexión limpia y prepara el statement para ejecutar la consulta SQL.
+        // Por qué existe: Permite la interacción segura y eficiente con la base de datos MySQL local.
+        // Qué problema resuelve: Libera automáticamente los recursos para evitar fugas de memoria.
+        try (Connection con = Conexion.obtener();
+             PreparedStatement ps = con.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            // Qué hace: Evalúa si hay un resultado de conteo disponible.
+            // Por qué existe: Permite recuperar el valor numérico entero retornado por la base de datos.
+            // Qué problema resuelve: Evita excepciones de puntero nulo o errores al procesar el ResultSet.
+            if (rs.next()) {
+                return rs.getInt("total");
+            }
+        }
+        return 0;
+    }
+
+    // Qué hace: Retorna todos los planes de emergencia familiar en el sistema de forma paginada para supervisión.
+    // Por qué existe: Permite al supervisor visualizar la bandeja global de planes y los últimos planes recibidos.
+    // Qué problema resuelve: Filtra los planes no enviados (estados 2 y 3) y recupera el nombre del voluntario responsable.
+    public java.util.List<java.util.Map<String, Object>> listarTodosLosPlanes(int limit, int offset) throws SQLException {
+        // Qué hace: Inicializa la lista que contendrá los mapas de datos de cada plan familiar.
+        // Por qué existe: Provee el contenedor estructurado para retornar la información al servicio y luego al controlador JS.
+        // Qué problema resuelve: Evita retornos de objetos nulos en caso de que la consulta no devuelva resultados.
+        java.util.List<java.util.Map<String, Object>> planes = new java.util.ArrayList<>();
+        // Qué hace: Define la consulta SQL para recuperar los campos de identificación familiar, estado y voluntario de forma cruzada.
+        // Por qué existe: Consolida en una sola llamada SQL la información de familias, seccionales, ciudades, estados y nombres de voluntarios.
+        // Qué problema resuelve: Reduce la latencia al realizar joins eficientes y evitar consultas N+1 en bucles de java.
+        // Explicación de consulta SQL:
+        // - Información buscada: Listado de planes familiares con sus datos de familia, estado, tipo de familia, departamento, ciudad y el responsable.
+        // - Tablas participantes: planes_familiares (pf), identificacion_familiar (ifa), estados_plan (ep), tipos_familia (tf), usuarios (u), organizaciones (org).
+        // - Filtros aplicados: pf.estado_id NOT IN (2, 3) para omitir planes en borrador.
+        // - Ordenamiento y paginación: Ordenado por fecha de actualización descendente y paginado con LIMIT/OFFSET.
+        String sql = "SELECT pf.id, "
+                + "COALESCE(ifa.apellidos_familia, 'Por definir') AS last_names, "
+                + "pf.estado_id AS status_id, "
+                + "COALESCE(ep.nombre, 'Pendiente') AS status, "
+                + "COALESCE(pf.tipo_familia_id, 3) AS family_type_id, "
+                + "COALESCE(tf.nombre, 'Por Definir') AS family_type, "
+                + "COALESCE(org.seccional, 'Santander') AS department, "
+                + "COALESCE(org.nombre, 'Sin definir') AS city, "
+                + "CONCAT(u.nombre, ' ', COALESCE(u.apellido, '')) AS responsable, "
+                + "DATE_FORMAT(pf.updated_at, '%d/%m/%Y %H:%i') AS date_create "
+                + "FROM planes_familiares pf "
+                + "LEFT JOIN identificacion_familiar ifa ON pf.id = ifa.plan_id "
+                + "LEFT JOIN estados_plan ep ON pf.estado_id = ep.id "
+                + "LEFT JOIN tipos_familia tf ON pf.tipo_familia_id = tf.id "
+                + "LEFT JOIN usuarios u ON pf.voluntario_id = u.id "
+                + "LEFT JOIN organizaciones org ON u.organizacion_id = org.id "
+                + "WHERE pf.estado_id NOT IN (2, 3) "
+                + "ORDER BY pf.updated_at DESC, pf.id DESC "
+                + "LIMIT ? OFFSET ?";
+
+        // Qué hace: Abre la conexión a la base de datos y compila el PreparedStatement parametrizado.
+        // Por qué existe: Asegura la correcta inyección de parámetros para prevenir ataques de SQL Injection.
+        // Qué problema resuelve: Gestiona la concurrencia de conexiones de manera eficiente cerrando los recursos abiertos al terminar.
+        try (Connection con = Conexion.obtener();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+            // Qué hace: Reemplaza los marcadores de la consulta SQL con los parámetros limit y offset recibidos.
+            // Por qué existe: Define el tamaño de página y el desplazamiento de los registros para la paginación.
+            // Qué problema resuelve: Controla el flujo de la consulta para no desbordar el consumo de memoria con listados completos.
+            ps.setInt(1, limit);
+            ps.setInt(2, offset);
+            // Qué hace: Ejecuta la consulta SQL y recupera el conjunto de resultados ResultSet.
+            // Por qué existe: Provee acceso secuencial a las filas coincidentes en la base de datos de planes familiares.
+            // Qué problema resuelve: Facilita la iteración de los registros devueltos por el motor MySQL.
+            try (ResultSet rs = ps.executeQuery()) {
+                // Qué hace: Itera sobre cada fila del conjunto de resultados del ResultSet.
+                // Por qué existe: Permite leer y procesar uno a uno los registros de planes cargados.
+                // Qué problema resuelve: Convierte filas tabulares relacionales en objetos HashMap de java.
+                while (rs.next()) {
+                    // Qué hace: Crea un mapa de tipo clave-valor para representar el plan familiar.
+                    // Por qué existe: Permite una estructura flexible para serialización posterior a formato JSON.
+                    // Qué problema resuelve: Desvincula la estructura de la base de datos de la lógica de negocio final.
+                    java.util.Map<String, Object> map = new java.util.HashMap<>();
+                    // Qué hace: Almacena cada columna del ResultSet dentro del mapa correspondiente.
+                    // Por qué existe: Hace accesible la información de ID, apellidos, estados, geografía y responsable.
+                    // Qué problema resuelve: Rellena los datos de la tarjeta que el frontend supervisor espera procesar.
+                    map.put("id", rs.getInt("id"));
+                    map.put("last_names", rs.getString("last_names"));
+                    map.put("status_id", rs.getInt("status_id"));
+                    map.put("status", rs.getString("status"));
+                    map.put("family_type_id", rs.getInt("family_type_id"));
+                    map.put("family_type", rs.getString("family_type"));
+                    map.put("department", rs.getString("department"));
+                    map.put("city", rs.getString("city"));
+                    map.put("responsable", rs.getString("responsable"));
+                    map.put("date_create", rs.getString("date_create"));
+                    // Qué hace: Añade el mapa recién creado a la lista general de planes.
+                    // Por qué existe: Permite consolidar todos los registros de la página actual para el retorno.
+                    // Qué problema resuelve: Mantiene el orden y paginación en la entrega de resultados.
+                    planes.add(map);
+                }
+            }
+        }
+        // Qué hace: Retorna la lista con los mapas de planes familiares.
+        // Por qué existe: Completa el contrato del método retornando la colección al servicio solicitante.
+        // Qué problema resuelve: Transfiere la información limpia y filtrada a las capas superiores.
         return planes;
     }
 }

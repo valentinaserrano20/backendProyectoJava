@@ -1,6 +1,9 @@
 package Controlador.Auth;
 
 import Modelo.Servicios.Auth.RegistroServicio;
+import Modelo.DAO.NotificacionDAO;
+import Modelo.DTO.NotificacionDTO;
+import Modelo.DAO.UsuarioDAO;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -9,6 +12,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import Modelo.Utilidades.JSONUtil;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.List;
+import java.util.Map;
 import org.json.JSONObject;
 
 @WebServlet("/api/register")
@@ -105,6 +110,34 @@ public class RegisterServlet extends HttpServlet {
                     generoId,
                     organizacionId
             );
+
+            // =========================================
+            // CREAR NOTIFICACIÓN PARA SUPERVISORES
+            // =========================================
+            try {
+                UsuarioDAO usuarioDAO = new UsuarioDAO();
+                NotificacionDAO notificacionDAO = new NotificacionDAO();
+                
+                // Obtener todos los supervisores (rol_id = 2)
+                List<Map<String, Object>> supervisores = usuarioDAO.listarVoluntariosTodos();
+                
+                for (Map<String, Object> supervisor : supervisores) {
+                    if ((Integer) supervisor.get("rol_id") == 2) {
+                        NotificacionDTO notificacion = new NotificacionDTO();
+                        notificacion.setUsuarioId((Integer) supervisor.get("id"));
+                        notificacion.setTitulo("Nuevo usuario registrado");
+                        notificacion.setMensaje("El usuario " + nombres + " " + apellidos + " se ha registrado en el sistema y espera activación");
+                        notificacion.setTipo("nuevo_usuario");
+                        notificacion.setLeida(false);
+                        notificacion.setEnlace("#/supervisor/usuarios/peticiones");
+                        notificacion.setEntidadId(0);
+                        notificacionDAO.crear(notificacion);
+                    }
+                }
+            } catch (Exception e) {
+                // No fallar el registro si la notificación falla
+                System.err.println("Error al crear notificación: " + e.getMessage());
+            }
 
             // =========================================
             // RESPUESTA EXITOSA

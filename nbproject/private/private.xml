@@ -22,6 +22,8 @@
             <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Modelo/DTO/RegistroPlanDTO.java</file>
             <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Modelo/DAO/PlanFamiliarDAO.java</file>
             <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Controlador/Voluntario/PlanFamiliarServlet.java</file>
+            <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Modelo/Utilidades/BCrypt.java</file>
+            <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Modelo/Servicios/Voluntario/PdfServicio.java</file>
         </group>
     </open-files>
 </project-private>

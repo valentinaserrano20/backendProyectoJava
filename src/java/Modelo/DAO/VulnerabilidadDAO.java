@@ -7,23 +7,32 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
-// Clase de Acceso a Datos (DAO) para el módulo del Test de Vulnerabilidad
+// Qué hace: Clase de Acceso a Datos (DAO) para el módulo del Test de Vulnerabilidad del Plan Familiar.
+// Por qué existe: Provee métodos específicos para interactuar con las tablas de preguntas del censo y guardar las respuestas relacionales correspondientes.
+// Qué problema resuelve: Encapsula la lógica de calificación de vulnerabilidad y la actualización de estados del plan familiar de forma transaccional.
 public class VulnerabilidadDAO {
 
-    // Recupera la lista completa de preguntas activas de la base de datos como entidades
+    // Sirve para: Recuperar la lista completa de preguntas activas de la base de datos como entidades.
+    // Qué hace: Realiza una consulta SELECT a la tabla preguntas_test trayendo los registros activos ordenados.
+    // Explicación de consulta SQL:
+    // - Información buscada: Columnas id, enunciado, es_evaluable, orden y activo de las preguntas de vulnerabilidad.
+    // - Tablas participantes: preguntas_test.
+    // - Filtros aplicados: activo = true (solo preguntas habilitadas), ordenadas de forma ascendente por el campo orden.
     public List<PreguntaTest> obtenerPreguntasActivas() throws SQLException {
-        // Inicializa la lista que almacenará las entidades de preguntas recuperadas
+        // Qué hace: Inicializa la lista que almacenará las entidades de preguntas recuperadas.
         List<PreguntaTest> lista = new ArrayList<>();
-        // Consulta SQL para traer las preguntas activas ordenadas por su posición
+        // Qué hace: Define la sentencia SQL a ejecutar.
         String sql = "SELECT id, enunciado, es_evaluable, orden, activo FROM preguntas_test WHERE activo = true ORDER BY orden ASC";
         
-        // Abre la conexión, prepara y ejecuta la consulta de forma segura
+        // Qué hace: Abre la conexión a la base de datos y compila el statement parametrizado.
+        // Por qué existe: Previene la inyección SQL y garantiza la liberación de recursos automáticos.
         try (Connection con = Conexion.obtener();
              PreparedStatement ps = con.prepareStatement(sql);
+             // Qué hace: Ejecuta la consulta de lectura y la vuelca en un ResultSet.
              ResultSet rs = ps.executeQuery()) {
-            // Recorre cada fila devuelta por el motor de base de datos
+            // Qué hace: Recorre cada una de las filas devueltas por el motor de base de datos.
             while (rs.next()) {
-                // Instancia la entidad PreguntaTest con los valores reales de la tabla de la BD
+                // Qué hace: Instancia la entidad PreguntaTest con los valores de la fila actual.
                 PreguntaTest entidad = new PreguntaTest(
                     rs.getInt("id"),
                     rs.getString("enunciado"),
@@ -31,33 +40,37 @@ public class VulnerabilidadDAO {
                     rs.getInt("orden"),
                     rs.getBoolean("activo")
                 );
-                // Agrega la entidad instanciada a la lista de retorno
+                // Qué hace: Agrega la entidad a la lista de retorno.
                 lista.add(entidad);
             }
         }
-        // Devuelve la lista con las preguntas en formato de entidad
+        // Qué hace: Devuelve la lista con las preguntas activas.
         return lista;
     }
 
-    // Recupera un subconjunto de preguntas activas aplicando paginación como entidades
+    // Sirve para: Recuperar un subconjunto de preguntas activas aplicando paginación.
+    // Qué hace: Realiza un SELECT paginado mediante LIMIT y OFFSET a la tabla preguntas_test.
+    // Explicación de consulta SQL:
+    // - Información buscada: Columnas id, enunciado, es_evaluable, orden y activo.
+    // - Tablas participantes: preguntas_test.
+    // - Filtros aplicados: activo = true, paginado con LIMIT ? OFFSET ? y ordenado ascendentemente por orden.
     public List<PreguntaTest> obtenerPreguntasPaginadas(int offset, int limit) throws SQLException {
-        // Inicializa la lista que almacenará las preguntas entidad de la página actual
+        // Qué hace: Inicializa la lista que almacenará las preguntas de la página actual.
         List<PreguntaTest> lista = new ArrayList<>();
-        // Consulta SQL paginada ordenando por la columna orden
+        // Qué hace: Define la sentencia SQL paginada.
         String sql = "SELECT id, enunciado, es_evaluable, orden, activo FROM preguntas_test WHERE activo = true ORDER BY orden ASC LIMIT ? OFFSET ?";
         
-        // Abre la conexión y prepara la sentencia SQL
+        // Qué hace: Abre la conexión a base de datos y compila el PreparedStatement.
         try (Connection con = Conexion.obtener();
              PreparedStatement ps = con.prepareStatement(sql)) {
-            // Asigna el límite de preguntas por página (limit)
+            // Qué hace: Vincula el límite de preguntas al primer placeholder de la consulta.
             ps.setInt(1, limit);
-            // Asigna la fila inicial de lectura (offset)
+            // Qué hace: Vincula la fila inicial de lectura (offset) al segundo placeholder.
             ps.setInt(2, offset);
-            // Ejecuta la consulta estructurada en la base de datos
+            // Qué hace: Ejecuta la consulta y lee los resultados.
             try (ResultSet rs = ps.executeQuery()) {
-                // Itera por los registros resultantes de la página
                 while (rs.next()) {
-                    // Instancia y mapea el registro a la entidad PreguntaTest
+                    // Qué hace: Instancia y mapea el registro actual a la entidad PreguntaTest.
                     PreguntaTest entidad = new PreguntaTest(
                         rs.getInt("id"),
                         rs.getString("enunciado"),
@@ -65,74 +78,85 @@ public class VulnerabilidadDAO {
                         rs.getInt("orden"),
                         rs.getBoolean("activo")
                     );
-                    // Agrega la entidad a la lista
+                    // Qué hace: Agrega la entidad a la lista.
                     lista.add(entidad);
                 }
             }
         }
-        // Retorna las preguntas paginadas como entidades
+        // Qué hace: Retorna las preguntas mapeadas de la página.
         return lista;
     }
 
-    // Obtiene la cantidad total de preguntas activas en el sistema
+    // Sirve para: Obtener la cantidad total de preguntas activas registradas en el sistema.
+    // Qué hace: Realiza una consulta SELECT COUNT(*) para contar preguntas activas.
+    // Explicación de consulta SQL:
+    // - Información buscada: El conteo total de filas activas.
+    // - Tablas participantes: preguntas_test.
+    // - Filtros aplicados: activo = true.
     public int contarPreguntasActivas() throws SQLException {
-        // Sentencia SQL para contar todos los registros activos
+        // Qué hace: Define la sentencia SQL de conteo.
         String sql = "SELECT COUNT(*) FROM preguntas_test WHERE activo = true";
-        // Abre conexión, prepara y ejecuta la consulta
+        // Qué hace: Abre la conexión y compila el PreparedStatement.
         try (Connection con = Conexion.obtener();
              PreparedStatement ps = con.prepareStatement(sql);
+             // Qué hace: Ejecuta la consulta de conteo en base de datos.
              ResultSet rs = ps.executeQuery()) {
-            // Si el resultado contiene un conteo válido
             if (rs.next()) {
-                // Retorna el número de preguntas activas obtenido
+                // Qué hace: Recupera el valor entero del conteo y lo retorna.
                 return rs.getInt(1);
             }
         }
-        // Retorna 0 si no se pudieron recuperar registros
+        // Qué hace: Retorna 0 por defecto.
         return 0;
     }
 
-    // Obtiene las respuestas previamente guardadas para un plan familiar específico (precarga)
+    // Sirve para: Obtener las respuestas previamente guardadas para un plan familiar específico.
+    // Qué hace: Realiza una consulta SELECT a respuestas_test filtrando por el ID del plan.
+    // Explicación de consulta SQL:
+    // - Información buscada: Preguntas respondidas (pregunta_id) y su valor booleano (valor).
+    // - Tablas participantes: respuestas_test.
+    // - Filtros aplicados: plan_id = ? (el plan familiar evaluado).
     public List<RespuestaTestDTO> obtenerRespuestasPorPlan(int planId) throws SQLException {
-        // Inicializa la lista de respuestas DTO
+        // Qué hace: Inicializa la lista que almacenará las respuestas en formato DTO.
         List<RespuestaTestDTO> lista = new ArrayList<>();
-        // Consulta SQL para obtener la pregunta y el valor respondido (true/false) para un plan dado
+        // Qué hace: Define la consulta SQL de respuestas.
         String sql = "SELECT pregunta_id, valor FROM respuestas_test WHERE plan_id = ?";
         
-        // Abre la conexión y prepara la consulta parametrizada
+        // Qué hace: Abre la conexión y compila el statement parametrizado.
         try (Connection con = Conexion.obtener();
              PreparedStatement ps = con.prepareStatement(sql)) {
-            // Reemplaza el marcador de posición con el ID del plan familiar solicitado
+            // Qué hace: Asigna el ID del plan de emergencia familiar al primer parámetro.
             ps.setInt(1, planId);
-            // Ejecuta la consulta y obtiene el lector de registros
+            // Qué hace: Ejecuta el SELECT en MySQL.
             try (ResultSet rs = ps.executeQuery()) {
-                // Itera por cada respuesta registrada de este plan familiar
                 while (rs.next()) {
-                    // Crea un objeto DTO asociando el ID de pregunta y el valor booleano
+                    // Qué hace: Instancia el DTO asociando el ID de pregunta y el valor booleano obtenido.
                     RespuestaTestDTO dto = new RespuestaTestDTO(
                         rs.getInt("pregunta_id"),
                         rs.getBoolean("valor")
                     );
-                    // Inserta el DTO en la lista
+                    // Qué hace: Agrega el DTO a la lista de retorno.
                     lista.add(dto);
                 }
             }
         }
-        // Devuelve el listado de respuestas existentes
+        // Qué hace: Retorna el listado de respuestas existentes.
         return lista;
     }
 
-    // Guarda el lote de respuestas y califica/actualiza el plan en una sola transacción atómica
+    // Sirve para: Guardar el lote de respuestas y calificar/actualiza el plan en una sola transacción atómica.
+    // Qué hace: Realiza inserciones en lote (batch) de respuestas y actualiza el tipo de familia del plan familiar según la puntuación.
+    // Explicación de consultas SQL:
+    // - sqlRespuesta: Inserción de respuestas en respuestas_test. Si ya existe, actualiza el valor (ON DUPLICATE KEY UPDATE).
+    // - sqlConteo: Cuenta las respuestas afirmativas del plan que corresponden a preguntas evaluables de riesgo.
+    // - sqlActualizarPlan: Modifica el estado del plan familiar a 3 (En desarrollo) y asigna su tipo de familia (tipo_familia_id).
     public boolean guardarTestYActualizarPlan(int planId, List<RespuestaTestDTO> respuestas) throws SQLException {
-        // SQL para insertar o actualizar la respuesta de una pregunta utilizando ON DUPLICATE KEY UPDATE
         String sqlRespuesta = "INSERT INTO respuestas_test (valor, plan_id, pregunta_id) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE valor = ?";
-        // SQL para contar cuántas respuestas afirmativas marcadas corresponden a preguntas evaluables de riesgo
         String sqlConteo = "SELECT COUNT(*) FROM respuestas_test rt JOIN preguntas_test pt ON rt.pregunta_id = pt.id " +
                            "WHERE rt.plan_id = ? AND rt.valor = true AND pt.es_evaluable = true";
-        // SQL para actualizar el estado del plan familiar a 3 (En desarrollo) y su clasificación de tipo de familia
         String sqlActualizarPlan = "UPDATE planes_familiares SET estado_id = 3, tipo_familia_id = ? WHERE id = ?";
 
-        // Inicializa las variables para la conexión y las sentencias SQL de JDBC
+        // Qué hace: Inicializa las variables para controlar de forma fina los recursos JDBC en bloque catch.
         Connection con = null;
         PreparedStatement psResp = null;
         PreparedStatement psCont = null;
@@ -140,65 +164,55 @@ public class VulnerabilidadDAO {
         ResultSet rs = null;
 
         try {
-            // Abre una conexión limpia a la base de datos
+            // Qué hace: Abre la conexión JDBC.
             con = Conexion.obtener();
-            // Desactiva la confirmación automática para iniciar una transacción ACID
+            // Qué hace: Desactiva el auto-commit automático para iniciar una transacción manual.
             con.setAutoCommit(false);
 
-            // 1. Prepara la sentencia SQL de inserción y actualización de respuestas
+            // 1. Guardar las respuestas del test utilizando sentencias por lotes (Batch)
             psResp = con.prepareStatement(sqlRespuesta);
-            // Itera por la lista de respuestas provistas en el lote
             for (RespuestaTestDTO r : respuestas) {
-                // Establece el valor booleano de la respuesta
+                // Qué hace: Asigna el valor booleano de la respuesta, el plan y la pregunta en la inserción.
                 psResp.setBoolean(1, r.isAnswer());
-                // Asocia el ID del plan familiar en progreso
                 psResp.setInt(2, planId);
-                // Asocia el ID de la pregunta evaluada
                 psResp.setInt(3, r.getVulnerableQuestionId());
-                // Asocia el valor booleano en caso de actualización por clave duplicada
+                // Qué hace: Asigna la respuesta booleana para el caso de duplicidad.
                 psResp.setBoolean(4, r.isAnswer());
-                // Agrega esta sentencia al lote de ejecución en batch
+                // Qué hace: Añade el comando al lote de ejecución JDBC.
                 psResp.addBatch();
             }
-            // Ejecuta todas las inserciones del lote acumuladas en batch
+            // Qué hace: Ejecuta todas las inserciones del lote acumuladas en MySQL.
             psResp.executeBatch();
 
-            // 2. Prepara la sentencia para contar las respuestas de riesgo marcadas como SÍ
+            // 2. Contar las respuestas de riesgo marcadas como afirmativas para calificar la vulnerabilidad
             psCont = con.prepareStatement(sqlConteo);
-            // Reemplaza el ID del plan a calificar
             psCont.setInt(1, planId);
-            // Inicializa la variable de puntos ganados
             int puntos = 0;
-            // Ejecuta la consulta de conteo y lee el registro
             rs = psCont.executeQuery();
             if (rs.next()) {
-                // Recupera la cantidad de respuestas afirmativas a preguntas de riesgo
+                // Qué hace: Recupera el total de puntos de riesgo acumulados.
                 puntos = rs.getInt(1);
             }
 
-            // Define por defecto que la familia clasifica como "No Vulnerable" (tipo 2)
+            // Qué hace: Aplica la regla de negocio para clasificar a la familia.
+            // ID 2 = No Vulnerable, ID 1 = Vulnerable (si tiene 5 o más puntos de riesgo).
             int tipoFamiliaId = 2;
-            // Si la puntuación final de riesgo es igual o superior a 5
             if (puntos >= 5) {
-                // Clasifica a la familia como "Vulnerable" (tipo 1)
                 tipoFamiliaId = 1;
             }
 
-            // 3. Prepara la sentencia para actualizar los campos estado y clasificación de la familia
+            // 3. Modificar el plan familiar asignando el tipo de familia calificado y pasándolo a estado 'En desarrollo'
             psPlan = con.prepareStatement(sqlActualizarPlan);
-            // Asigna el tipo de familia resuelto (1 o 2)
             psPlan.setInt(1, tipoFamiliaId);
-            // Asigna el ID del plan familiar en progreso
             psPlan.setInt(2, planId);
-            // Aplica la actualización en la tabla planes_familiares
             psPlan.executeUpdate();
 
-            // Confirma la transacción en la base de datos de manera definitiva
+            // Qué hace: Confirma la transacción en la base de datos de manera definitiva.
             con.commit();
-            // Retorna éxito absoluto
+            // Qué hace: Retorna verdadero indicando éxito.
             return true;
         } catch (SQLException e) {
-            // Si ocurrió alguna excepción, realiza un rollback para no dejar datos corruptos
+            // Qué hace: Si ocurre un error, deshace todos los cambios realizados en el test para prevenir datos parciales o corruptos.
             if (con != null) {
                 try {
                     con.rollback();
@@ -206,10 +220,9 @@ public class VulnerabilidadDAO {
                     System.err.println("Error en rollback: " + ex.getMessage());
                 }
             }
-            // Propaga la excepción original para que sea manejada en la capa de servicios
             throw e;
         } finally {
-            // Cierra todas las conexiones y recursos abiertos en el bloque try
+            // Qué hace: Cierra de forma ordenada todos los recursos abiertos en el bloque try.
             if (rs != null) rs.close();
             if (psResp != null) psResp.close();
             if (psCont != null) psCont.close();
@@ -218,35 +231,46 @@ public class VulnerabilidadDAO {
         }
     }
     
-    // Actualiza el estado_id de un plan familiar de manera aislada (ej. rechazar o aprobar)
+    // Sirve para: Actualizar el estado_id de un plan familiar de manera aislada (ej. rechazar o aprobar).
+    // Qué hace: Ejecuta un query UPDATE en la tabla planes_familiares.
+    // Explicación de consulta SQL:
+    // - Información buscada: Modificar la columna estado_id.
+    // - Tablas participantes: planes_familiares.
+    // - Filtros aplicados: id = ? (id del plan familiar a actualizar).
     public void actualizarEstadoPlan(int planId, int estadoId) throws SQLException {
-        // Sentencia SQL de actualización del estado del plan
+        // Qué hace: Define la consulta de actualización.
         String sql = "UPDATE planes_familiares SET estado_id = ? WHERE id = ?";
-        // Abre conexión, prepara la consulta y ejecuta el cambio en la base de datos
+        // Qué hace: Abre la conexión a la base de datos y compila el PreparedStatement.
         try (Connection con = Conexion.obtener();
              PreparedStatement ps = con.prepareStatement(sql)) {
-            // Reemplaza el ID del nuevo estado
+            // Qué hace: Asigna el ID del nuevo estado al statement.
             ps.setInt(1, estadoId);
-            // Reemplaza el ID del plan familiar
+            // Qué hace: Asigna el ID del plan familiar.
             ps.setInt(2, planId);
-            // Ejecuta el cambio
+            // Qué hace: Ejecuta la consulta en base de datos.
             ps.executeUpdate();
         }
     }
 
-    // Sirve para: Registrar una bitácora de seguimiento cada vez que el plan cambia de estado
-    // Qué hace: Inserta observaciones, el ID del plan, el ID del supervisor gestor y el nuevo estado en seguimiento_plan
-    // Por qué es importante: Permite auditar el flujo del plan familiar y mostrar observaciones al voluntario en caso de rechazo
+    // Sirve para: Registrar una bitácora de seguimiento cada vez que el plan cambia de estado.
+    // Qué hace: Inserta observaciones, el ID del plan, el ID del supervisor gestor y el nuevo estado en seguimiento_plan.
+    // Por qué es importante: Permite auditar el flujo del plan familiar y mostrar observaciones al voluntario en caso de rechazo.
     public void registrarSeguimiento(int planId, int usuarioId, int estadoId, String observaciones) throws SQLException {
-        // Sentencia SQL para insertar el seguimiento de estado del plan
+        // Explicación de consulta SQL:
+        // - Información buscada: Registrar una fila en seguimiento_plan.
+        // - Tablas participantes: seguimiento_plan.
         String sql = "INSERT INTO seguimiento_plan (observaciones, plan_id, usuario_gestor_id, estado_id, leido) VALUES (?, ?, ?, ?, ?)";
+        // Qué hace: Abre la conexión a la base de datos y compila el PreparedStatement.
         try (Connection con = Conexion.obtener();
              PreparedStatement ps = con.prepareStatement(sql)) {
+            // Qué hace: Vincula los parámetros sanitizados del seguimiento.
             ps.setString(1, observaciones != null ? observaciones.trim() : "");
             ps.setInt(2, planId);
             ps.setInt(3, usuarioId);
             ps.setInt(4, estadoId);
-            ps.setBoolean(5, false); // Leído = false por defecto hasta que el voluntario lo vea
+            // Qué hace: Establece leido en falso por defecto hasta que el voluntario visualice la observación.
+            ps.setBoolean(5, false);
+            // Qué hace: Ejecuta el INSERT en MySQL.
             ps.executeUpdate();
         }
     }

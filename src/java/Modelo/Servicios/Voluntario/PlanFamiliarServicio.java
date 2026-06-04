@@ -163,10 +163,10 @@ public class PlanFamiliarServicio {
         }
     }
 
-    // Sirve para: Retornar los planes de emergencia familiar pertenecientes a un voluntario específico en formato paginado JSON
-    // Qué hace: Realiza validaciones de página, calcula límites y offsets, llama al DAO y arma la estructura JSON requerida
+    // Sirve para: Retornar los planes de emergencia familiar en formato paginado JSON.
+    // Qué hace: Si el usuario es supervisor (Rol 2), retorna todos los planes en el censo. Si es voluntario (Rol 1), retorna únicamente los suyos.
     // Por qué es importante: El frontend espera el listado bajo la clave 'data' y los metadatos de paginación bajo 'paginate'
-    public String listarPlanesPaginado(int voluntarioId, int page) {
+    public String listarPlanesPaginado(int usuarioId, int page) {
         // Inicializa el objeto JSON de respuesta
         JSONObject res = new JSONObject();
         try {
@@ -177,10 +177,20 @@ public class PlanFamiliarServicio {
             // Calcula el desplazamiento (offset) para la consulta SQL
             int offset = (page - 1) * limit;
 
-            // Obtiene el número total de planes del voluntario
-            int total = planDAO.contarPlanesPorVoluntario(voluntarioId);
-            // Obtiene la lista de planes familiares del voluntario
-            java.util.List<java.util.Map<String, Object>> list = planDAO.listarPlanesPorVoluntario(voluntarioId, limit, offset);
+            // Determina el rol del usuario para aplicar la lógica de visibilidad correspondiente
+            int rolId = planDAO.obtenerRolUsuario(usuarioId);
+            int total;
+            java.util.List<java.util.Map<String, Object>> list;
+
+            if (rolId == 2) {
+                // Si es Supervisor (Rol 2), consulta todos los planes de forma global
+                total = planDAO.contarTodosLosPlanes();
+                list = planDAO.listarTodosLosPlanes(limit, offset);
+            } else {
+                // Si es Voluntario (Rol 1), consulta únicamente los planes creados por él
+                total = planDAO.contarPlanesPorVoluntario(usuarioId);
+                list = planDAO.listarPlanesPorVoluntario(usuarioId, limit, offset);
+            }
 
             // Instancia un arreglo JSON para almacenar las tarjetas
             JSONArray dataArr = new JSONArray();

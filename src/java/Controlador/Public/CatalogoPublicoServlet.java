@@ -25,6 +25,7 @@ import Modelo.DTO.TipoRecursoDTO;
     "/api/documentTypes",
     "/api/genders",
     "/api/kinships",
+    "/api/kinships/*",
     "/api/bloodGroups",
     "/api/nationalities",
     "/api/conditionTypes",
@@ -76,11 +77,48 @@ public class CatalogoPublicoServlet extends HttpServlet {
                     arr.put(obj);
                 }
             } else if (path.equals("/api/kinships")) {
+                // Qué hace: Verifica si la solicitud contiene un ID específico en el pathInfo para retornar un parentesco único.
+                // Por qué existe: El RevisionPlanController.js del supervisor consume /api/kinships/{id} para ver detalles del integrante.
+                // Qué problema resuelve: Devuelve un objeto individual con soporte de localización para evitar errores 404 e indefinidos.
+                String pathInfo = request.getPathInfo();
+                if (pathInfo != null && pathInfo.length() > 1) {
+                    try {
+                        int id = Integer.parseInt(pathInfo.substring(1));
+                        UbicacionDTO kin = null;
+                        List<UbicacionDTO> list = catalogoDAO.getParentescos();
+                        for (UbicacionDTO k : list) {
+                            if (k.getId() == id) {
+                                kin = k;
+                                break;
+                            }
+                        }
+                        if (kin != null) {
+                            JSONObject obj = new JSONObject();
+                            obj.put("id", kin.getId());
+                            obj.put("nombre", kin.getNombre());
+                            obj.put("name", kin.getNombre()); // Inyecta name para soporte de frontend
+                            obj.put("activo", 1);
+                            
+                            JSONObject res = new JSONObject();
+                            res.put("success", true);
+                            res.put("data", obj);
+                            out.print(res.toString());
+                            return;
+                        }
+                    } catch (NumberFormatException e) {
+                        // Ignora errores de parsing de URL no numéricos
+                    }
+                }
+
+                // Qué hace: Retorna la lista completa de parentescos con soporte dual de claves nombre/name.
+                // Por qué existe: Asegura que tanto los dropdowns de creación como la vista de lectura obtengan los parentescos.
+                // Qué problema resuelve: Homologa los campos de respuesta con la SPA.
                 List<UbicacionDTO> list = catalogoDAO.getParentescos();
                 for (UbicacionDTO kin : list) {
                     JSONObject obj = new JSONObject();
                     obj.put("id", kin.getId());
                     obj.put("nombre", kin.getNombre());
+                    obj.put("name", kin.getNombre()); // Inyecta name para compatibilidad de la SPA
                     obj.put("activo", 1);
                     arr.put(obj);
                 }
@@ -120,11 +158,48 @@ public class CatalogoPublicoServlet extends HttpServlet {
                     arr.put(obj);
                 }
             } else if (path.equals("/api/species")) {
+                // Qué hace: Verifica si la solicitud contiene un ID específico en el pathInfo para retornar una especie única.
+                // Por qué existe: El RevisionPlanController.js del supervisor consume /api/species/{id} al evaluar las mascotas.
+                // Qué problema resuelve: Devuelve un objeto individual con soporte de localización para evitar fallos 404.
+                String pathInfo = request.getPathInfo();
+                if (pathInfo != null && pathInfo.length() > 1) {
+                    try {
+                        int id = Integer.parseInt(pathInfo.substring(1));
+                        UbicacionDTO sp = null;
+                        List<UbicacionDTO> list = catalogoDAO.getEspeciesMascota();
+                        for (UbicacionDTO s : list) {
+                            if (s.getId() == id) {
+                                sp = s;
+                                break;
+                            }
+                        }
+                        if (sp != null) {
+                            JSONObject obj = new JSONObject();
+                            obj.put("id", sp.getId());
+                            obj.put("nombre", sp.getNombre());
+                            obj.put("name", sp.getNombre()); // Inyecta name para soporte de frontend
+                            obj.put("activo", 1);
+                            
+                            JSONObject res = new JSONObject();
+                            res.put("success", true);
+                            res.put("data", obj);
+                            out.print(res.toString());
+                            return;
+                        }
+                    } catch (NumberFormatException e) {
+                        // Ignora errores de parsing de URL no numéricos
+                    }
+                }
+
+                // Qué hace: Retorna la lista completa de especies con soporte dual de claves nombre/name.
+                // Por qué existe: Alimenta el dropdown de especies de mascotas en la SPA.
+                // Qué problema resuelve: Unifica las propiedades de la respuesta.
                 List<UbicacionDTO> list = catalogoDAO.getEspeciesMascota();
                 for (UbicacionDTO sp : list) {
                     JSONObject obj = new JSONObject();
                     obj.put("id", sp.getId());
                     obj.put("nombre", sp.getNombre());
+                    obj.put("name", sp.getNombre()); // Inyecta name para compatibilidad de la SPA
                     obj.put("activo", 1);
                     arr.put(obj);
                 }

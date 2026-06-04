@@ -12,7 +12,7 @@ import org.json.JSONObject;
 
 // Controlador Servlet renombrado a español PreguntasVulnerabilidadServlet
 // Mapeado al endpoint "/api/vulnerableQuestions/*"
-@WebServlet("/api/vulnerableQuestions/*")
+// @WebServlet("/api/vulnerableQuestions/*")
 public class PreguntasVulnerabilidadServlet extends HttpServlet {
     private final VulnerabilidadServicio servicio = new VulnerabilidadServicio();
 

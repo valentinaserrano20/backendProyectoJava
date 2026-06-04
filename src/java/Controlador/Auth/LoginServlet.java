@@ -2,6 +2,7 @@ package Controlador.Auth;
 
 import Modelo.Entidades.Usuario;
 import Modelo.Servicios.Auth.AuthServicio;
+import Modelo.DAO.UsuarioDAO;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -74,17 +75,48 @@ public class LoginServlet extends HttpServlet {
                     usuario.getNombre() + " " + usuario.getApellido()
             );
 
-            // MODIFICADO: Mapeo directo y unificado de roles (Rol 1 = Voluntario, Rol 2 = Supervisor_Administrador)
+            // Qué hace: Obtiene el ID del rol del usuario autenticado.
+            // Por qué existe: Determina las facultades y vistas iniciales asignadas en el sistema.
+            // Qué problema resuelve: Permite perfilar el nivel de acceso del usuario de forma estructurada.
             int mappedRoleId = usuario.getRolId();
-            String permissions;
+            
+            // Qué hace: Crea una instancia de UsuarioDAO para consultar la base de datos.
+            // Por qué existe: Habilita el acceso a la capa de persistencia para obtener información relacional de roles y permisos.
+            // Qué problema resuelve: Permite recuperar los permisos reales guardados en MySQL.
+            UsuarioDAO usuarioDAO = new UsuarioDAO();
+            
+            // Qué hace: Llama a obtenerPermisosPorRol pasando el ID del rol para recuperar la lista de permisos de BD.
+            // Por qué existe: Carga la lista dinámica de llaves autorizadas para este usuario.
+            // Qué problema resuelve: Evita la asignación estática o "hardcoded" de permisos a nivel de base de datos.
+            java.util.List<String> dbPerms = usuarioDAO.obtenerPermisosPorRol(mappedRoleId);
+            
+            // Qué hace: Inicializa un StringBuilder para compilar la cadena de permisos que espera el frontend.
+            // Por qué existe: Facilita la concatenación eficiente de múltiples strings en un formato legible.
+            // Qué problema resuelve: Centraliza la serialización de permisos en un solo string delimitado por comas.
+            StringBuilder permissionsBuilder = new StringBuilder();
 
+            // Qué hace: Evalúa el ID de rol y añade los permisos heredados del enrutamiento de la SPA.
+            // Por qué existe: Mantiene la compatibilidad hacia atrás con el router JS evitando que se bloquee el acceso a vistas principales.
+            // Qué problema resuelve: Resuelve la validación de rutas privadas basadas en permisos heredados.
             if (mappedRoleId == 1) {
-                permissions = "home-frontend.voluntario";
+                permissionsBuilder.append("home-frontend.voluntario");
             } else if (mappedRoleId == 2) {
-                permissions = "home-frontend.supervisor,home-frontend.administrador";
+                permissionsBuilder.append("home-frontend.supervisor,home-frontend.administrador");
             } else {
-                permissions = "home-frontend.desconocido";
+                permissionsBuilder.append("home-frontend.desconocido");
             }
+
+            // Qué hace: Itera sobre la lista de permisos cargados de la base de datos.
+            // Por qué existe: Agrega las nuevas llaves dinámicas a la lista consolidada de permisos.
+            // Qué problema resuelve: Expone los nuevos permisos dinámicos (ej: planes:ver, usuarios:listar) al localStorage del cliente.
+            for (String perm : dbPerms) {
+                permissionsBuilder.append(",").append(perm);
+            }
+
+            // Qué hace: Convierte el StringBuilder a un String final y lo asigna a la variable local de control.
+            // Por qué existe: Asigna el valor definitivo al campo 'permissions' esperado en el objeto JSON de respuesta.
+            // Qué problema resuelve: Permite cumplir con el contrato de la API enviando el string concatenado exacto.
+            String permissions = permissionsBuilder.toString();
 
             data.put("role_id", mappedRoleId);
             data.put("permissions", permissions);

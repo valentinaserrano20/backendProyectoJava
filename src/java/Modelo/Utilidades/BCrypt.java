@@ -406,8 +406,44 @@ public class BCrypt {
             pass_bytes = plaintext.getBytes();
         }
         try {
-            String new_hashed = hashpw(plaintext, hashed);
-            return slowEquals(hashed, new_hashed);
+            // Qué hace: Inicializa la variable con el valor original del hash.
+            // Por qué existe: Sirve como base para realizar modificaciones o normalizaciones de forma segura.
+            // Qué problema resuelve: Evita alterar directamente el parámetro original de entrada.
+            String normalizedHashed = hashed;
+
+            // Qué hace: Verifica que el hash no sea nulo antes de evaluar su prefijo.
+            // Por qué existe: Previene posibles excepciones de tipo NullPointerException durante la validación.
+            // Qué problema resuelve: Resguarda la estabilidad de la validación ante registros mal formados.
+            if (hashed != null) {
+                // Qué hace: Detecta si el hash inicia con el prefijo "$2y$" (común en PHP).
+                // Por qué existe: Identifica variantes de BCrypt no soportadas directamente por esta clase.
+                // Qué problema resuelve: Evita rechazos injustificados de claves correctas guardadas con otros motores.
+                if (hashed.startsWith("$2y$")) {
+                    // Qué hace: Reemplaza el prefijo "$2y$" por el estándar "$2a$" concatenando el resto del hash.
+                    // Por qué existe: Transforma la cadena de sal a un formato procesable por el algoritmo interno de hashpw.
+                    // Qué problema resuelve: Corrige la incompatibilidad sintáctica del prefijo sin alterar la entropía del hash.
+                    normalizedHashed = "$2a$" + hashed.substring(4);
+                } 
+                // Qué hace: Detecta si el hash inicia con el prefijo "$2b$" (común en variantes modernas de OpenBSD/NodeJS).
+                // Por qué existe: Aumenta la robustez del sistema integrando otra versión habitual de BCrypt.
+                // Qué problema resuelve: Previene fallos de inicio de sesión si el software migra a bibliotecas modernas.
+                else if (hashed.startsWith("$2b$")) {
+                    // Qué hace: Reemplaza el prefijo "$2b$" por el estándar "$2a$" concatenando el resto del hash.
+                    // Por qué existe: Garantiza compatibilidad hacia atrás en la rutina de hasheo interna.
+                    // Qué problema resuelve: Normaliza el string para evitar la validación de versión fallida.
+                    normalizedHashed = "$2a$" + hashed.substring(4);
+                }
+            }
+
+            // Qué hace: Invoca a hashpw pasándole la contraseña ingresada y el hash normalizado como sal.
+            // Por qué existe: Genera un nuevo hash computado con el mismo costo y salt para comparar.
+            // Qué problema resuelve: Computa el resultado necesario para realizar la comparación de seguridad.
+            String new_hashed = hashpw(plaintext, normalizedHashed);
+
+            // Qué hace: Compara el hash normalizado con el nuevo hash generado de forma segura.
+            // Por qué existe: Determina si el texto plano ingresado por el usuario coincide con la credencial de la base de datos.
+            // Qué problema resuelve: Evita ataques de temporización comparando de forma constante (slowEquals).
+            return slowEquals(normalizedHashed, new_hashed);
         } catch (Exception e) {
             return false;
         }
