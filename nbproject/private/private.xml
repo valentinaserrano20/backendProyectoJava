@@ -24,6 +24,13 @@
             <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Controlador/Voluntario/PlanFamiliarServlet.java</file>
             <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Modelo/Utilidades/BCrypt.java</file>
             <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Modelo/Servicios/Voluntario/PdfServicio.java</file>
+            <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Controlador/Supervisor/IntegrantesServlet.java</file>
+            <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Controlador/Supervisor/SectoresServlet.java</file>
+            <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Controlador/Voluntario/ImagenesServlet.java</file>
+            <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Controlador/Voluntario/TestVulnerabilidad/PreguntasVulnerabilidadServlet.java</file>
+            <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Modelo/DAO/ActionPlanActionDAO.java</file>
+            <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Modelo/DAO/ImagenDAO.java</file>
+            <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Modelo/DTO/AccionReduccionDTO.java</file>
         </group>
     </open-files>
 </project-private>
