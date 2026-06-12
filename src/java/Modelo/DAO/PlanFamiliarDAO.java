@@ -9,12 +9,15 @@ public class PlanFamiliarDAO {
     // Sirve para: Crear la cabecera de un nuevo plan familiar y su respectiva ficha de identificación en una transacción atómica.
     // Qué hace: Realiza dos sentencias INSERT dentro de una transacción ACID, recuperando la clave primaria generada del plan.
     // Explicación de consultas SQL:
-    // - Inserción 1: INSERT INTO planes_familiares (enviado, voluntario_id, estado_id) VALUES (?, ?, ?).
+    // - Inserción 1: INSERT INTO planes_familiares (voluntario_id, estado_id) VALUES (?, ?).
     //   * Inserta la cabecera inicial del plan asignándolo al voluntario creador y poniéndolo en estado 2 (Pendiente).
     // - Inserción 2: INSERT INTO identificacion_familiar (nombre_familia, apellidos_familia, direccion, barrio_comuna_localidad, consentimiento_datos, plan_id, tipo_zona_id) VALUES (?, ?, ?, ?, ?, ?, ?).
     //   * Inserta el registro básico inicial de identificación familiar enlazado al plan recién creado.
     public int registrarPasoInicial(RegistroPlanDTO dto) throws SQLException {
-        String sqlPlan = "INSERT INTO planes_familiares (enviado, voluntario_id, estado_id) VALUES (?, ?, ?)";
+        // Sirve para: Definir la consulta de inserción del plan familiar en base de datos.
+        // Qué hace: Especifica las columnas voluntario_id y estado_id para el insert.
+        // Por qué es importante: El esquema de base de datos no contiene una columna 'enviado'; el estado del plan se controla mediante estado_id.
+        String sqlPlan = "INSERT INTO planes_familiares (voluntario_id, estado_id) VALUES (?, ?)";
         String sqlIdentificacion = "INSERT INTO identificacion_familiar "
                 + "(nombre_familia, apellidos_familia, direccion, barrio_comuna_localidad, consentimiento_datos, plan_id, tipo_zona_id) "
                 + "VALUES (?, ?, ?, ?, ?, ?, ?)";
@@ -34,10 +37,16 @@ public class PlanFamiliarDAO {
 
             // Qué hace: Prepara el statement para la cabecera y configura recuperar las llaves primarias autogeneradas.
             psPlan = con.prepareStatement(sqlPlan, Statement.RETURN_GENERATED_KEYS);
-            // Qué hace: Enlaza los parámetros de enviado (falso/borrador), voluntario_id y el estado_id inicial (2 = Pendiente).
-            psPlan.setBoolean(1, false); 
-            psPlan.setInt(2, dto.getUserId());
-            psPlan.setInt(3, 2); 
+            
+            // Sirve para: Enlazar el valor de voluntario_id en la consulta preparada.
+            // Qué hace: Pasa el ID del usuario como primer parámetro.
+            // Por qué es importante: Relaciona el plan familiar con el voluntario que lo está creando.
+            psPlan.setInt(1, dto.getUserId());
+            
+            // Sirve para: Enlazar el valor de estado_id en la consulta preparada.
+            // Qué hace: Pasa el valor 2 (Pendiente) como segundo parámetro.
+            // Por qué es importante: Asigna el estado inicial 'Pendiente' (borrador) al plan de emergencia familiar recién creado.
+            psPlan.setInt(2, 2); 
             // Qué hace: Ejecuta la inserción de la cabecera en la base de datos.
             psPlan.executeUpdate();
 

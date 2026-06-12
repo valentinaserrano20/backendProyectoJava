@@ -107,29 +107,44 @@ public class UsuarioDAO {
     // - Tabla afectada: usuarios.
     // - Columnas insertadas: nombre, apellido, email, contraseña, numero_documento, fecha_nacimiento, celular, tipo_documento_id, genero_id, organizacion_id, rol_id, estado_id.
     // - Valores insertados: Los valores parametrizados recibidos, forzando por defecto rol_id = 1 (Voluntario) y estado_id = 3 (Pendiente de aprobación).
+    // Método encargado de realizar la inserción física del registro en la tabla de base de datos relacional
     public void registrar(String nombres, String apellidos, String email, String passwordHashed,
             String numDocumento, String fechaNac, String telefono,
             int tipoDocumentoId, int generoId, int organizacionId) throws SQLException {
 
+        // Construye la sentencia SQL parametrizada. 
+        // Define de manera fija el rol_id en 1 (Voluntario) y el estado_id en 3 (Pendiente).
         String sql = "INSERT INTO usuarios (nombre, apellido, email, contraseña, numero_documento, "
                 + "fecha_nacimiento, celular, tipo_documento_id, genero_id, organizacion_id, rol_id, estado_id) "
                 + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 3)";
 
-        // Qué hace: Obtiene la conexión y compila el statement para la inserción parametrizada.
+        // Obtiene una conexión activa del pool de conexiones JDBC e inicializa el PreparedStatement.
+        // El bloque try-with-resources garantiza el cierre automático de la conexión y el statement al terminar.
         try (Connection con = Conexion.obtener();
              PreparedStatement ps = con.prepareStatement(sql)) {
-            // Qué hace: Asigna secuencialmente todos los campos requeridos en la sentencia de inserción.
+            // Asocia el primer parámetro "?" de la sentencia SQL al nombre del usuario
             ps.setString(1, nombres);
+            // Asocia el segundo parámetro "?" de la sentencia SQL al apellido del usuario
             ps.setString(2, apellidos);
+            // Asocia el tercer parámetro "?" de la sentencia SQL al correo electrónico
             ps.setString(3, email);
-            ps.setString(4, passwordHashed); // Contraseña previamente encriptada con BCrypt
+            // Asocia el cuarto parámetro "?" de la sentencia SQL a la contraseña cifrada
+            ps.setString(4, passwordHashed); 
+            // Asocia el quinto parámetro "?" de la sentencia SQL al número de documento
             ps.setString(5, numDocumento);
+            // Asocia el sexto parámetro "?" de la sentencia SQL a la fecha de nacimiento (YYYY-MM-DD)
             ps.setString(6, fechaNac);
+            // Asocia el séptimo parámetro "?" de la sentencia SQL al número de celular
             ps.setString(7, telefono);
+            // Asocia el octavo parámetro "?" de la sentencia SQL al identificador del tipo de documento
             ps.setInt(8, tipoDocumentoId);
+            // Asocia el noveno parámetro "?" de la sentencia SQL al identificador del género
             ps.setInt(9, generoId);
+            // Asocia el décimo parámetro "?" de la sentencia SQL al identificador de la organización
             ps.setInt(10, organizacionId);
-            // Qué hace: Ejecuta la instrucción INSERT en el motor de base de datos.
+            
+            // Envía la consulta preparada para ser compilada y ejecutada en el motor de base de datos MySQL.
+            // Sirve para persistir el nuevo registro de voluntario en el disco.
             ps.executeUpdate();
         }
     }

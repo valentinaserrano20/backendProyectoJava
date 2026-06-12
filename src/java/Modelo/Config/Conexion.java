@@ -22,7 +22,7 @@ public class Conexion {
     // Qué hace: Define la contraseña del usuario root en la base de datos.
     // Por qué existe: Es la credencial de seguridad del gestor de base de datos.
     // Qué problema resuelve: Completa el handshake de autenticación de MySQL.
-    private static final String PASS = "Sol2004."; 
+    private static final String PASS = "#Aprendiz2024"; 
 
     // Bloque estático que se ejecuta la primera vez que se carga la clase Conexion en la JVM.
     static {
