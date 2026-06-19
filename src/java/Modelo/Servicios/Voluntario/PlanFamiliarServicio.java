@@ -5,7 +5,6 @@ import Modelo.DTO.RegistroPlanDTO;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-
 public class PlanFamiliarServicio {
     private final PlanFamiliarDAO planDAO = new PlanFamiliarDAO();
 
@@ -22,24 +21,27 @@ public class PlanFamiliarServicio {
 
         try {
             int idPlan = planDAO.registrarPasoInicial(dto);
-            
+
             JSONObject data = new JSONObject();
             data.put("id", idPlan);
 
             return res.put("success", true)
-                      .put("message", "Registro familiar inicializado correctamente.")
-                      .put("data", data)
-                      .toString();
+                    .put("message", "Registro familiar inicializado correctamente.")
+                    .put("data", data)
+                    .toString();
         } catch (Exception e) {
             return res.put("success", false)
-                      .put("message", "Error de persistencia en el servidor: " + e.getMessage())
-                      .toString();
+                    .put("message", "Error de persistencia en el servidor: " + e.getMessage())
+                    .toString();
         }
     }
 
-    // Sirve para: Obtener el detalle completo de precarga de un plan familiar y retornarlo en un JSON estructurado
-    // Qué hace: Consulta al DAO el DTO del plan y empaqueta en el nodo "data" todos los campos de geografía, sector, dirección, teléfono y calidad.
-    // Por qué es importante: Permite al frontend autorrellenar de forma íntegra el formulario de datos principales sin limpiar ni omitir campos existentes.
+    // Sirve para: Obtener el detalle completo de precarga de un plan familiar y
+    // retornarlo en un JSON estructurado
+    // Qué hace: Consulta al DAO el DTO del plan y empaqueta en el nodo "data" todos
+    // los campos de geografía, sector, dirección, teléfono y calidad.
+    // Por qué es importante: Permite al frontend autorrellenar de forma íntegra el
+    // formulario de datos principales sin limpiar ni omitir campos existentes.
     public String obtenerPlanDetallado(int id) {
         // Inicializa el objeto de respuesta JSON principal
         JSONObject res = new JSONObject();
@@ -57,10 +59,12 @@ public class PlanFamiliarServicio {
             data.put("id", plan.getId());
             data.put("last_names", plan.getLastNames());
             data.put("family_type", plan.getFamilyType());
-            
+
             // Sirve para: Empaquetar los campos extendidos recuperados del plan familiar
-            // Qué hace: Añade llaves adicionales para zona, dirección, departamento, ciudad, sector y calidad al objeto "data"
-            // Por qué es importante: El frontend depende de estas propiedades para sincronizar correctamente los inputs del formulario
+            // Qué hace: Añade llaves adicionales para zona, dirección, departamento,
+            // ciudad, sector y calidad al objeto "data"
+            // Por qué es importante: El frontend depende de estas propiedades para
+            // sincronizar correctamente los inputs del formulario
             data.put("zone_id", plan.getZoneId());
             data.put("department_id", plan.getDepartmentId());
             data.put("city_id", plan.getCityId());
@@ -69,7 +73,7 @@ public class PlanFamiliarServicio {
             data.put("sector_name", plan.getSectorName());
             data.put("landline_phone", plan.getLandlinePhone());
             data.put("housing_quality_id", plan.getHousingQualityId());
-            
+
             // Empaqueta el estado del plan y las observaciones para consumo del frontend
             data.put("status_plan_id", plan.getStatusPlanId());
             data.put("comentary", plan.getComentary());
@@ -87,23 +91,32 @@ public class PlanFamiliarServicio {
         return res.toString();
     }
 
-    // Sirve para: Procesar y persistir la actualización de la fase de identificación del plan familiar
-    // Qué hace: Valida los campos de entrada y llama al DAO para guardar los cambios en la base de datos
-    // Por qué es importante: Garantiza consistencia en las reglas de negocio al guardar, previniendo datos inválidos en la base de datos
+    // Sirve para: Procesar y persistir la actualización de la fase de
+    // identificación del plan familiar
+    // Qué hace: Valida los campos de entrada y llama al DAO para guardar los
+    // cambios en la base de datos
+    // Por qué es importante: Garantiza consistencia en las reglas de negocio al
+    // guardar, previniendo datos inválidos en la base de datos
     public String guardarIdentificacion(int id, Modelo.DTO.ActualizarIdentificacionDTO dto) {
         // Inicializa el objeto JSON de respuesta
         JSONObject res = new JSONObject();
 
-        // Si la zona no fue provista por el frontend, intentamos recuperar la que ya estaba en la base de datos
-        // para evitar que la validación posterior falle y se pierda el dato de zona original.
+        // Si la zona no fue provista por el frontend, intentamos recuperar la que ya
+        // estaba en la base de datos
+        // para evitar que la validación posterior falle y se pierda el dato de zona
+        // original.
         if (dto.getZoneId() <= 0) {
             try {
+                // Qué hace: Consulta el plan existente para no perder el dato de zona original
+                // si no viene en el payload.
+                // y luego de esto pasamos a PlanFamiliarDAO.obtenerDetallePlan para extraer los
+                // datos de la fila original.
                 Modelo.DTO.IdentificacionPlanDTO planExistente = planDAO.obtenerDetallePlan(id);
                 if (planExistente != null) {
                     dto.setZoneId(planExistente.getZoneId());
                 }
             } catch (Exception e) {
-                // Si falla la consulta, dejamos el valor en 0 (será rechazado por la validación)
+                // Fallo de consulta ignorado, caerá en la validación
             }
         }
 
@@ -115,30 +128,39 @@ public class PlanFamiliarServicio {
             return res.put("success", false).put("message", "Falta la dirección de la vivienda.").toString();
         }
         if (dto.getZoneId() <= 0 || dto.getSectorId() <= 0 || dto.getHousingQualityId() <= 0) {
-            return res.put("success", false).put("message", "Selección de zona, sector o calidad de vivienda inválida.").toString();
+            return res.put("success", false).put("message", "Selección de zona, sector o calidad de vivienda inválida.")
+                    .toString();
         }
 
         try {
-            // Invoca al DAO para realizar el UPDATE sobre la base de datos
+            // Qué hace: Ejecuta la actualización de los datos del plan.
+            // y luego de esto pasamos a PlanFamiliarDAO.actualizarIdentificacion, el cual
+            // corre la sentencia UPDATE.
             planDAO.actualizarIdentificacion(id, dto);
             // Retorna respuesta de éxito y el mensaje informativo correspondiente
             return res.put("success", true)
-                      .put("message", "Identificación familiar registrada correctamente.")
-                      .toString();
+                    .put("message", "Identificación familiar registrada correctamente.")
+                    .toString();
         } catch (Exception e) {
             // Captura errores e informa del fallo de persistencia
             return res.put("success", false)
-                      .put("message", "Error de persistencia en el servidor: " + e.getMessage())
-                      .toString();
+                    .put("message", "Error de persistencia en el servidor: " + e.getMessage())
+                    .toString();
         }
     }
 
-    // Sirve para: Procesar la solicitud de validación de acceso al plan
-    // Qué hace: Llama al DAO para determinar el acceso del usuario y empaqueta el resultado en JSON
-    // Por qué es importante: El frontend utiliza la propiedad 'access_check' para bloquear o permitir el ingreso
+    // Qué hace: Comprueba si el usuario tiene acceso asignado o de propiedad sobre
+    // el plan familiar.
+    // Por qué existe: Evita brechas de seguridad donde un voluntario modifique
+    // planes creados por otros.
+    // Qué pasaría si no estuviera: Un voluntario malintencionado podría ver o
+    // alterar datos de cualquier otra vivienda.
     public String verificarAccesoAPlan(int planId, int usuarioId) {
         JSONObject res = new JSONObject();
         try {
+            // Qué hace: Consulta al DAO si el usuario posee permiso de autor sobre el plan.
+            // y luego de esto pasamos a PlanFamiliarDAO.verificarAcceso, que ejecuta una
+            // consulta COUNT en MySQL.
             boolean tieneAcceso = planDAO.verificarAcceso(planId, usuarioId);
             JSONObject data = new JSONObject();
             data.put("access_check", tieneAcceso);
@@ -148,24 +170,33 @@ public class PlanFamiliarServicio {
         }
     }
 
-    // Sirve para: Comprobar si el plan familiar posee integrantes registrados
-    // Qué hace: Consulta al DAO el conteo de integrantes y lo encapsula en un JSON
-    // Por qué es importante: Evita que el voluntario intente continuar con el test de vulnerabilidad sin registrar integrantes
+    // Qué hace: Comprueba si hay por lo menos un integrante registrado en el plan
+    // familiar.
+    // Por qué existe: El plan de emergencias necesita que exista al menos una
+    // persona para que tenga sentido calificar el test.
+    // Qué pasaría si no estuviera: Se calificaría la vulnerabilidad del hogar de
+    // viviendas completamente vacías sin integrantes humanos.
     public String verificarTieneIntegrantes(int planId) {
         JSONObject res = new JSONObject();
         try {
+            // Qué hace: Consulta el total de integrantes del plan.
+            // y luego de esto pasamos a PlanFamiliarDAO.tieneIntegrantes, el cual verifica
+            // si la tabla de integrantes posee filas para este ID de plan.
             boolean hasMembers = planDAO.tieneIntegrantes(planId);
             JSONObject data = new JSONObject();
             data.put("has_members", hasMembers);
             return res.put("success", true).put("data", data).toString();
         } catch (Exception e) {
-            return res.put("success", false).put("message", "Error al verificar integrantes: " + e.getMessage()).toString();
+            return res.put("success", false).put("message", "Error al verificar integrantes: " + e.getMessage())
+                    .toString();
         }
     }
 
-    // Sirve para: Retornar los planes de emergencia familiar en formato paginado JSON.
-    // Qué hace: Si el usuario es supervisor (Rol 2), retorna todos los planes en el censo. Si es voluntario (Rol 1), retorna únicamente los suyos.
-    // Por qué es importante: El frontend espera el listado bajo la clave 'data' y los metadatos de paginación bajo 'paginate'
+    // Qué hace: Retorna la lista paginada de planes de emergencia en formato JSON.
+    // Por qué existe: Adapta los límites de visualización de planes en la tabla del
+    // panel según el rol (Supervisor lee todo, Voluntario solo lo propio).
+    // Qué pasaría si no estuviera: El backend enviaría miles de registros al
+    // navegador en una sola llamada, colapsando el rendimiento del cliente.
     public String listarPlanesPaginado(int usuarioId, int page) {
         // Inicializa el objeto JSON de respuesta
         JSONObject res = new JSONObject();
@@ -173,21 +204,29 @@ public class PlanFamiliarServicio {
             // Define el límite de registros por página
             int limit = 10;
             // Asegura que la página solicitada sea válida
-            if (page < 1) page = 1;
+            if (page < 1)
+                page = 1;
             // Calcula el desplazamiento (offset) para la consulta SQL
             int offset = (page - 1) * limit;
 
-            // Determina el rol del usuario para aplicar la lógica de visibilidad correspondiente
+            // Qué hace: Obtiene el rol del usuario actual.
+            // y luego de esto pasamos a PlanFamiliarDAO.obtenerRolUsuario para hacer la
+            // consulta.
             int rolId = planDAO.obtenerRolUsuario(usuarioId);
             int total;
             java.util.List<java.util.Map<String, Object>> list;
 
             if (rolId == 2) {
-                // Si es Supervisor (Rol 2), consulta todos los planes de forma global
+                // Qué hace: Consulta el total de planes y la lista para supervisor.
+                // y luego de esto pasamos a PlanFamiliarDAO.contarTodosLosPlanes y
+                // PlanFamiliarDAO.listarTodosLosPlanes.
                 total = planDAO.contarTodosLosPlanes();
                 list = planDAO.listarTodosLosPlanes(limit, offset);
             } else {
-                // Si es Voluntario (Rol 1), consulta únicamente los planes creados por él
+                // Qué hace: Consulta el total de planes y la lista específicos para el
+                // voluntario en sesión.
+                // y luego de esto pasamos a PlanFamiliarDAO.contarPlanesPorVoluntario y
+                // PlanFamiliarDAO.listarPlanesPorVoluntario.
                 total = planDAO.contarPlanesPorVoluntario(usuarioId);
                 list = planDAO.listarPlanesPorVoluntario(usuarioId, limit, offset);
             }
@@ -204,7 +243,8 @@ public class PlanFamiliarServicio {
 
             // Calcula el número de la última página disponible
             int lastPage = (int) Math.ceil((double) total / limit);
-            if (lastPage < 1) lastPage = 1;
+            if (lastPage < 1)
+                lastPage = 1;
 
             // Crea un objeto JSON para almacenar la metadata de paginación
             JSONObject paginate = new JSONObject();

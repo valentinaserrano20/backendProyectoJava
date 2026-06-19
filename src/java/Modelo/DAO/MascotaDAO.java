@@ -18,10 +18,11 @@ public class MascotaDAO {
     // Por qué existe: Es requerido para los cálculos y lógica de paginación infinita en las vistas del voluntario.
     // Qué problema resuelve: Permite contar rápidamente las mascotas de la base de datos sin necesidad de transferir todas las filas en memoria.
     public int obtenerTotalMascotas(int planId) throws SQLException {
-        // Explicación de consulta SQL:
-        // - Información buscada: El conteo total de mascotas asociadas a un plan específico.
-        // - Tablas participantes: mascotas.
-        // - Filtros aplicados: plan_id = ? (filtrado por el plan familiar de interés).
+        // Explicación detallada de la consulta SQL:
+        // - Comando SELECT COUNT(*) AS total: Cuenta la cantidad total de registros (filas) que cumplen la condición y le asigna el alias "total" a la columna resultante para recuperarla fácilmente en Java.
+        // - Tabla FROM mascotas: Especifica la tabla física de donde se extraerán y contarán los datos.
+        // - Filtro WHERE plan_id = ?: Condición que restringe el conteo únicamente a las mascotas asociadas al plan familiar del ID provisto en el marcador posicional.
+        // - Qué retorna: Una única fila con la columna "total" conteniendo el número entero de registros coincidentes.
         String sql = "SELECT COUNT(*) AS total FROM mascotas WHERE plan_id = ?";
         // Qué hace: Abre la conexión a la base de datos y compila el statement parametrizado.
         // Por qué existe: Previene la inyección SQL al usar PreparedStatement parametrizado.
@@ -45,11 +46,15 @@ public class MascotaDAO {
     // Por qué existe: Alimenta el renderizado de la cuadrícula de mascotas de la familia de forma dosificada en el cliente.
     // Qué problema resuelve: Evita la sobrecarga de memoria del servidor al recuperar grupos delimitados de registros utilizando LIMIT y OFFSET.
     public List<MascotaDTO> listarMascotas(int planId, int limit, int offset) throws SQLException {
-        // Explicación de consulta SQL:
-        // - Información buscada: Identificador, nombre, raza, género, fecha de nacimiento, especie e ID de plan familiar de cada mascota.
-        // - Tablas participantes: mascotas (m), especies_mascota (e), generos_mascota (g).
-        // - Relaciones (JOINs): LEFT JOIN con especies_mascota en especie_id y con generos_mascota en genero_id.
-        // - Filtros aplicados: m.plan_id = ?, paginado de forma segura con LIMIT ? OFFSET ?.
+        // Explicación detallada de la consulta SQL:
+        // - Columnas consultadas (m.id, m.nombre, etc.): Selecciona campos clave de la mascota (m), el nombre descriptivo de su género (g.nombre) y su especie (e.nombre) para mapear el DTO completo.
+        // - Tabla principal FROM mascotas m: Indica que la consulta base se realiza sobre la tabla de mascotas.
+        // - Relación LEFT JOIN especies_mascota e ON m.especie_id = e.id: Une la tabla mascotas con especies_mascota. Se usa LEFT JOIN (unión izquierda) en lugar de INNER JOIN para garantizar que si una mascota no tiene especie asignada (especie_id es null o no existe), el animal de todos modos aparezca en la lista final con el campo de especie en nulo, en vez de ser excluido del resultado.
+        // - Relación LEFT JOIN generos_mascota g ON m.genero_id = g.id: Une mascotas con el catálogo de géneros de forma opcional (LEFT JOIN) para incluir al animal incluso si no tiene un género especificado.
+        // - Filtro WHERE m.plan_id = ?: Limita los resultados a las mascotas pertenecientes al ID de plan familiar ingresado en el primer marcador de posición.
+        // - Cláusula LIMIT ?: Restringe el número máximo de filas que el motor de base de datos devolverá (por ejemplo, 10 filas para no sobrecargar el navegador).
+        // - Cláusula OFFSET ?: Indica cuántos registros iniciales debe saltarse MySQL antes de comenzar a leer (por ejemplo, en la página 2 saltará los primeros 10 registros). Sirve para implementar la paginación de datos.
+        // - Qué retorna: Un listado de filas que representan cada mascota del plan familiar con sus respectivas descripciones de género y especie.
         String sql = "SELECT m.id, m.nombre, m.raza, m.genero_id, g.nombre AS genero_nombre, m.fecha_nacimiento, m.plan_id, m.especie_id, e.nombre AS especie_nombre "
                    + "FROM mascotas m "
                    + "LEFT JOIN especies_mascota e ON m.especie_id = e.id "
@@ -110,11 +115,11 @@ public class MascotaDAO {
     // Por qué existe: Permite precargar la información de la mascota en el formulario de edición y ventanas de detalles.
     // Qué problema resuelve: Facilita la recuperación atómica y limpia de los atributos de un animal individual por su ID único.
     public MascotaDTO obtenerMascota(int id) throws SQLException {
-        // Explicación de consulta SQL:
-        // - Información buscada: Detalles del animal, incluyendo su género y especie.
-        // - Tablas participantes: mascotas (m), especies_mascota (e), generos_mascota (g).
-        // - Relaciones (JOINs): LEFT JOIN con especies_mascota en especie_id y con generos_mascota en genero_id.
-        // - Filtros aplicados: m.id = ? (filtrado por el identificador de la mascota).
+        // Explicación detallada de la consulta SQL:
+        // - Columnas consultadas (m.id, m.nombre, etc.): Selecciona todos los campos de información atómica del animal.
+        // - Relaciones LEFT JOIN e y g: Conecta la tabla mascotas con especies_mascota y generos_mascota. Se usa LEFT JOIN para asegurar que si el animal no tiene género o especie configurados en la base de datos, la consulta siga teniendo éxito y devuelva los datos básicos del animal, rellenando con null los campos ausentes en lugar de ignorar la fila completa.
+        // - Filtro WHERE m.id = ?: Filtra por la clave primaria única del animal, asegurando que se recupere a lo sumo un solo registro coincidente.
+        // - Qué retorna: Una única fila con la información completa de la mascota, que se mapea directamente a un objeto MascotaDTO en Java.
         String sql = "SELECT m.id, m.nombre, m.raza, m.genero_id, g.nombre AS genero_nombre, m.fecha_nacimiento, m.plan_id, m.especie_id, e.nombre AS especie_nombre "
                    + "FROM mascotas m "
                    + "LEFT JOIN especies_mascota e ON m.especie_id = e.id "
@@ -166,49 +171,52 @@ public class MascotaDAO {
     // Por qué existe: Soporta la creación física de mascotas asociadas a un núcleo familiar voluntario evaluado.
     // Qué problema resuelve: Garantiza el almacenamiento consistente de los tipos de datos (como fecha y llaves foráneas) controlando nulos en columnas opcionales.
     public int crearMascota(MascotaDTO dto) throws SQLException {
-        // Explicación de consulta SQL:
-        // - Información buscada: Creación de un registro en la tabla mascotas.
-        // - Tablas participantes: mascotas.
-        // - Filtros aplicados: Ninguno (INSERT INTO con placeholders).
+        // Definición de la sentencia SQL parametrizada
         String sql = "INSERT INTO mascotas (nombre, raza, genero_id, fecha_nacimiento, plan_id, especie_id) VALUES (?, ?, ?, ?, ?, ?)";
-        // Qué hace: Abre la conexión a base de datos y compila la consulta con retorno de llaves generadas.
+        // Usamos la estructura try-with-resources para garantizar que la conexión JDBC y el PreparedStatement se cierren automáticamente al finalizar
         try (Connection con = Conexion.obtener();
+             // El PreparedStatement sirve para compilar de forma segura la consulta SQL con placeholders '?', anulando la posibilidad de inyecciones SQL
              PreparedStatement ps = con.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             
-            // Qué hace: Asigna el nombre y maneja el valor nulo de la raza si está vacía.
+            // Usamos ps.setString para vincular de forma sanitizada el nombre de la mascota al parámetro 1
             ps.setString(1, dto.getName());
+            // Controlamos si la raza fue provista o pasamos un valor nulo seguro a MySQL
             ps.setString(2, dto.getBreed() != null && !dto.getBreed().isEmpty() ? dto.getBreed() : null);
             
-            // Qué hace: Regla de negocio: Por defecto, asigna el género con ID 1 si no es válido.
+            // Usamos ps.setInt para vincular el ID de género al parámetro 3
             ps.setInt(3, dto.getAnimalGenderId() > 0 ? dto.getAnimalGenderId() : 1);
             
-            // Qué hace: Controla si la fecha de nacimiento viene vacía o nula para insertar el valor NULL.
+            // Validamos la presencia de la fecha de nacimiento del animal
             if (dto.getBirthDate() != null && !dto.getBirthDate().isEmpty()) {
+                // Usamos ps.setDate para transformar el String en un objeto java.sql.Date y vincularlo
                 ps.setDate(4, Date.valueOf(dto.getBirthDate()));
             } else {
+                // Usamos ps.setNull para insertar un valor nulo en la columna de fecha de nacimiento si esta no fue provista
                 ps.setNull(4, Types.DATE);
             }
             
+            // Usamos ps.setInt para vincular el ID del plan de emergencia familiar al parámetro 5
             ps.setInt(5, dto.getPlanId());
             
-            // Qué hace: Controla si el ID de especie es válido o inserta NULL.
+            // Validamos la especie y la vinculamos
             if (dto.getSpeciesId() > 0) {
                 ps.setInt(6, dto.getSpeciesId());
             } else {
                 ps.setNull(6, Types.INTEGER);
             }
             
-            // Qué hace: Ejecuta la inserción.
+            // Ejecutamos la consulta física de inserción en la base de datos
             ps.executeUpdate();
             
-            // Qué hace: Recupera las llaves primarias autogeneradas generadas por MySQL.
+            // El ResultSet rsKeys sirve para recuperar las llaves autogeneradas en MySQL tras la inserción exitosa
             try (ResultSet rsKeys = ps.getGeneratedKeys()) {
                 if (rsKeys.next()) {
+                    // Extraemos e identificamos el ID numérico asignado por MySQL
                     return rsKeys.getInt(1);
                 }
             }
         }
-        // Qué hace: Lanza excepción si falla la recuperación de la llave autogenerada.
+        // Lanzamos una excepción en caso de que ocurran fallas no controladas al obtener la llave autogenerada
         throw new SQLException("Error al recuperar el ID autogenerado de la mascota registrada.");
     }
 
@@ -216,10 +224,11 @@ public class MascotaDAO {
     // Por qué existe: Posibilita que el voluntario guarde correcciones del nombre, raza, género o edad de la mascota.
     // Qué problema resuelve: Actualiza los campos específicos de la mascota sin alterar su relación estructurada con el plan familiar.
     public void actualizarMascota(int id, MascotaDTO dto) throws SQLException {
-        // Explicación de consulta SQL:
-        // - Información buscada: Actualizar campos básicos de la mascota.
-        // - Tablas participantes: mascotas.
-        // - Filtros aplicados: WHERE id = ? (se actualiza el registro con el ID correspondiente).
+        // Explicación detallada de la consulta SQL:
+        // - Comando UPDATE mascotas: Ordena al motor MySQL modificar los valores de registros existentes en la tabla mascotas.
+        // - Cláusulas SET nombre = ?, raza = ?, etc.: Especifica qué columnas sufrirán modificaciones y las vincula a marcadores de posición posicionales.
+        // - Filtro WHERE id = ?: Cláusula crítica de seguridad que limita la modificación exclusivamente a la fila cuyo identificador único coincida con el ID provisto, previniendo la actualización accidental de toda la tabla.
+        // - Qué retorna: No retorna datos (filas), sino que altera de forma persistente el registro modificado en MySQL.
         String sql = "UPDATE mascotas SET nombre = ?, raza = ?, genero_id = ?, fecha_nacimiento = ?, especie_id = ? WHERE id = ?";
         // Qué hace: Abre la conexión y prepara la consulta SQL.
         try (Connection con = Conexion.obtener();
@@ -264,10 +273,9 @@ public class MascotaDAO {
             // Qué hace: Desactiva el auto-commit automático para controlar de manera manual la transacción.
             con.setAutoCommit(false);
             
-            // Explicación de consulta SQL (Eliminar vacunas):
-            // - Información buscada: Borrar las vacunas del animal.
-            // - Tablas participantes: vacunas.
-            // - Filtros aplicados: mascota_id = ?.
+            // Explicación detallada de la consulta SQL de eliminación de vacunas:
+            // - Comando DELETE FROM vacunas: Ordena la eliminación física de registros de la tabla vacunas.
+            // - Filtro WHERE mascota_id = ?: Condición que restringe el borrado únicamente a las vacunas que pertenezcan a la mascota seleccionada, limpiando registros dependientes para mantener la integridad referencial.
             String sqlDelVacunas = "DELETE FROM vacunas WHERE mascota_id = ?";
             try (PreparedStatement psV = con.prepareStatement(sqlDelVacunas)) {
                 // Qué hace: Vincula el ID de la mascota y ejecuta el delete.
@@ -275,10 +283,9 @@ public class MascotaDAO {
                 psV.executeUpdate();
             }
             
-            // Explicación de consulta SQL (Eliminar mascota):
-            // - Información buscada: Eliminar el registro de la mascota.
-            // - Tablas participantes: mascotas.
-            // - Filtros aplicados: id = ?.
+            // Explicación detallada de la consulta SQL de eliminación de la mascota:
+            // - Comando DELETE FROM mascotas: Ordena la eliminación física del registro en la tabla mascotas.
+            // - Filtro WHERE id = ?: Limita el borrado exclusivamente a la mascota cuyo identificador único coincida con el parámetro inyectado, garantizando que no se eliminen otros animales.
             String sqlDelMascota = "DELETE FROM mascotas WHERE id = ?";
             try (PreparedStatement psM = con.prepareStatement(sqlDelMascota)) {
                 // Qué hace: Vincula el ID de la mascota y ejecuta el delete.
@@ -310,10 +317,12 @@ public class MascotaDAO {
     // Por qué existe: Permite listar el historial de vacunas en el perfil sanitario de la mascota de la UI.
     // Qué problema resuelve: Recupera del backend de forma consolidada todos los registros de inmunización del animal.
     public List<VacunaMascotaDTO> listarVacunasMascota(int mascotaId) throws SQLException {
-        // Explicación de consulta SQL:
-        // - Información buscada: Columnas de vacunas asociadas a la mascota.
-        // - Tablas participantes: vacunas.
-        // - Filtros aplicados: mascota_id = ?, ordenadas descendente por fecha de aplicación.
+        // Explicación detallada de la consulta SQL:
+        // - Comando SELECT id, nombre_vacuna, fecha_aplicacion, mascota_id: Recupera los datos necesarios del historial de inmunizaciones.
+        // - Tabla FROM vacunas: Especifica que consultamos sobre la tabla de vacunas.
+        // - Filtro WHERE mascota_id = ?: Restringe los registros exclusivamente a las vacunas asociadas al ID de la mascota provisto.
+        // - Cláusula ORDER BY fecha_aplicacion DESC: Ordena cronológicamente los registros de forma descendente (del más reciente al más antiguo) basándose en la fecha.
+        // - Qué retorna: Un listado de filas que representan las vacunas aplicadas a esa mascota.
         String sql = "SELECT id, nombre_vacuna, fecha_aplicacion, mascota_id FROM vacunas WHERE mascota_id = ? ORDER BY fecha_aplicacion DESC";
         // Qué hace: Abre la conexión a base de datos y compila el statement parametrizado.
         try (Connection con = Conexion.obtener();
@@ -348,10 +357,10 @@ public class MascotaDAO {
     // Por qué existe: Se utiliza para alimentar el modal flotante de edición de vacuna específica.
     // Qué problema resuelve: Recupera de forma limpia y exacta la información e historial de una vacuna particular.
     public VacunaMascotaDTO obtenerVacuna(int id) throws SQLException {
-        // Explicación de consulta SQL:
-        // - Información buscada: Datos de la vacuna específica.
-        // - Tablas participantes: vacunas.
-        // - Filtros aplicados: id = ? (id de la vacuna).
+        // Explicación detallada de la consulta SQL:
+        // - Comando SELECT: Recupera las columnas descriptivas de una sola dosis vacunal.
+        // - Filtro WHERE id = ?: Filtra la consulta por la clave primaria de la vacuna, asegurando recuperar un único registro exacto.
+        // - Qué retorna: Una fila con la información de la vacuna seleccionada, mapeada en Java a VacunaMascotaDTO.
         String sql = "SELECT id, nombre_vacuna, fecha_aplicacion, mascota_id FROM vacunas WHERE id = ?";
         // Qué hace: Abre la conexión a la base de datos y compila la consulta SQL.
         try (Connection con = Conexion.obtener();
@@ -383,9 +392,11 @@ public class MascotaDAO {
     // Por qué existe: Habilita el registro de una nueva inmunización al animal dentro del flujo del voluntario.
     // Qué problema resuelve: Asegura la correcta escritura e integridad de la fecha y de la clave foránea a la mascota.
     public int crearVacuna(VacunaMascotaDTO dto) throws SQLException {
-        // Explicación de consulta SQL:
-        // - Información buscada: Creación de un registro en la tabla vacunas.
-        // - Tablas participantes: vacunas.
+        // Explicación detallada de la consulta SQL:
+        // - Comando INSERT INTO vacunas: Ordena al motor MySQL crear un nuevo registro físico en la tabla vacunas.
+        // - Columnas (nombre_vacuna, fecha_aplicacion, mascota_id): Especifica el orden de inserción de las columnas.
+        // - Cláusula VALUES (?, ?, ?): Marcadores de posición que recibirán los valores sanitizados a insertar (nombre, fecha de aplicación e ID de la mascota asociada).
+        // - Qué retorna: No retorna filas, pero la base de datos genera un nuevo ID numérico autoincremental para este registro.
         String sql = "INSERT INTO vacunas (nombre_vacuna, fecha_aplicacion, mascota_id) VALUES (?, ?, ?)";
         // Qué hace: Abre la conexión a base de datos y compila la consulta con retorno de llaves generadas.
         try (Connection con = Conexion.obtener();
@@ -413,10 +424,10 @@ public class MascotaDAO {
     // Por qué existe: Permite al voluntario editar la dosis o corregir la fecha de inmunización del animal.
     // Qué problema resuelve: Realiza modificaciones sobre el registro particular de vacunas sin afectar las relaciones del animal.
     public void actualizarVacuna(int id, VacunaMascotaDTO dto) throws SQLException {
-        // Explicación de consulta SQL:
-        // - Información buscada: Modificar los atributos de una vacuna.
-        // - Tablas participantes: vacunas.
-        // - Filtros aplicados: WHERE id = ? (id de la vacuna).
+        // Explicación detallada de la consulta SQL:
+        // - Comando UPDATE vacunas: Modifica valores de un registro de vacuna existente en MySQL.
+        // - Filtro WHERE id = ?: Restringe de forma precisa la actualización a la vacuna seleccionada por su ID único, evitando alterar otras filas.
+        // - Qué retorna: Altera de forma persistente el registro de vacuna seleccionado en la base de datos.
         String sql = "UPDATE vacunas SET nombre_vacuna = ?, fecha_aplicacion = ? WHERE id = ?";
         // Qué hace: Abre la conexión a base de datos y compila el statement parametrizado.
         try (Connection con = Conexion.obtener();
@@ -436,10 +447,9 @@ public class MascotaDAO {
     // Por qué existe: Permite dar de baja o quitar vacunas registradas incorrectamente.
     // Qué problema resuelve: Ejecuta la remoción directa del registro de vacunas sin afectar al registro padre de la mascota.
     public void eliminarVacuna(int id) throws SQLException {
-        // Explicación de consulta SQL:
-        // - Información buscada: Borrado del registro de vacuna.
-        // - Tablas participantes: vacunas.
-        // - Filtros aplicados: WHERE id = ?.
+        // Explicación detallada de la consulta SQL:
+        // - Comando DELETE FROM vacunas: Elimina de forma permanente el registro físico de la dosis de la base de datos.
+        // - Filtro WHERE id = ?: Restringe la eliminación exclusivamente a la vacuna identificada por su ID.
         String sql = "DELETE FROM vacunas WHERE id = ?";
         // Qué hace: Abre la conexión a la base de datos y compila el statement parametrizado.
         try (Connection con = Conexion.obtener();
@@ -454,11 +464,11 @@ public class MascotaDAO {
     // Por qué existe: Soporta el filtrado de mascotas del supervisor en el panel de revisión de planes familiares.
     // Qué problema resuelve: Recupera de forma masiva y estructurada todas las mascotas para que el supervisor filtre localmente.
     public List<MascotaDTO> obtenerTodasMascotas() throws SQLException {
-        // Explicación de consulta SQL:
-        // - Información buscada: Listado de todas las mascotas con su identificador, nombre, raza, género, fecha de nacimiento, especie y ID de plan familiar.
-        // - Tablas participantes: mascotas (m), especies_mascota (e), generos_mascota (g).
-        // - Relaciones (JOINs): LEFT JOIN con especies_mascota en especie_id y con generos_mascota en genero_id.
-        // - Filtros aplicados: Ninguno (consulta global).
+        // Explicación detallada de la consulta SQL:
+        // - Columnas consultadas (m.id, m.nombre, etc.): Selecciona la información clave de todas las mascotas guardadas en el sistema.
+        // - Relaciones LEFT JOIN e y g: Une la tabla principal mascotas con los catálogos especies_mascota y generos_mascota. Se usa LEFT JOIN para asegurar que todas las mascotas del censo se incluyan en el listado devuelto, rellenando con valores nulos (null) la especie o el género si estos no han sido asignados al animal, impidiendo que filas válidas sean excluidas de la lista.
+        // - Filtros aplicados: Ninguno (consulta global del supervisor).
+        // - Qué retorna: El universo total de registros de mascotas que serán convertidos en objetos MascotaDTO.
         String sql = "SELECT m.id, m.nombre, m.raza, m.genero_id, g.nombre AS genero_nombre, m.fecha_nacimiento, m.plan_id, m.especie_id, e.nombre AS especie_nombre "
                    + "FROM mascotas m "
                    + "LEFT JOIN especies_mascota e ON m.especie_id = e.id "

@@ -146,10 +146,9 @@ public class VulnerabilidadDAO {
 
     // Sirve para: Guardar el lote de respuestas y calificar/actualiza el plan en una sola transacción atómica.
     // Qué hace: Realiza inserciones en lote (batch) de respuestas y actualiza el tipo de familia del plan familiar según la puntuación.
-    // Explicación de consultas SQL:
-    // - sqlRespuesta: Inserción de respuestas en respuestas_test. Si ya existe, actualiza el valor (ON DUPLICATE KEY UPDATE).
-    // - sqlConteo: Cuenta las respuestas afirmativas del plan que corresponden a preguntas evaluables de riesgo.
-    // - sqlActualizarPlan: Modifica el estado del plan familiar a 3 (En desarrollo) y asigna su tipo de familia (tipo_familia_id).
+    // - sqlRespuesta: Inserción de respuestas en la tabla respuestas_test. Si ya existe un registro de respuesta para la combinación de plan y pregunta, actualiza su valor (ON DUPLICATE KEY UPDATE).
+    // - sqlConteo: Realiza una consulta SELECT COUNT(*) cruzando la tabla de respuestas con la tabla de preguntas mediante un INNER JOIN. El JOIN es de tipo INNER porque nos interesa únicamente contar aquellas respuestas que corresponden a preguntas evaluables que existen en el catálogo de preguntas (es decir, donde el id de la pregunta exista en ambas tablas). Se filtran las respuestas afirmativas (rt.valor = true) y evaluables (pt.es_evaluable = true) asociadas al plan familiar indicado. Retorna una única fila con la cuenta entera de factores de riesgo.
+    // - sqlActualizarPlan: Modifica de forma física el estado del plan familiar a 3 (En desarrollo) y asigna su tipo de familia (tipo_familia_id) por su ID único.
     public boolean guardarTestYActualizarPlan(int planId, List<RespuestaTestDTO> respuestas) throws SQLException {
         String sqlRespuesta = "INSERT INTO respuestas_test (valor, plan_id, pregunta_id) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE valor = ?";
         String sqlConteo = "SELECT COUNT(*) FROM respuestas_test rt JOIN preguntas_test pt ON rt.pregunta_id = pt.id " +

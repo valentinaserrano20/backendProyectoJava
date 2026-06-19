@@ -20,21 +20,30 @@ public class NotificacionDAO {
     // - Información buscada: Registro de campos de notificación en notificaciones.
     // - Tablas participantes: notificaciones.
     public void crear(NotificacionDTO notificacion) throws SQLException {
+        // Sentencia SQL que especifica las columnas de la tabla notificaciones que recibirán los valores.
         String sql = "INSERT INTO notificaciones (usuario_id, titulo, mensaje, tipo, leida, enlace, entidad_id) "
                    + "VALUES (?, ?, ?, ?, ?, ?, ?)";
-        // Qué hace: Abre la conexión a la base de datos y compila el PreparedStatement.
-        // Por qué existe: Habilita la inserción parametrizada segura.
-        try (Connection con = Conexion.obtener();
-             PreparedStatement ps = con.prepareStatement(sql)) {
-            // Qué hace: Vincula los atributos del DTO de notificación a los marcadores de la consulta.
+                   
+        // try-with-resources: Abre la conexión JDBC y prepara el statement de forma segura, asegurando el cierre automático.
+        try (Connection con = Conexion.obtener(); // Solicita una conexión activa a la base de datos MySQL.
+             PreparedStatement ps = con.prepareStatement(sql)) { // Compila la consulta INSERT de forma segura.
+             
+            // Vincula el ID del usuario destinatario al primer parámetro '?'.
             ps.setInt(1, notificacion.getUsuarioId());
+            // Vincula el título de la alerta o notificación al segundo parámetro '?'.
             ps.setString(2, notificacion.getTitulo());
+            // Vincula el contenido o mensaje detallado de la alerta al tercer parámetro '?'.
             ps.setString(3, notificacion.getMensaje());
+            // Vincula el tipo de notificación (ej. "vivienda", "riesgo") al cuarto parámetro '?'.
             ps.setString(4, notificacion.getTipo());
+            // Vincula el estado booleano de lectura (inicialmente falso) al quinto parámetro '?'.
             ps.setBoolean(5, notificacion.isLeida());
+            // Vincula el enlace o ruta de redirección en la SPA al sexto parámetro '?'.
             ps.setString(6, notificacion.getEnlace());
+            // Vincula el ID de la entidad relacionada (ej. plan familiar ID) al séptimo parámetro '?'.
             ps.setInt(7, notificacion.getEntidadId());
-            // Qué hace: Ejecuta la sentencia INSERT en MySQL.
+            
+            // Ejecuta la inserción física del registro en la base de datos MySQL.
             ps.executeUpdate();
         }
     }
@@ -42,62 +51,73 @@ public class NotificacionDAO {
     // Sirve para: Obtener todas las notificaciones registradas de un usuario.
     // Qué hace: Realiza una consulta SELECT a la tabla notificaciones ordenada por fecha.
     // Explicación de consulta SQL:
-    // - Información buscada: Columnas id, usuario_id, titulo, mensaje, tipo, leida, fecha_creacion, enlace y entidad_id.
-    // - Tablas participantes: notificaciones.
-    // - Filtros aplicados: usuario_id = ? (notificaciones pertenecientes al usuario), ordenadas descendente por fecha_creacion.
+    // - Columnas seleccionadas: id, usuario_id, titulo, mensaje, tipo, leida, fecha_creacion, enlace y entidad_id.
+    // - Filtro aplicado: WHERE usuario_id = ? (selecciona únicamente las alertas asignadas a este usuario).
+    // - Ordenamiento: ORDER BY fecha_creacion DESC (las notificaciones más recientes aparecen al principio).
     public List<NotificacionDTO> obtenerPorUsuario(int usuarioId) throws SQLException {
         String sql = "SELECT id, usuario_id, titulo, mensaje, tipo, leida, fecha_creacion, enlace, entidad_id "
                    + "FROM notificaciones WHERE usuario_id = ? ORDER BY fecha_creacion DESC";
-        // Qué hace: Inicializa la lista que contendrá las notificaciones del usuario.
+                   
+        // Inicializa la lista dinámica que contendrá las notificaciones recuperadas.
         List<NotificacionDTO> notificaciones = new ArrayList<>();
-        // Qué hace: Abre la conexión y compila la consulta.
-        try (Connection con = Conexion.obtener();
-             PreparedStatement ps = con.prepareStatement(sql)) {
-            // Qué hace: Asigna el ID del usuario al statement.
+        
+        // try-with-resources: Inicializa y administra de forma segura la conexión y el statement de lectura.
+        try (Connection con = Conexion.obtener(); // Obtiene la conexión activa de MySQL.
+             PreparedStatement ps = con.prepareStatement(sql)) { // Prepara la consulta SELECT.
+             
+            // Vincula el ID del usuario en sesión al primer parámetro '?'.
             ps.setInt(1, usuarioId);
-            // Qué hace: Ejecuta la consulta de lectura.
+            
+            // Ejecuta la consulta de selección y almacena el resultado en un ResultSet.
             try (ResultSet rs = ps.executeQuery()) {
+                // Itera sobre cada fila devuelta por la base de datos
                 while (rs.next()) {
-                    // Qué hace: Instancia el DTO y mapea cada columna del ResultSet.
+                    // Instancia un nuevo DTO para mapear las columnas de la fila actual
                     NotificacionDTO notif = new NotificacionDTO();
-                    notif.setId(rs.getInt("id"));
-                    notif.setUsuarioId(rs.getInt("usuario_id"));
-                    notif.setTitulo(rs.getString("titulo"));
-                    notif.setMensaje(rs.getString("mensaje"));
-                    notif.setTipo(rs.getString("tipo"));
-                    notif.setLeida(rs.getBoolean("leida"));
-                    notif.setFechaCreacion(rs.getString("fecha_creacion"));
-                    notif.setEnlace(rs.getString("enlace"));
-                    notif.setEntidadId(rs.getInt("entidad_id"));
-                    // Qué hace: Agrega el DTO poblado al listado de retorno.
+                    notif.setId(rs.getInt("id")); // Obtiene el identificador único.
+                    notif.setUsuarioId(rs.getInt("usuario_id")); // Obtiene el ID de usuario.
+                    notif.setTitulo(rs.getString("titulo")); // Obtiene el título.
+                    notif.setMensaje(rs.getString("mensaje")); // Obtiene el cuerpo del mensaje.
+                    notif.setTipo(rs.getString("tipo")); // Obtiene el tipo de alerta.
+                    notif.setLeida(rs.getBoolean("leida")); // Obtiene el indicador de lectura.
+                    notif.setFechaCreacion(rs.getString("fecha_creacion")); // Obtiene la fecha de registro.
+                    notif.setEnlace(rs.getString("enlace")); // Obtiene el enlace SPA.
+                    notif.setEntidadId(rs.getInt("entidad_id")); // Obtiene el identificador relacional.
+                    
+                    // Agrega el DTO a la lista de retorno.
                     notificaciones.add(notif);
                 }
             }
         }
-        // Qué hace: Retorna la lista de notificaciones.
+        // Retorna la colección con todas las notificaciones encontradas del usuario.
         return notificaciones;
     }
 
     // Sirve para: Obtener las notificaciones no leídas de un usuario.
     // Qué hace: Realiza una consulta SELECT a la tabla notificaciones trayendo los registros pendientes de lectura.
     // Explicación de consulta SQL:
-    // - Información buscada: Atributos de las notificaciones sin leer.
-    // - Tablas participantes: notificaciones.
-    // - Filtros aplicados: usuario_id = ? AND leida = false, ordenadas descendentemente por fecha_creacion.
+    // - Columnas seleccionadas: id, usuario_id, titulo, mensaje, tipo, leida, fecha_creacion, enlace y entidad_id.
+    // - Filtro aplicado: WHERE usuario_id = ? AND leida = false (notificaciones pertenecientes al usuario que no han sido vistas).
+    // - Ordenamiento: ORDER BY fecha_creacion DESC (orden cronológico inverso).
     public List<NotificacionDTO> obtenerNoLeidas(int usuarioId) throws SQLException {
         String sql = "SELECT id, usuario_id, titulo, mensaje, tipo, leida, fecha_creacion, enlace, entidad_id "
                    + "FROM notificaciones WHERE usuario_id = ? AND leida = false ORDER BY fecha_creacion DESC";
-        // Qué hace: Inicializa la lista que almacenará las notificaciones no leídas.
+                   
+        // Inicializa la lista dinámica que contendrá las notificaciones sin leer.
         List<NotificacionDTO> notificaciones = new ArrayList<>();
-        // Qué hace: Abre la conexión y prepara el statement parametrizado.
-        try (Connection con = Conexion.obtener();
-             PreparedStatement ps = con.prepareStatement(sql)) {
-            // Qué hace: Vincula el ID del usuario al primer marcador.
+        
+        // try-with-resources: Gestiona de forma automática la apertura y cierre de recursos JDBC.
+        try (Connection con = Conexion.obtener(); // Abre la conexión con MySQL.
+             PreparedStatement ps = con.prepareStatement(sql)) { // Prepara la consulta parametrizada.
+             
+            // Vincula el ID del usuario en el filtro WHERE.
             ps.setInt(1, usuarioId);
-            // Qué hace: Ejecuta la consulta.
+            
+            // Ejecuta la consulta de lectura de base de datos.
             try (ResultSet rs = ps.executeQuery()) {
+                // Itera sobre cada registro no leído
                 while (rs.next()) {
-                    // Qué hace: Instancia el DTO y realiza el mapeo de cada columna.
+                    // Mapea la información a un nuevo DTO
                     NotificacionDTO notif = new NotificacionDTO();
                     notif.setId(rs.getInt("id"));
                     notif.setUsuarioId(rs.getInt("usuario_id"));
@@ -107,56 +127,60 @@ public class NotificacionDAO {
                     notif.setLeida(rs.getBoolean("leida"));
                     notif.setFechaCreacion(rs.getString("fecha_creacion"));
                     notif.setEnlace(rs.getString("enlace"));
-                    // Qué hace: Corrección de bug: Se mapea con 'entidad_id' para coincidir con la consulta SQL seleccionada.
-                    notif.setEntidadId(rs.getInt("entidad_id"));
-                    // Qué hace: Agrega el DTO a la lista.
+                    notif.setEntidadId(rs.getInt("entidad_id")); // Mapea el ID de entidad relacionada.
+                    
+                    // Agrega el DTO al listado final.
                     notificaciones.add(notif);
                 }
             }
         }
-        // Qué hace: Retorna la lista resultante de notificaciones no leídas.
+        // Retorna la lista con todas las notificaciones pendientes de lectura.
         return notificaciones;
     }
 
     // Sirve para: Contar las notificaciones no leídas de un usuario.
     // Qué hace: Realiza una consulta SELECT COUNT(*) en la tabla notificaciones.
     // Explicación de consulta SQL:
-    // - Información buscada: El total de notificaciones pendientes de leer del usuario.
-    // - Tablas participantes: notificaciones.
-    // - Filtros aplicados: usuario_id = ? AND leida = false.
+    // - SELECT COUNT(*) cuenta la cantidad total de filas.
+    // - WHERE usuario_id = ? AND leida = false restringe el conteo a las notificaciones sin leer de ese usuario.
     public int contarNoLeidas(int usuarioId) throws SQLException {
         String sql = "SELECT COUNT(*) FROM notificaciones WHERE usuario_id = ? AND leida = false";
-        // Qué hace: Abre la conexión a la base de datos y compila el PreparedStatement.
-        try (Connection con = Conexion.obtener();
-             PreparedStatement ps = con.prepareStatement(sql)) {
-            // Qué hace: Vincula el ID del usuario al primer parámetro.
+        
+        // try-with-resources: Asegura que la conexión y el statement se cierren al terminar la ejecución.
+        try (Connection con = Conexion.obtener(); // Obtiene la conexión activa a base de datos.
+             PreparedStatement ps = con.prepareStatement(sql)) { // Prepara la consulta de agregación.
+             
+            // Vincula el ID de usuario al primer marcador de posición '?'.
             ps.setInt(1, usuarioId);
-            // Qué hace: Ejecuta la consulta de conteo en MySQL.
+            
+            // Ejecuta la consulta de conteo y lee la fila única resultante.
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
-                    // Qué hace: Recupera el valor entero del COUNT.
+                    // Recupera el valor entero de la primera columna (el conteo total) y lo retorna.
                     return rs.getInt(1);
                 }
             }
         }
-        // Qué hace: Retorna 0 por defecto si no produjo resultados.
+        // Retorna 0 si la consulta no arrojó resultados.
         return 0;
     }
 
     // Sirve para: Marca una notificación específica como leída.
     // Qué hace: Realiza un UPDATE en la tabla notificaciones cambiando el estado de lectura a verdadero.
     // Explicación de consulta SQL:
-    // - Información buscada: Modificar la columna leida.
-    // - Tablas participantes: notificaciones.
-    // - Filtros aplicados: id = ? (id de la notificación a modificar).
+    // - UPDATE modifica la columna leida asignándole el valor lógico true.
+    // - WHERE id = ? restringe el cambio a la notificación con la clave primaria correspondiente.
     public void marcarComoLeida(int notificacionId) throws SQLException {
         String sql = "UPDATE notificaciones SET leida = true WHERE id = ?";
-        // Qué hace: Abre la conexión JDBC y prepara el statement parametrizado.
-        try (Connection con = Conexion.obtener();
-             PreparedStatement ps = con.prepareStatement(sql)) {
-            // Qué hace: Asigna el ID de notificación al placeholder del WHERE.
+        
+        // try-with-resources: Administra de manera segura los recursos JDBC abiertos.
+        try (Connection con = Conexion.obtener(); // Solicita la conexión.
+             PreparedStatement ps = con.prepareStatement(sql)) { // Prepara la sentencia UPDATE.
+             
+            // Vincula el ID de la notificación a modificar al primer marcador '?'.
             ps.setInt(1, notificacionId);
-            // Qué hace: Ejecuta la actualización en base de datos.
+            
+            // Ejecuta la modificación física en el motor MySQL.
             ps.executeUpdate();
         }
     }
@@ -164,17 +188,19 @@ public class NotificacionDAO {
     // Sirve para: Marca todas las notificaciones de un usuario como leídas de una sola vez.
     // Qué hace: Realiza un UPDATE en la tabla notificaciones cambiando el estado de lectura.
     // Explicación de consulta SQL:
-    // - Información buscada: Modificar la columna leida.
-    // - Tablas participantes: notificaciones.
-    // - Filtros aplicados: usuario_id = ? (todas las notificaciones pertenecientes al usuario).
+    // - UPDATE cambia el campo leida a true para todos los registros coincidentes.
+    // - WHERE usuario_id = ? aplica la modificación a todas las alertas asignadas a ese usuario.
     public void marcarTodasComoLeidas(int usuarioId) throws SQLException {
         String sql = "UPDATE notificaciones SET leida = true WHERE usuario_id = ?";
-        // Qué hace: Abre la conexión a base de datos y compila el PreparedStatement.
-        try (Connection con = Conexion.obtener();
-             PreparedStatement ps = con.prepareStatement(sql)) {
-            // Qué hace: Vincula el ID del usuario.
+        
+        // try-with-resources: Inicializa y administra de forma limpia el statement y la conexión.
+        try (Connection con = Conexion.obtener(); // Abre la conexión activa.
+             PreparedStatement ps = con.prepareStatement(sql)) { // Prepara la sentencia preparada de actualización.
+             
+            // Vincula el ID del usuario en sesión.
             ps.setInt(1, usuarioId);
-            // Qué hace: Ejecuta el update de lectura masiva.
+            
+            // Ejecuta la modificación masiva física en MySQL.
             ps.executeUpdate();
         }
     }
@@ -182,16 +208,19 @@ public class NotificacionDAO {
     // Sirve para: Eliminar una notificación específica de la base de datos.
     // Qué hace: Ejecuta una sentencia DELETE física sobre el registro de la notificación.
     // Explicación de consulta SQL:
-    // - Información buscada: Eliminar el registro.
-    // - Tablas participantes: notificaciones.
-    // - Filtros aplicados: id = ?.
+    // - DELETE FROM elimina físicamente registros de la tabla.
+    // - WHERE id = ? condiciona el borrado exclusivamente al identificador de la notificación.
     public void eliminar(int notificacionId) throws SQLException {
         String sql = "DELETE FROM notificaciones WHERE id = ?";
-        // Qué hace: Abre la conexión JDBC y prepara el statement parametrizado.
-        try (Connection con = Conexion.obtener();
-             PreparedStatement ps = con.prepareStatement(sql)) {
-            // Qué hace: Asigna el ID de notificación y realiza el borrado físico.
+        
+        // try-with-resources: Garantiza la liberación ordenada de conexiones y statements.
+        try (Connection con = Conexion.obtener(); // Solicita la conexión.
+             PreparedStatement ps = con.prepareStatement(sql)) { // Prepara el statement de borrado.
+             
+            // Vincula el ID de la notificación al filtro WHERE.
             ps.setInt(1, notificacionId);
+            
+            // Ejecuta el borrado físico en base de datos.
             ps.executeUpdate();
         }
     }

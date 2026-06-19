@@ -16,17 +16,27 @@ import org.json.JSONObject;
 // Por qué existe: Actúa como capa de abstracción intermedia entre los controladores (servlets) y la persistencia de datos (DAO).
 // Qué problema resuelve: Centraliza la validación de archivos (tamaño, tipo), orquesta la eliminación física de archivos en el disco del servidor y estructura las respuestas JSON según el contrato de la SPA.
 public class ImagenServicio {
+    // Qué hace: Instancia el objeto de acceso a datos para las imágenes o croquis.
+    // Por qué existe: Permite almacenar en la base de datos la ubicación relativa (ruta) de las imágenes subidas por el voluntario.
+    // Qué pasaría si no estuviera: No podríamos registrar los croquis de vivienda, mapas de entorno o planos de evacuación en MySQL.
+    // Flujo: De aquí pasamos a ImagenDAO.
     private final ImagenDAO dao = new ImagenDAO();
 
     // Qué hace: Lista croquis de la vivienda de forma paginada y estructura el JSON para el frontend.
     // Por qué existe: Suministra los datos para renderizar la galería de gráficos de la vivienda en la vista de la SPA.
-    // Qué problema resuelve: Retorna metadatos de paginación estructurados y maneja offsets para optimizar el rendimiento del servidor.
+    // Qué pasaría si no estuviera: La SPA no podría listar ni mostrar las miniaturas de los croquis de evacuación de la casa.
     public String listarImagenesVivienda(int planId, int page) {
         JSONObject res = new JSONObject();
         try {
             int limit = 6; // Límite de croquis por página en el listado
             int offset = (page - 1) * limit;
+            
+            // Qué hace: Cuenta el total de croquis registrados para este plan.
+            // y luego de esto pasamos a ImagenDAO.contarPorPlanYTipo, el cual hace un SELECT COUNT en MySQL.
             int total = dao.contarPorPlanYTipo(planId, "vivienda");
+            
+            // Qué hace: Obtiene la lista paginada de croquis.
+            // y luego de esto pasamos a ImagenDAO.listarPorPlanYTipo, que ejecuta el query de consulta.
             List<ImagenDTO> list = dao.listarPorPlanYTipo(planId, "vivienda", limit, offset);
 
             JSONArray dataArr = new JSONArray();
@@ -58,10 +68,12 @@ public class ImagenServicio {
 
     // Qué hace: Obtiene la información detallada de una imagen específica por su ID y la formatea en JSON.
     // Por qué existe: Alimenta el modal de previsualización en grande y el formulario de edición de descripción.
-    // Qué problema resuelve: Recupera los datos individuales de una sola imagen relacional en la base de datos.
+    // Qué pasaría si no estuviera: El voluntario no podría ver el croquis detallado ni editar su pie de foto en el frontend.
     public String obtenerImagen(int id) {
         JSONObject res = new JSONObject();
         try {
+            // Qué hace: Consulta una imagen por su ID.
+            // y luego de esto pasamos a ImagenDAO.obtenerPorId, que lee los datos desde MySQL.
             ImagenDTO img = dao.obtenerPorId(id);
             if (img == null) {
                 return res.put("success", false).put("message", "Gráfico no encontrado.").toString();
@@ -85,10 +97,12 @@ public class ImagenServicio {
 
     // Qué hace: Obtiene la información detallada de la imagen única de entorno o georreferenciación vinculada al plan familiar.
     // Por qué existe: Permite cargar la foto actual en las vistas correspondientes de la SPA.
-    // Qué problema resuelve: Evita que el frontend requiera conocer la clave primaria de la imagen para recuperarla, usando en cambio la FK del plan familiar.
+    // Qué pasaría si no estuviera: La SPA no podría mostrar la imagen del mapa de entorno o de evacuación de la zona al cargar la pestaña correspondiente.
     public String obtenerImagenPorPlanYTipo(int planId, String tipo) {
         JSONObject res = new JSONObject();
         try {
+            // Qué hace: Consulta un gráfico específico por su tipo y plan.
+            // y luego de esto pasamos a ImagenDAO.obtenerPorPlanYTipo, el cual ejecuta la consulta en base de datos.
             ImagenDTO img = dao.obtenerPorPlanYTipo(planId, tipo);
             if (img == null) {
                 // Para simplificar la validación en el frontend, retornamos un éxito vacío
@@ -115,7 +129,7 @@ public class ImagenServicio {
 
     // Qué hace: Procesa la subida física de una nueva imagen de vivienda al disco y registra su descripción en la base de datos.
     // Por qué existe: Atiende el envío multipart del formulario para añadir múltiples croquis de la casa.
-    // Qué problema resuelve: Valida la extensión, limita el peso del archivo a 2MB y crea el directorio de forma dinámica.
+    // Qué pasaría si no estuviera: Los archivos subidos no se guardarían físicamente en el servidor ni estarían indexados en la base de datos relacional.
     public String subirImagenVivienda(int planId, String descripcion, Part filePart, String contextPath) {
         JSONObject res = new JSONObject();
         try {
@@ -124,6 +138,7 @@ public class ImagenServicio {
                 return res.put("success", false).put("message", validacion).toString();
             }
 
+            // Qué hace: Escribe el stream binario de la imagen subida en el almacenamiento del servidor Tomcat.
             String relativePath = guardarArchivoEnDisco(planId, filePart, contextPath);
 
             ImagenDTO dto = new ImagenDTO();
@@ -132,6 +147,8 @@ public class ImagenServicio {
             dto.setDescription(descripcion);
             dto.setPlanId(planId);
 
+            // Qué hace: Registra el nuevo croquis en la base de datos.
+            // y luego de esto pasamos a ImagenDAO.crear, que inserta la ruta y descripción en MySQL.
             int newId = dao.crear(dto);
             JSONObject data = new JSONObject();
             data.put("id", newId);
@@ -149,7 +166,7 @@ public class ImagenServicio {
 
     // Qué hace: Guarda en el disco del servidor Tomcat y registra o reemplaza la imagen única de entorno o georreferenciación.
     // Por qué existe: Asegura que solo exista un registro de entorno y mapa a la vez por plan familiar (eliminando la foto física anterior).
-    // Qué problema resuelve: Evita la acumulación de archivos huérfanos sin usar en el servidor de archivos estáticos.
+    // Qué pasaría si no estuviera: Quedarían croquis antiguos huérfanos ocupando espacio en el disco duro del servidor indefinidamente.
     public String subirOReemplazarImagenUnica(int planId, String tipo, Part filePart, String contextPath) {
         JSONObject res = new JSONObject();
         try {
@@ -158,19 +175,21 @@ public class ImagenServicio {
                 return res.put("success", false).put("message", validacion).toString();
             }
 
-            // Busca si ya hay un gráfico previo de este tipo registrado en el plan familiar
+            // Qué hace: Busca si ya hay un gráfico previo de este tipo registrado en el plan familiar.
+            // y luego de esto pasamos a ImagenDAO.obtenerPorPlanYTipo, que consulta la fila anterior.
             ImagenDTO anterior = dao.obtenerPorPlanYTipo(planId, tipo);
 
             if (anterior != null) {
-                // Borra físicamente la foto anterior en el disco del servidor
+                // Qué hace: Borra físicamente la foto anterior en el disco del servidor.
                 eliminarArchivoFisico(anterior.getPath(), contextPath);
             }
 
-            // Guarda el nuevo archivo físico en el servidor
+            // Qué hace: Guarda el nuevo archivo físico en el servidor.
             String relativePath = guardarArchivoEnDisco(planId, filePart, contextPath);
 
             if (anterior != null) {
-                // Si ya existía, actualiza la ruta del archivo del registro en la base de datos
+                // Qué hace: Actualiza la ruta del archivo en base de datos.
+                // y luego de esto pasamos a ImagenDAO.actualizarRuta para guardar los cambios en MySQL.
                 dao.actualizarRuta(anterior.getId(), relativePath);
                 
                 JSONObject data = new JSONObject();
@@ -181,13 +200,14 @@ public class ImagenServicio {
                 res.put("message", "Gráfico reemplazado correctamente.");
                 res.put("data", data);
             } else {
-                // Si es la primera vez que se sube, inserta un registro limpio en la base de datos
                 ImagenDTO dto = new ImagenDTO();
                 dto.setTipoGrafico(tipo);
                 dto.setPath(relativePath);
                 dto.setDescription(""); // Sin descripción requerida para entorno o mapa
                 dto.setPlanId(planId);
 
+                // Qué hace: Crea el registro inicial en la base de datos.
+                // y luego de esto pasamos a ImagenDAO.crear, el cual realiza el INSERT correspondiente en MySQL.
                 int newId = dao.crear(dto);
                 JSONObject data = new JSONObject();
                 data.put("id", newId);
@@ -206,10 +226,12 @@ public class ImagenServicio {
 
     // Qué hace: Valida y actualiza la descripción de un gráfico de vivienda por su ID.
     // Por qué existe: Atiende la petición de edición parcial del voluntario desde el frontend.
-    // Qué problema resuelve: Salva las modificaciones del voluntario en base de datos.
+    // Qué pasaría si no estuviera: No se podría agregar ni editar un texto descriptivo del croquis para documentar la zona segura.
     public String actualizarDescripcion(int id, String descripcion) {
         JSONObject res = new JSONObject();
         try {
+            // Qué hace: Actualiza la descripción en la base de datos.
+            // y luego de esto pasamos a ImagenDAO.actualizarDescripcion, que ejecuta el comando UPDATE.
             dao.actualizarDescripcion(id, descripcion);
             res.put("success", true);
             res.put("message", "Descripción del gráfico actualizada correctamente.");
@@ -222,19 +244,22 @@ public class ImagenServicio {
 
     // Qué hace: Elimina una imagen físicamente del disco y borra su registro en la base de datos por su ID.
     // Por qué existe: Permite dar de baja total a los croquis de vivienda.
-    // Qué problema resuelve: Limpia tanto el espacio de almacenamiento del servidor como los índices en la base de datos de manera atómica.
+    // Qué pasaría si no estuviera: Las imágenes borradas quedarían como basura en el servidor Tomcat o con referencias rotas en MySQL.
     public String eliminarImagen(int id, String contextPath) {
         JSONObject res = new JSONObject();
         try {
+            // Qué hace: Recupera la información del croquis para conocer la ruta de su archivo.
+            // y luego de esto pasamos a ImagenDAO.obtenerPorId para consultar la base de datos.
             ImagenDTO img = dao.obtenerPorId(id);
             if (img == null) {
                 return res.put("success", false).put("message", "El gráfico que intenta eliminar no existe.").toString();
             }
 
-            // Elimina la foto del disco físicamente
+            // Qué hace: Elimina la foto del disco físicamente.
             eliminarArchivoFisico(img.getPath(), contextPath);
 
-            // Elimina el registro del gráfico en la base de datos MySQL
+            // Qué hace: Elimina el registro del gráfico en la base de datos.
+            // y luego de esto pasamos a ImagenDAO.eliminar, que corre la sentencia DELETE.
             dao.eliminar(id);
 
             res.put("success", true);
@@ -252,7 +277,7 @@ public class ImagenServicio {
 
     // Qué hace: Valida que la parte multipart del archivo cumpla con los requisitos del sistema.
     // Por qué existe: Asegura que no se suban archivos de formatos no admitidos o que pesen más de 2MB.
-    // Qué problema resuelve: Previene inyección de archivos peligrosos y sobrecarga de espacio de disco.
+    // Qué pasaría si no estuviera: Se podrían subir archivos maliciosos (.exe, .sh) o sumamente grandes que colapsen el almacenamiento.
     private String validarArchivo(Part part) {
         if (part == null || part.getSize() == 0) {
             return "No se ha seleccionado ningún archivo de imagen.";
@@ -276,7 +301,7 @@ public class ImagenServicio {
 
     // Qué hace: Escribe el stream binario de la imagen subida en el almacenamiento del servidor Tomcat.
     // Por qué existe: Guarda de manera física la fotografía en el disco local dentro del contexto del despliegue del proyecto.
-    // Qué problema resuelve: Crea el árbol de carpetas por plan familiar si no existe y escribe el archivo con un UUID único para evitar colisiones de nombres.
+    // Qué pasaría si no estuviera: No tendríamos forma de almacenar archivos físicos, imposibilitando guardar los croquis.
     private String guardarArchivoEnDisco(int planId, Part part, String contextPath) throws Exception {
         String originalName = part.getSubmittedFileName();
         String ext = "";
@@ -309,7 +334,7 @@ public class ImagenServicio {
 
     // Qué hace: Borra físicamente un archivo ubicado en el disco del servidor.
     // Por qué existe: Libera espacio en disco cuando se elimina un registro de croquis o se reemplaza una imagen.
-    // Qué problema resuelve: Limpia los residuos de archivos binarios antiguos en el servidor de archivos estáticos.
+    // Qué pasaría si no estuviera: Se acumularían archivos obsoletos en el disco del servidor sin que nadie pueda borrarlos.
     private void eliminarArchivoFisico(String relativePath, String contextPath) {
         try {
             if (relativePath == null || relativePath.isEmpty()) return;

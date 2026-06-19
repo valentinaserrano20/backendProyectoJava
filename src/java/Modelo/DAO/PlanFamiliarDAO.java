@@ -105,6 +105,14 @@ public class PlanFamiliarDAO {
     // - Filtros aplicados: pf.id = ? (el identificador único del plan familiar).
     public Modelo.DTO.IdentificacionPlanDTO obtenerDetallePlan(int id) throws SQLException {
         Modelo.DTO.IdentificacionPlanDTO plan = null;
+        // Explicación detallada de la consulta SQL:
+        // - Columnas consultadas: Selecciona el ID del plan, el ID del estado ('status_plan_id'), y los datos de la vivienda y familia ('apellidos_familia', 'direccion', etc.).
+        // - Tabla principal FROM planes_familiares pf: Define la tabla base de la consulta.
+        // - Relación LEFT JOIN identificacion_familiar ifa ON pf.id = ifa.plan_id: Une la tabla de planes familiares con la ficha de identificación de la vivienda. Se utiliza LEFT JOIN para que si el plan familiar recién se ha creado y no se le ha cargado la ficha de identificación, la consulta siga recuperando los datos del plan y devuelva nulos en los campos de vivienda en vez de fallar o excluir el plan.
+        // - Relación LEFT JOIN tipos_familia tf ON pf.tipo_familia_id = tf.id: Une de forma opcional con el catálogo de tipos de familia.
+        // - Relación LEFT JOIN usuarios u ON pf.voluntario_id = u.id: Une opcionalmente con la tabla de usuarios para recuperar el ID de la organización o ciudad del voluntario responsable.
+        // - Filtro WHERE pf.id = ?: Filtra la consulta por el ID único del plan familiar buscado.
+        // - Qué retorna: Una fila única con los datos básicos del plan familiar y su identificación asociada, mapeados en Java a un objeto IdentificacionPlanDTO.
         String sql = "SELECT pf.id, pf.estado_id AS status_plan_id, ifa.apellidos_familia, tf.nombre AS tipo_familia_nombre, "
                 + "ifa.direccion, ifa.barrio_comuna_localidad, ifa.telefono_fijo, "
                 + "ifa.calidad_vivienda_id, ifa.sector_id, ifa.tipo_zona_id, "
@@ -308,6 +316,13 @@ public class PlanFamiliarDAO {
     // - Ordenamiento y paginación: ORDER BY pf.updated_at DESC, pf.id DESC LIMIT ? OFFSET ?.
     public java.util.List<java.util.Map<String, Object>> listarPlanesPorVoluntario(int voluntarioId, int limit, int offset) throws SQLException {
         java.util.List<java.util.Map<String, Object>> planes = new java.util.ArrayList<>();
+        // Explicación detallada de la consulta SQL:
+        // - Columnas consultadas: Selecciona el ID del plan, los apellidos de la familia (utilizando COALESCE para poner un valor por defecto si es nulo), el estado, tipo de familia, departamento, seccional y la fecha de creación formateada en formato amigable día/mes/año hora:minuto.
+        // - Relaciones LEFT JOIN (ifa, ep, tf, u, org): Conecta opcionalmente las tablas de identificación, catálogo de estados, catálogo de tipos de familia, usuarios y organizaciones correspondientes al voluntario y plan. Se utiliza LEFT JOIN para garantizar la inclusión y visibilidad del plan de emergencia aun si no se han completado campos secundarios (como el tipo de familia o el barrio de la organización).
+        // - Filtro WHERE pf.voluntario_id = ?: Limita los resultados a los planes familiares que hayan sido cargados o asignados al ID del voluntario activo.
+        // - Cláusula LIMIT ?: Restringe la cantidad máxima de registros de planes que se devolverán en la consulta para no sintonizar peticiones lentas en el cliente.
+        // - Cláusula OFFSET ?: Salta los primeros registros para obtener de forma paginada los resultados en la grilla del voluntario.
+        // - Qué retorna: Una lista de mapas asociativos con los datos generales de cada plan de emergencia familiar del voluntario.
         String sql = "SELECT pf.id, "
                 + "COALESCE(ifa.apellidos_familia, 'Por definir') AS last_names, "
                 + "pf.estado_id AS status_id, "
@@ -417,14 +432,12 @@ public class PlanFamiliarDAO {
         // Por qué existe: Provee el contenedor estructurado para retornar la información al servicio y luego al controlador JS.
         // Qué problema resuelve: Evita retornos de objetos nulos en caso de que la consulta no devuelva resultados.
         java.util.List<java.util.Map<String, Object>> planes = new java.util.ArrayList<>();
-        // Qué hace: Define la consulta SQL para recuperar los campos de identificación familiar, estado y voluntario de forma cruzada.
-        // Por qué existe: Consolida en una sola llamada SQL la información de familias, seccionales, ciudades, estados y nombres de voluntarios.
-        // Qué problema resuelve: Reduce la latencia al realizar joins eficientes y evitar consultas N+1 en bucles de java.
-        // Explicación de consulta SQL:
-        // - Información buscada: Listado de planes familiares con sus datos de familia, estado, tipo de familia, departamento, ciudad y el responsable.
-        // - Tablas participantes: planes_familiares (pf), identificacion_familiar (ifa), estados_plan (ep), tipos_familia (tf), usuarios (u), organizaciones (org).
-        // - Filtros aplicados: pf.estado_id NOT IN (2, 3) para omitir planes en borrador.
-        // - Ordenamiento y paginación: Ordenado por fecha de actualización descendente y paginado con LIMIT/OFFSET.
+        // Explicación detallada de la consulta SQL:
+        // - Columnas consultadas: Selecciona la información básica del plan, apellidos de la familia, estado del plan, tipo de familia, departamento y municipio, además de concatenar el nombre y apellido del voluntario responsable de su levantamiento ('responsable').
+        // - Relaciones LEFT JOIN: Une opcionalmente planes_familiares con identificacion_familiar, estados_plan, tipos_familia, usuarios y organizaciones. Se usa LEFT JOIN para asegurar que todos los planes enviados del censo se incluyan en el listado, rellenando con valores predeterminados gracias al uso de COALESCE si algún dato opcional está ausente.
+        // - Filtro WHERE pf.estado_id NOT IN (2, 3): Filtra los planes para excluir los borradores (estado 2 = Borrador y 3 = En desarrollo) que los voluntarios aún no han remitido al supervisor.
+        // - Cláusula LIMIT y OFFSET: Paginan las filas devueltas en la pantalla de supervisión del censo.
+        // - Qué retorna: Una lista de mapas asociativos conteniendo los planes enviados listos para ser auditados por el supervisor.
         String sql = "SELECT pf.id, "
                 + "COALESCE(ifa.apellidos_familia, 'Por definir') AS last_names, "
                 + "pf.estado_id AS status_id, "

@@ -236,9 +236,14 @@ public class FactorRiesgoServicio {
     // SERVICIOS: ACCIONES DE REDUCCIÓN
     // =========================================================================
 
+    // Qué hace: Obtiene la lista de acciones de reducción asociadas a un factor de riesgo determinado.
+    // Por qué existe: Provee al frontend la lista de tareas específicas y plazos acordados para mitigar el riesgo evaluado.
+    // Qué pasaría si no estuviera: La familia y los voluntarios no sabrían qué compromisos de mitigación se registraron para ese riesgo.
     public String listarAcciones(int riesgoId) {
         JSONObject res = new JSONObject();
         try {
+            // Qué hace: Consulta las acciones de reducción para el riesgo en la BD.
+            // y luego de esto pasamos a FactorRiesgoDAO.obtenerAccionesPorRiesgo, que corre la consulta SELECT.
             List<AccionReduccionDTO> list = dao.obtenerAccionesPorRiesgo(riesgoId);
             JSONArray arr = new JSONArray();
             for (AccionReduccionDTO a : list) {
@@ -267,9 +272,14 @@ public class FactorRiesgoServicio {
         return res.toString();
     }
 
+    // Qué hace: Recupera los detalles de una única acción de reducción según su ID.
+    // Por qué existe: Permite precargar la información de la acción (descripción, responsable, fecha límite) en el modal de edición de la SPA.
+    // Qué pasaría si no estuviera: El voluntario no podría editar una acción de reducción de forma individual.
     public String obtenerAccion(int id) {
         JSONObject res = new JSONObject();
         try {
+            // Qué hace: Obtiene el registro de la acción de reducción desde la BD.
+            // y luego de esto pasamos a FactorRiesgoDAO.obtenerAccionPorId, el cual ejecuta el SELECT.
             AccionReduccionDTO a = dao.obtenerAccionPorId(id);
             if (a == null) {
                 return res.put("success", false).put("message", "Acción no encontrada.").toString();
@@ -297,6 +307,9 @@ public class FactorRiesgoServicio {
         return res.toString();
     }
 
+    // Qué hace: Valida los campos obligatorios del DTO de acción de reducción y delega su inserción en la BD.
+    // Por qué existe: Asegura que no se guarden tareas sin nombre de acción, fecha límite o riesgo asociado, manteniendo la integridad del plan.
+    // Qué pasaría si no estuviera: Se registrarían tareas huérfanas o sin fecha de cumplimiento, lo cual impediría auditar adecuadamente el plan familiar.
     public String crearAccion(AccionReduccionDTO dto) {
         JSONObject res = new JSONObject();
         if (dto.getAction() == null || dto.getAction().trim().isEmpty()) {
@@ -310,6 +323,8 @@ public class FactorRiesgoServicio {
         }
 
         try {
+            // Qué hace: Registra físicamente la acción de reducción.
+            // y luego de esto pasamos a FactorRiesgoDAO.crearAccion, que ejecuta la sentencia INSERT SQL.
             boolean success = dao.crearAccion(dto);
             if (success) {
                 res.put("success", true);
@@ -325,6 +340,9 @@ public class FactorRiesgoServicio {
         return res.toString();
     }
 
+    // Qué hace: Valida las correcciones realizadas a una acción de reducción y aplica la actualización en la BD.
+    // Por qué existe: Permite al usuario reasignar la tarea a otro familiar, corregir la descripción o cambiar la fecha límite en caliente.
+    // Qué pasaría si no estuviera: No se podrían modificar los compromisos adquiridos en caso de retrasos o reasignación de responsabilidades.
     public String actualizarAccion(int id, AccionReduccionDTO dto) {
         JSONObject res = new JSONObject();
         if (dto.getAction() == null || dto.getAction().trim().isEmpty()) {
@@ -335,6 +353,8 @@ public class FactorRiesgoServicio {
         }
 
         try {
+            // Qué hace: Actualiza la acción de reducción en la base de datos.
+            // y luego de esto pasamos a FactorRiesgoDAO.actualizarAccion, que ejecuta la sentencia UPDATE SQL.
             boolean success = dao.actualizarAccion(id, dto);
             if (success) {
                 res.put("success", true);
@@ -350,9 +370,14 @@ public class FactorRiesgoServicio {
         return res.toString();
     }
 
+    // Qué hace: Elimina una acción de reducción específica del plan.
+    // Por qué existe: Permite corregir o remover micro-acciones erróneas o canceladas de la planificación del voluntario.
+    // Qué pasaría si no estuviera: Las acciones innecesarias se quedarían grabadas permanentemente en el historial.
     public String eliminarAccion(int id) {
         JSONObject res = new JSONObject();
         try {
+            // Qué hace: Borra físicamente la acción de reducción de la BD.
+            // y luego de esto pasamos a FactorRiesgoDAO.eliminarAccion, que corre un DELETE SQL.
             boolean success = dao.eliminarAccion(id);
             if (success) {
                 res.put("success", true);
@@ -372,9 +397,14 @@ public class FactorRiesgoServicio {
     // SERVICIOS: FACTORES DE VULNERABILIDAD
     // =========================================================================
 
+    // Qué hace: Retorna la lista de factores de vulnerabilidad asociados a un factor de riesgo específico.
+    // Por qué existe: Permite desglosar y mostrar qué condiciones físicas, sociales o ecológicas hacen vulnerable a la familia frente al riesgo evaluado.
+    // Qué pasaría si no estuviera: En la interfaz no se podría detallar por qué un riesgo (ej: Inundación) es tan peligroso para esa vivienda específica.
     public String listarVulnerabilidades(int riesgoId) {
         JSONObject res = new JSONObject();
         try {
+            // Qué hace: Obtiene los factores de vulnerabilidad asociados al riesgo.
+            // y luego de esto pasamos a FactorRiesgoDAO.obtenerVulnerabilidadesPorRiesgo, que corre la consulta SELECT.
             List<FactorVulnerabilidadDTO> list = dao.obtenerVulnerabilidadesPorRiesgo(riesgoId);
             JSONArray arr = new JSONArray();
             for (FactorVulnerabilidadDTO v : list) {
@@ -405,9 +435,14 @@ public class FactorRiesgoServicio {
         return res.toString();
     }
 
+    // Qué hace: Obtiene la información detallada de una vulnerabilidad asociada en base a su ID.
+    // Por qué existe: Habilita la precarga del modal para editar la gravedad o el tipo de vulnerabilidad asociada a un riesgo.
+    // Qué pasaría si no estuviera: No se podría consultar una vulnerabilidad específica de forma aislada para su edición o auditoría.
     public String obtenerVulnerabilidad(int id) {
         JSONObject res = new JSONObject();
         try {
+            // Qué hace: Obtiene la vulnerabilidad asociada desde la BD.
+            // y luego de esto pasamos a FactorRiesgoDAO.obtenerVulnerabilidadPorId, que hace la consulta SELECT.
             FactorVulnerabilidadDTO v = dao.obtenerVulnerabilidadPorId(id);
             if (v == null) {
                 return res.put("success", false).put("message", "Factor de vulnerabilidad no encontrado.").toString();
@@ -438,6 +473,9 @@ public class FactorRiesgoServicio {
         return res.toString();
     }
 
+    // Qué hace: Valida y registra una nueva vulnerabilidad asociada a un factor de riesgo en la base de datos.
+    // Por qué existe: Permite formalizar qué tipo de vulnerabilidad (ej: Estructural, Física) y qué nivel de afectación (ej: Alto, Bajo) posee la vivienda.
+    // Qué pasaría si no estuviera: Se registrarían vulnerabilidades sin asociar al riesgo o sin clasificar el nivel de afectación, perdiendo precisión en el reporte técnico.
     public String crearVulnerabilidad(FactorVulnerabilidadDTO dto) {
         JSONObject res = new JSONObject();
         if (dto.getVulnerabilityId() <= 0) {
@@ -451,6 +489,8 @@ public class FactorRiesgoServicio {
         }
 
         try {
+            // Qué hace: Inserta físicamente la relación de vulnerabilidad en la BD.
+            // y luego de esto pasamos a FactorRiesgoDAO.crearVulnerabilidad, que corre el INSERT SQL.
             boolean success = dao.crearVulnerabilidad(dto);
             if (success) {
                 res.put("success", true);
@@ -466,6 +506,9 @@ public class FactorRiesgoServicio {
         return res.toString();
     }
 
+    // Qué hace: Valida y actualiza los parámetros de una vulnerabilidad asociada (tipo o grado) en la BD.
+    // Por qué existe: Permite ajustar o corregir la gravedad evaluada sobre una vulnerabilidad específica (ej: reclasificar de Media a Alta).
+    // Qué pasaría si no estuviera: Si el voluntario se equivoca al ponderar la vulnerabilidad, no podría corregirla en el sistema.
     public String actualizarVulnerabilidad(int id, FactorVulnerabilidadDTO dto) {
         JSONObject res = new JSONObject();
         if (dto.getVulnerabilityId() <= 0) {
@@ -476,6 +519,8 @@ public class FactorRiesgoServicio {
         }
 
         try {
+            // Qué hace: Ejecuta la sentencia de actualización de la vulnerabilidad en la BD.
+            // y luego de esto pasamos a FactorRiesgoDAO.actualizarVulnerabilidad, que corre el UPDATE SQL.
             boolean success = dao.actualizarVulnerabilidad(id, dto);
             if (success) {
                 res.put("success", true);
@@ -491,9 +536,14 @@ public class FactorRiesgoServicio {
         return res.toString();
     }
 
+    // Qué hace: Elimina físicamente la asociación de vulnerabilidad del factor de riesgo.
+    // Por qué existe: Permite revocar o depurar vulnerabilidades que ya no corresponden tras una labor de mitigación.
+    // Qué pasaría si no estuviera: Las vulnerabilidades mitigadas seguirían listadas en el plan de forma errónea.
     public String eliminarVulnerabilidad(int id) {
         JSONObject res = new JSONObject();
         try {
+            // Qué hace: Ejecuta el borrado del registro de vulnerabilidad asociada.
+            // y luego de esto pasamos a FactorRiesgoDAO.eliminarVulnerabilidad, que ejecuta un DELETE SQL.
             boolean success = dao.eliminarVulnerabilidad(id);
             if (success) {
                 res.put("success", true);

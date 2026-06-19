@@ -17,42 +17,49 @@ public class UsuarioDAO {
     // - Filtros aplicados: u.email = ? (el correo electrónico proporcionado por parámetro).
     // - Relación (JOIN): Se realiza un INNER JOIN entre la tabla usuarios (u) y estado_usuarios (e) a través de la clave foránea u.estado_id y la clave primaria e.id.
     public Usuario obtenerPorEmail(String email) throws SQLException {
+        // Definimos la sentencia SQL parametrizada utilizando un INNER JOIN para relacionar al usuario con el nombre de su estado
         String sql = "SELECT u.id, u.nombre, u.apellido, u.email, u.contraseña, "
                 + "u.rol_id, u.organizacion_id, u.estado_id, e.nombre AS estado_nombre "
                 + "FROM usuarios u "
                 + "INNER JOIN estado_usuarios e ON u.estado_id = e.id "
                 + "WHERE u.email = ?";
                 
-        // Qué hace: Obtiene una conexión activa a la base de datos y prepara la consulta SQL.
-        // Por qué existe: Habilita la ejecución segura de la consulta mediante PreparedStatement, previniendo inyección SQL.
+        // Usamos la estructura try-with-resources para garantizar que la conexión JDBC y el PreparedStatement se liberen automáticamente
         try (Connection con = Conexion.obtener();
+             // Preparamos la consulta SQL compilándola de forma segura para neutralizar cualquier intento de inyección SQL
              PreparedStatement ps = con.prepareStatement(sql)) {
-            // Qué hace: Asigna el valor del parámetro de entrada 'email' al primer marcador (?) de la consulta.
+            // Usamos ps.setString para vincular de manera sanitizada el correo electrónico al primer marcador de posición (?)
             ps.setString(1, email);
-            // Qué hace: Ejecuta la consulta SELECT y almacena los resultados en un ResultSet.
+            // Ejecutamos la consulta de selección (SELECT) y asignamos el puntero de resultados al ResultSet
             try (ResultSet rs = ps.executeQuery()) {
-                // Qué hace: Verifica si la consulta retornó alguna fila coincidente.
+                // Evaluamos si el ResultSet arrojó al menos una fila con los datos de usuario
                 if (rs.next()) {
-                    // Qué hace: Instancia un nuevo objeto de la entidad Usuario.
+                    // Instanciamos el objeto de entidad Usuario en el que volcaremos la información recuperada de la BD
                     Usuario u = new Usuario();
-                    // Qué hace: Asigna al objeto Usuario los valores correspondientes recuperados de las columnas del ResultSet.
+                    // Extraemos el ID numérico de la columna "id" y lo asignamos a la entidad
                     u.setId(rs.getInt("id"));
+                    // Extraemos la cadena de texto de la columna "nombre"
                     u.setNombre(rs.getString("nombre"));
+                    // Extraemos la cadena de texto de la columna "apellido"
                     u.setApellido(rs.getString("apellido"));
+                    // Extraemos la cadena de texto de la columna "email"
                     u.setEmail(rs.getString("email"));
+                    // Extraemos el hash cifrado de la contraseña de la columna "contraseña"
                     u.setContrasena(rs.getString("contraseña"));
+                    // Extraemos el ID numérico del rol
                     u.setRolId(rs.getInt("rol_id"));
-                    // Qué hace: Mapea la columna organizacion_id manejando valores nulos en la base de datos.
+                    // Evaluamos si la columna organizacion_id contiene un valor nulo antes de asignarlo, previniendo excepciones de casteo nulo
                     u.setOrganizacionId(rs.getObject("organizacion_id") != null
                             ? rs.getInt("organizacion_id")
                             : null);
+                    // Extraemos el ID numérico del estado del usuario
                     u.setEstadoId(rs.getInt("estado_id"));
-                    // Qué hace: Asigna el nombre legible del estado obtenido mediante el INNER JOIN.
+                    // Asignamos el nombre textual del estado (ej: "activo") obtenido gracias al INNER JOIN
                     u.setEstado(rs.getString("estado_nombre"));
-                    // Qué hace: Retorna el usuario completamente mapeado.
+                    // Retornamos el objeto usuario completamente poblado y listo
                     return u;
                 }
-                // Qué hace: Retorna null si no se encontró ningún usuario con ese correo electrónico.
+                // Si la consulta no devolvió registros, retornamos null indicando que el usuario no existe
                 return null;
             }
         }
@@ -269,14 +276,14 @@ public class UsuarioDAO {
 
     // Sirve para: Obtener el perfil detallado del usuario cruzando sus relaciones de catálogos maestros.
     // Qué hace: Ejecuta un SELECT con múltiples LEFT JOINs hacia las tablas relacionales para obtener etiquetas descriptivas.
-    // Explicación de consulta SQL:
-    // - Información buscada: id, nombre, apellido, email, numero_documento, fecha_nacimiento, celular, contraseña (hash), la descripción del tipo de documento (tipo_documento_nombre), el nombre del estado (estado_nombre), la organización (organizacion_nombre) y la seccional (seccional_nombre).
-    // - Tablas participantes: usuarios u (principal), tipo_documentos td (relación tipo doc), estado_usuarios eu (relación estado), organizaciones o (relación organización).
-    // - Relaciones (JOINs):
-    //   1. LEFT JOIN td ON u.tipo_documento_id = td.id (cruza llave foránea de documento con catálogo).
-    //   2. LEFT JOIN eu ON u.estado_id = eu.id (cruza llave foránea de estado con catálogo de estado de usuario).
-    //   3. LEFT JOIN o ON u.organizacion_id = o.id (cruza llave foránea de organización con catálogo de organizaciones).
-    // - Filtros aplicados: u.id = ? (el identificador del usuario solicitante).
+    // Explicación detallada de la consulta SQL:
+    // - Columnas consultadas: Selecciona campos atómicos del voluntario, y campos descriptivos cruzados como 'tipo_documento_nombre', 'estado_nombre', 'organizacion_nombre' y 'seccional_nombre'.
+    // - Tabla principal FROM usuarios u: Indica que la tabla base es 'usuarios'.
+    // - Relación LEFT JOIN tipo_documentos td ON u.tipo_documento_id = td.id: Cruza la tabla usuarios con tipo_documentos. Se utiliza LEFT JOIN para garantizar que si el usuario no tiene registrado su tipo de documento (tipo_documento_id es null), el registro del usuario de todos modos se recupere en vez de excluirse de los resultados.
+    // - Relación LEFT JOIN estado_usuarios eu ON u.estado_id = eu.id: Une de forma opcional con el estado del usuario para recuperar etiquetas descriptivas del estado de cuenta.
+    // - Relación LEFT JOIN organizaciones o ON u.organizacion_id = o.id: Une opcionalmente con organizaciones para obtener nombres corporativos y seccionales sin descartar usuarios sin organización.
+    // - Filtro WHERE u.id = ?: Filtra por la clave primaria única del usuario solicitante.
+    // - Qué retorna: Una única fila con los datos personales y descriptivos del perfil, mapeados directamente a la entidad Usuario.
     public Usuario obtenerPerfilDetallado(int id) throws SQLException {
         String sql = "SELECT u.id, u.nombre, u.apellido, u.email, u.numero_documento, u.fecha_nacimiento, u.celular, u.contraseña, "
                    + "td.descripcion AS tipo_documento_nombre, "
@@ -452,15 +459,15 @@ public class UsuarioDAO {
 
     // Sirve para: Obtener una lista paginada de voluntarios registrados para el panel de gestión de supervisores.
     // Qué hace: Ejecuta un SELECT con LEFT JOIN a roles, estado_usuarios y organizaciones con paginación LIMIT/OFFSET.
-    // Explicación de consulta SQL:
-    // - Información buscada: id, nombre completo (full_name), nombre, apellido, email, la seccional de la organización, el nombre de la organización, el nombre legible del estado del usuario (status_name) y el nombre del rol (rol_name).
-    // - Tablas participantes: usuarios u, roles r, estado_usuarios eu, organizaciones o.
-    // - Relaciones (JOINs):
-    //   1. LEFT JOIN roles r ON u.rol_id = r.id (obtiene el nombre legible del rol).
-    //   2. LEFT JOIN estado_usuarios eu ON u.estado_id = eu.id (obtiene el nombre legible del estado de cuenta).
-    //   3. LEFT JOIN organizaciones o ON u.organizacion_id = o.id (obtiene la seccional y nombre de la organización).
-    // - Filtros aplicados: u.rol_id = 1 AND u.estado_id IN (1, 2) (sólo voluntarios activos o inactivos).
-    // - Ordenamiento y paginación: Ordenados por id descendente, limitados y desplazados por parámetros.
+    // Explicación detallada de la consulta SQL:
+    // - Columnas consultadas: Selecciona el id del usuario, nombre completo concatenado (CONCAT), nombre, apellido, email, y las descripciones del rol, estado de cuenta y organización.
+    // - Relación LEFT JOIN roles r: Une usuarios con roles. Se prefiere LEFT JOIN para evitar que usuarios sin rol asignado desaparezcan del listado.
+    // - Relación LEFT JOIN estado_usuarios eu: Une usuarios con el catálogo de estados de forma no restrictiva.
+    // - Relación LEFT JOIN organizaciones o: Une de forma opcional con organizaciones para obtener nombres y seccionales sin excluir ningún voluntario.
+    // - Filtro WHERE u.rol_id = 1 AND u.estado_id IN (1, 2): Condiciona los resultados para listar exclusivamente voluntarios que estén en estado Activo (1) o Inactivo (2).
+    // - Cláusula LIMIT ?: Controla la paginación limitando el número total de voluntarios devueltos en la página web.
+    // - Cláusula OFFSET ?: Salta una cantidad determinada de registros iniciales en la base de datos para recuperar la página correcta.
+    // - Qué retorna: Una lista de voluntarios mapeados a mapas genéricos de clave-valor.
     public java.util.List<java.util.Map<String, Object>> listarVoluntariosPaginados(int offset, int limit) throws SQLException {
         String sql = "SELECT u.id, CONCAT(u.nombre, ' ', u.apellido) AS full_name, u.nombre, u.apellido, u.email, "
                    + "o.seccional AS sectional, o.nombre AS organization, eu.nombre AS status_name, r.nombre AS rol_name "
@@ -681,16 +688,11 @@ public class UsuarioDAO {
 
     // Sirve para: Obtener la ficha técnica detallada y todos los IDs relacionales de un usuario específico para el modal de edición.
     // Qué hace: Realiza una consulta SELECT con múltiples LEFT JOINs para traer los identificadores numéricos y los nombres descriptivos.
-    // Explicación de consulta SQL:
-    // - Información buscada: id, nombre, apellido, email, numero_documento, fecha_nacimiento, celular, tipo de documento (y su id), género (y su id), seccional, organización (y su id), estado (y su id) y rol (y su id).
-    // - Tablas participantes: usuarios u, tipo_documentos td, generos g, organizaciones o, estado_usuarios eu, roles r.
-    // - Relaciones (JOINs):
-    //   1. LEFT JOIN tipo_documentos td ON u.tipo_documento_id = td.id (catálogo tipo doc).
-    //   2. LEFT JOIN generos g ON u.genero_id = g.id (catálogo géneros).
-    //   3. LEFT JOIN organizaciones o ON u.organizacion_id = o.id (catálogo organizaciones).
-    //   4. LEFT JOIN estado_usuarios eu ON u.estado_id = eu.id (catálogo estado usuarios).
-    //   5. LEFT JOIN roles r ON u.rol_id = r.id (catálogo roles).
-    // - Filtros aplicados: u.id = ? (clave primaria del usuario).
+    // Explicación detallada de la consulta SQL:
+    // - Columnas consultadas: Selecciona la información completa del usuario incluyendo los IDs de referencia y las etiquetas descriptivas de tipo de documento, género, organización y rol.
+    // - Relaciones LEFT JOIN (td, g, o, eu, r): Une opcionalmente la tabla usuarios con sus respectivos catálogos. Se utiliza LEFT JOIN para evitar descartar o fallar al recuperar al usuario si este carece de alguna de estas asociaciones en la base de datos (por ejemplo, si no tiene una organización o género asignado), rellenando los campos inexistentes con nulos.
+    // - Filtro WHERE u.id = ?: Condiciona la búsqueda a la clave primaria única del usuario.
+    // - Qué retorna: Un mapa asociativo con los valores detallados del usuario recuperado.
     public java.util.Map<String, Object> obtenerUsuarioDetalleGestion(int id) throws SQLException {
         String sql = "SELECT u.id, u.nombre, u.apellido, u.email, u.numero_documento, u.fecha_nacimiento, u.celular, "
                    + "td.descripcion AS document_type, td.id AS document_type_id, "

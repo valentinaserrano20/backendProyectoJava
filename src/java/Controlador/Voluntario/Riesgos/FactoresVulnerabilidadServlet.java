@@ -13,13 +13,19 @@ import java.io.IOException;
 import org.json.JSONObject;
 
 // Qué hace: Servlet encargado de mapear las peticiones HTTP CRUD (GET, POST, PATCH, DELETE) sobre la entidad factores de vulnerabilidad.
-// Por qué existe: Actúa como el controlador para gestionar la asociación de vulnerabilidades y sus grados a un riesgo específico.
-// Qué problema resuelve: Enruta y procesa las peticiones de adición y eliminación de vulnerabilidades colgadas del factor de riesgo.
+// Por qué existe: Actúa como el controlador para gestionar la asociación de vulnerabilidades específicas y sus grados (alto, medio, bajo) a un riesgo identificado.
+// Qué pasaría si no estuviera: No se podrían asociar vulnerabilidades particulares (como estructura débil, falta de equipamiento, falta de capacitación) a los factores de riesgo del plan.
 @WebServlet("/api/factoresVulnerabilidad/*")
 public class FactoresVulnerabilidadServlet extends HttpServlet {
+    // Qué hace: Instancia el servicio de lógica de negocios para los factores de riesgo y vulnerabilidades.
+    // Por qué existe: Separa la gestión del protocolo HTTP de la lógica y persistencia de base de datos de los riesgos.
+    // Qué pasaría si no estuviera: El servlet tendría que escribir código JDBC y manejar PreparedStatements de forma directa.
+    // Flujo: De aquí pasamos a FactorRiesgoServicio.
     private final FactorRiesgoServicio servicio = new FactorRiesgoServicio();
 
     // Qué hace: Intercepta peticiones HTTP y enruta PATCH a doPatch.
+    // Por qué existe: Permite dar soporte a actualizaciones de campos aislados del factor de vulnerabilidad.
+    // Qué pasaría si no estuviera: Las peticiones PATCH enviadas por el frontend recibirían un código HTTP 405 (Method Not Allowed).
     @Override
     protected void service(HttpServletRequest req, HttpServletResponse resp) 
             throws ServletException, IOException {
@@ -32,6 +38,8 @@ public class FactoresVulnerabilidadServlet extends HttpServlet {
     }
 
     // Qué hace: Atiende peticiones GET para obtener las vulnerabilidades de un riesgo (/factorRiesgo/{riesgoId}) o una vulnerabilidad por ID (/{id}).
+    // Por qué existe: Permite al frontend visualizar y poblar los cuadros de vulnerabilidades asociadas a un determinado peligro en el plan familiar.
+    // Qué pasaría si no estuviera: El voluntario no podría ver qué vulnerabilidades específicas están agravando cada factor de riesgo de la vivienda.
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
@@ -39,6 +47,9 @@ public class FactoresVulnerabilidadServlet extends HttpServlet {
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
         
+        // Qué hace: Valida la sesión activa del usuario.
+        // Por qué existe: Evita accesos ilegítimos a los detalles de seguridad habitacional de los ciudadanos.
+        // Qué pasaría si no estuviera: Usuarios no autenticados podrían ver los puntos débiles y fallos estructurales de cada vivienda.
         HttpSession session = request.getSession(false);
         if (session == null || session.getAttribute("usuarioId") == null) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
@@ -63,10 +74,16 @@ public class FactoresVulnerabilidadServlet extends HttpServlet {
                     return;
                 }
                 int riesgoId = Integer.parseInt(parts[2]);
+                
+                // Qué hace: Recupera las vulnerabilidades asociadas al factor de riesgo.
+                // y luego de esto pasamos a FactorRiesgoServicio.listarVulnerabilidades, que realiza el query correspondiente en MySQL.
                 String resJson = servicio.listarVulnerabilidades(riesgoId);
                 response.getWriter().write(resJson);
             } else {
                 int id = Integer.parseInt(parts[1]);
+                
+                // Qué hace: Recupera el detalle de una vulnerabilidad específica.
+                // y luego de esto pasamos a FactorRiesgoServicio.obtenerVulnerabilidad, el cual ejecuta el SELECT por ID.
                 String resJson = servicio.obtenerVulnerabilidad(id);
                 response.getWriter().write(resJson);
             }
@@ -79,7 +96,9 @@ public class FactoresVulnerabilidadServlet extends HttpServlet {
         }
     }
 
-    // Qué hace: Atiende peticiones POST para crear una vulnerabilidad asociada.
+    // Qué hace: Atiende peticiones POST para crear una vulnerabilidad asociada a un riesgo.
+    // Por qué existe: Permite asociar una nueva debilidad o vulnerabilidad del catálogo a una amenaza física del hogar.
+    // Qué pasaría si no estuviera: No podríamos registrar nuevos puntos débiles vinculados a los riesgos de la vivienda evaluada.
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
@@ -87,6 +106,9 @@ public class FactoresVulnerabilidadServlet extends HttpServlet {
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
         
+        // Qué hace: Valida que la sesión sea válida y activa.
+        // Por qué existe: Previene la inyección de vulnerabilidades falsas en los censos de la comunidad.
+        // Qué pasaría si no estuviera: Atacantes anónimos podrían desvirtuar el análisis de vulnerabilidad habitacional de los planes.
         HttpSession session = request.getSession(false);
         if (session == null || session.getAttribute("usuarioId") == null) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
@@ -109,6 +131,8 @@ public class FactoresVulnerabilidadServlet extends HttpServlet {
             dto.setVulnerabilityGradeId(json.getInt("vulnerability_grade_id"));
             dto.setRiskFactorId(json.getInt("risk_factor_id"));
             
+            // Qué hace: Registra la asociación del factor de vulnerabilidad a través de la capa de servicios.
+            // y luego de esto pasamos a FactorRiesgoServicio.crearVulnerabilidad, que inserta la relación en MySQL.
             String resJson = servicio.crearVulnerabilidad(dto);
             response.getWriter().write(resJson);
             
@@ -119,12 +143,17 @@ public class FactoresVulnerabilidadServlet extends HttpServlet {
     }
 
     // Qué hace: Atiende peticiones PATCH para actualizar una vulnerabilidad asociada.
+    // Por qué existe: Permite modificar el grado de severidad o el tipo de vulnerabilidad asociada a una amenaza.
+    // Qué pasaría si no estuviera: El voluntario no podría reclasificar la severidad de una vulnerabilidad (por ejemplo, de media a alta) sin tener que eliminarla y volverla a crear.
     protected void doPatch(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
         
+        // Qué hace: Valida la sesión activa.
+        // Por qué existe: Asegura que solo usuarios autorizados realicen cambios en el grado de las vulnerabilidades.
+        // Qué pasaría si no estuviera: Podrían alterarse los niveles de vulnerabilidad de las viviendas sin control de acceso.
         HttpSession session = request.getSession(false);
         if (session == null || session.getAttribute("usuarioId") == null) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
@@ -157,6 +186,8 @@ public class FactoresVulnerabilidadServlet extends HttpServlet {
             dto.setVulnerabilityId(json.getInt("vulnerability_id"));
             dto.setVulnerabilityGradeId(json.getInt("vulnerability_grade_id"));
             
+            // Qué hace: Actualiza la relación de vulnerabilidad en el servicio.
+            // y luego de esto pasamos a FactorRiesgoServicio.actualizarVulnerabilidad, el cual guarda los cambios en la base de datos MySQL.
             String resJson = servicio.actualizarVulnerabilidad(id, dto);
             response.getWriter().write(resJson);
             
@@ -170,6 +201,8 @@ public class FactoresVulnerabilidadServlet extends HttpServlet {
     }
 
     // Qué hace: Atiende peticiones DELETE para borrar una vulnerabilidad asociada.
+    // Por qué existe: Permite remover debilidades mitigadas o erróneamente vinculadas de las amenazas del hogar.
+    // Qué pasaría si no estuviera: Las vulnerabilidades ya corregidas no podrían quitarse del plan de emergencia, devaluando el censo de preparación del hogar.
     @Override
     protected void doDelete(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
@@ -177,6 +210,9 @@ public class FactoresVulnerabilidadServlet extends HttpServlet {
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
         
+        // Qué hace: Comprueba la sesión activa.
+        // Por qué existe: Asegura que las vulnerabilidades críticas del hogar no sean borradas por agentes no identificados.
+        // Qué pasaría si no estuviera: Podrían eliminarse de forma ilegítima registros de vulnerabilidades reales en la base de datos.
         HttpSession session = request.getSession(false);
         if (session == null || session.getAttribute("usuarioId") == null) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
@@ -195,6 +231,9 @@ public class FactoresVulnerabilidadServlet extends HttpServlet {
         
         try {
             int id = Integer.parseInt(parts[1]);
+            
+            // Qué hace: Elimina la vulnerabilidad asociada a la amenaza.
+            // y luego de esto pasamos a FactorRiesgoServicio.eliminarVulnerabilidad, que borra el registro de asociación en MySQL.
             String resJson = servicio.eliminarVulnerabilidad(id);
             response.getWriter().write(resJson);
             

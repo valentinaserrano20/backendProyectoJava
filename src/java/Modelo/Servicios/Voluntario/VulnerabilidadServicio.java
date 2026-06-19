@@ -7,17 +7,26 @@ import java.util.List;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-// Capa de Servicio para coordinar las operaciones lógicas y serialización JSON del Test de Vulnerabilidad
+// Qué hace: Capa de Servicio encargada de coordinar las operaciones lógicas, validaciones y serialización JSON del Test de Vulnerabilidad familiar.
+// Por qué existe: Separa la lógica de control del flujo web (Servlet) y el acceso físico a base de datos (DAO), asegurando que se calcule correctamente la vulnerabilidad del hogar antes de actualizar su estado.
+// Qué pasaría si no estuviera: Los controladores tendrían que realizar consultas directas y cálculos manuales de vulnerabilidad, duplicando lógica y acoplando la base de datos con la vista web.
 public class VulnerabilidadServicio {
-    // Instancia el DAO correspondiente para interactuar con la base de datos
+    
+    // Qué hace: Instancia el objeto de acceso a datos del test de vulnerabilidad.
+    // Por qué existe: Permite consultar preguntas, registrar respuestas y actualizar estados en la base de datos relacional.
+    // Qué pasaría si no estuviera: No podríamos recuperar las preguntas ni guardar los resultados del test en la base de datos.
+    // Flujo: De aquí pasamos a VulnerabilidadDAO.
     private final VulnerabilidadDAO dao = new VulnerabilidadDAO();
 
-    // Obtiene todas las preguntas activas como entidades y las serializa a formato DTO JSON con el nodo "data"
+    // Qué hace: Obtiene todas las preguntas del test que se encuentren activas y las empaqueta en una estructura JSON.
+    // Por qué existe: Permite al frontend listar el cuestionario completo dinámicamente en el formulario de la SPA.
+    // Qué pasaría si no estuviera: El cuestionario tendría que estar hardcodeado en el frontend, impidiendo agregar o modificar preguntas desde la base de datos sin redesplegar el cliente.
     public String obtenerPreguntas() {
         // Inicializa el objeto JSON de respuesta principal
         JSONObject res = new JSONObject();
         try {
-            // Solicita al DAO la lista completa de preguntas activas (retorna objetos Entidad PreguntaTest)
+            // Qué hace: Consulta al DAO las preguntas activas.
+            // y luego de esto pasamos a VulnerabilidadDAO.obtenerPreguntasActivas, que realiza la consulta SELECT.
             List<PreguntaTest> preguntas = dao.obtenerPreguntasActivas();
             // Inicializa un arreglo JSON para almacenar las preguntas convertidas a DTO
             JSONArray datos = new JSONArray();
@@ -43,7 +52,7 @@ public class VulnerabilidadServicio {
             // Agrega el arreglo de preguntas envuelto en el nodo "data" requerido por el frontend
             res.put("data", datos);
         } catch (Exception e) {
-            // Si ocurre algún fallo, marca éxito como false
+            // Si ocurre algún fallo, marca éxito como false y retorna la descripción
             res.put("success", false);
             // Inserta el mensaje detallado del error
             res.put("message", "Error al obtener las preguntas: " + e.getMessage());
@@ -52,12 +61,15 @@ public class VulnerabilidadServicio {
         return res.toString();
     }
 
-    // Obtiene las preguntas paginadas como entidades y devuelve el JSON estructurado con nodos "data" y "paginate"
+    // Qué hace: Obtiene un subconjunto de preguntas activas de forma paginada para la administración del test.
+    // Por qué existe: Evita la sobrecarga de red al transferir listas masivas de preguntas en una sola petición.
+    // Qué pasaría si no estuviera: Las interfaces administrativas de preguntas cargarían lento al procesar todo de golpe.
     public String obtenerPreguntasPaginadas(int page, int perPage) {
         // Inicializa el objeto JSON principal
         JSONObject res = new JSONObject();
         try {
-            // Obtiene el conteo total de preguntas activas en la BD
+            // Qué hace: Cuenta el total de preguntas para calcular el número de páginas.
+            // y luego de esto pasamos a VulnerabilidadDAO.contarPreguntasActivas.
             int total = dao.contarPreguntasActivas();
             // Calcula matemáticamente el número de páginas necesarias redondeando hacia arriba
             int lastPage = (int) Math.ceil((double) total / perPage);
@@ -66,7 +78,8 @@ public class VulnerabilidadServicio {
             // Calcula la fila inicial (offset) para la consulta SQL
             int offset = (page - 1) * perPage;
 
-            // Pide al DAO la lista de entidades PreguntaTest paginadas
+            // Qué hace: Obtiene la lista de entidades PreguntaTest paginadas.
+            // y luego de esto pasamos a VulnerabilidadDAO.obtenerPreguntasPaginadas.
             List<PreguntaTest> preguntas = dao.obtenerPreguntasPaginadas(offset, perPage);
             // Crea el arreglo JSON para los datos DTO de la página
             JSONArray datos = new JSONArray();
@@ -109,12 +122,15 @@ public class VulnerabilidadServicio {
         return res.toString();
     }
 
-    // Obtiene respuestas existentes para precargarlas en el test de vulnerabilidad
+    // Qué hace: Obtiene las respuestas guardadas previamente en un plan familiar específico.
+    // Por qué existe: Permite precargar las respuestas en el cuestionario cuando el voluntario vuelve a ingresar al test.
+    // Qué pasaría si no estuviera: El usuario tendría que responder todas las preguntas nuevamente cada vez que entre a la pestaña del test.
     public String obtenerRespuestasPlan(int planId) {
         // Inicializa el objeto JSON de respuesta
         JSONObject res = new JSONObject();
         try {
-            // Solicita al DAO la lista de respuestas existentes para el plan
+            // Qué hace: Recupera las respuestas guardadas para el plan.
+            // y luego de esto pasamos a VulnerabilidadDAO.obtenerRespuestasPorPlan, el cual hace un SELECT de las respuestas.
             List<RespuestaTestDTO> respuestas = dao.obtenerRespuestasPorPlan(planId);
             // Crea el arreglo JSON de respuestas
             JSONArray datos = new JSONArray();
@@ -142,7 +158,9 @@ public class VulnerabilidadServicio {
         return res.toString();
     }
 
-    // Procesa el lote de respuestas, ejecuta el guardado en base de datos y calcula vulnerabilidad en memoria
+    // Qué hace: Guarda transaccionalmente el lote de respuestas del test y actualiza en caliente el tipo de vulnerabilidad familiar calculado.
+    // Por qué existe: Consolida las respuestas del test y determina si la familia califica en condición vulnerable (5 o más respuestas 'Sí' evaluables).
+    // Qué pasaría si no estuviera: No se podrían registrar las respuestas del test en lote ni se actualizaría el estado de vulnerabilidad de la familia de forma automática.
     public String procesarGuardadoLote(int planId, List<RespuestaTestDTO> respuestas) {
         // Inicializa el objeto de respuesta JSON
         JSONObject res = new JSONObject();
@@ -153,13 +171,15 @@ public class VulnerabilidadServicio {
         }
 
         try {
-            // Ejecuta el DAO transaccional para el lote
+            // Qué hace: Ejecuta la transacción de borrado de respuestas anteriores e inserción de las nuevas en lote.
+            // y luego de esto pasamos a VulnerabilidadDAO.guardarTestYActualizarPlan.
             boolean exito = dao.guardarTestYActualizarPlan(planId, respuestas);
             // Si la transacción en base de datos se consolida
             if (exito) {
                 // Inicializa el conteo de puntos de vulnerabilidad en memoria
                 int puntos = 0;
-                // Recupera todas las preguntas activas (entidades) para evaluar la peligrosidad de las respuestas SÍ
+                // Qué hace: Obtiene de nuevo las preguntas activas para evaluar cuáles de las marcadas como 'SÍ' son evaluables.
+                // y luego de esto pasamos a VulnerabilidadDAO.obtenerPreguntasActivas.
                 List<PreguntaTest> todas = dao.obtenerPreguntasActivas();
                 // Itera sobre las respuestas recibidas en el lote
                 for (RespuestaTestDTO r : respuestas) {
@@ -207,15 +227,19 @@ public class VulnerabilidadServicio {
         return res.toString();
     }
     
-    // Cambia el estado del plan familiar e inserta un registro en la bitácora de seguimiento
+    // Qué hace: Actualiza el estado de revisión del plan familiar (Ej: de 'En revisión' a 'Aprobado') y deja constancia en la bitácora de seguimiento.
+    // Por qué existe: Permite a los supervisores de la Defensa Civil auditar, aprobar o rechazar planes con comentarios específicos.
+    // Qué pasaría si no estuviera: Los planes se quedarían en un solo estado indefinidamente y no habría historial de quién aprobó o rechazó qué cosa.
     public String cambiarEstadoPlan(int planId, int estadoId, String comentario, int usuarioId) {
         // Inicializa el JSON
         JSONObject res = new JSONObject();
         try {
-            // Solicita al DAO actualizar el estado del plan familiar
+            // Qué hace: Ejecuta la sentencia de actualización del estado del plan.
+            // y luego de esto pasamos a VulnerabilidadDAO.actualizarEstadoPlan.
             dao.actualizarEstadoPlan(planId, estadoId);
             
-            // Registra el seguimiento con el comentario del supervisor y el ID de usuario gestor
+            // Qué hace: Inserta el registro de seguimiento en la bitácora.
+            // y luego de esto pasamos a VulnerabilidadDAO.registrarSeguimiento.
             dao.registrarSeguimiento(planId, usuarioId, estadoId, comentario);
             
             // Agrega éxito y el mensaje informativo

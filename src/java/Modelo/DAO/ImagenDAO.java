@@ -40,27 +40,28 @@ public class ImagenDAO {
     // Qué problema resuelve: Evita transferir todas las filas por red solo para realizar el conteo de registros.
     public int contarPorPlanYTipo(int planId, String tipo) throws SQLException {
         // Explicación de consulta SQL:
-        // - Información buscada: El total de imágenes asociadas a un plan y tipo de gráfico.
-        // - Tablas participantes: imagenes.
-        // - Filtros aplicados: plan_id = ? AND tipo_grafico = ?.
+        // - SELECT COUNT(*) AS total cuenta el número total de filas.
+        // - WHERE plan_id = ? AND tipo_grafico = ? filtra las imágenes pertenecientes al plan y al tipo de gráfico.
         String sql = "SELECT COUNT(*) AS total FROM imagenes WHERE plan_id = ? AND tipo_grafico = ?";
-        // Qué hace: Abre la conexión JDBC y prepara el statement parametrizado.
-        // Por qué existe: Evita inyección SQL al no concatenar variables de forma cruda.
-        try (Connection con = Conexion.obtener();
-             PreparedStatement ps = con.prepareStatement(sql)) {
-            // Qué hace: Vincula el ID del plan de emergencia familiar al primer parámetro.
+        
+        // try-with-resources: Abre de forma segura la conexión JDBC y prepara la consulta.
+        try (Connection con = Conexion.obtener(); // Obtiene la conexión activa de base de datos.
+             PreparedStatement ps = con.prepareStatement(sql)) { // Prepara la consulta parametrizada.
+             
+            // Vincula el ID del plan de emergencia familiar al primer parámetro '?'.
             ps.setInt(1, planId);
-            // Qué hace: Asigna el valor del enum traducido para coincidir con el tipo_grafico en base de datos.
+            // Vincula el tipo de gráfico mapeado (traducido para la BD) al segundo parámetro '?'.
             ps.setString(2, aValorBD(tipo));
-            // Qué hace: Ejecuta la consulta de conteo y procesa el ResultSet.
+            
+            // Ejecuta la consulta de lectura y lee la fila única resultante.
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
-                    // Qué hace: Retorna la cantidad total de imágenes encontradas en la columna total.
+                    // Retorna el valor numérico entero obtenido en la columna 'total'.
                     return rs.getInt("total");
                 }
             }
         }
-        // Qué hace: Retorna 0 si la consulta no arrojó resultados.
+        // Retorna 0 si la consulta no arrojó resultados.
         return 0;
     }
 
@@ -69,41 +70,48 @@ public class ImagenDAO {
     // Qué problema resuelve: Permite recuperar conjuntos limitados de imágenes de forma paginada para mejorar el tiempo de carga del cliente.
     public List<ImagenDTO> listarPorPlanYTipo(int planId, String tipo, int limit, int offset) throws SQLException {
         // Explicación de consulta SQL:
-        // - Información buscada: Identificador, tipo de gráfico, ruta del archivo y descripción de las imágenes del plan.
-        // - Tablas participantes: imagenes.
-        // - Filtros aplicados: plan_id = ? AND tipo_grafico = ?, paginados ascendentemente/descendentemente con LIMIT ? OFFSET ?.
+        // - SELECT recupera las columnas id, tipo_grafico, ruta_archivo, descripcion y plan_id.
+        // - WHERE plan_id = ? AND tipo_grafico = ? filtra por el plan y tipo de gráfico.
+        // - ORDER BY id DESC ordena las imágenes de forma descendente (las más recientes primero).
+        // - LIMIT ? OFFSET ? pagina los resultados en base de datos MySQL.
         String sql = "SELECT id, tipo_grafico, ruta_archivo, descripcion, plan_id "
                    + "FROM imagenes WHERE plan_id = ? AND tipo_grafico = ? "
                    + "ORDER BY id DESC LIMIT ? OFFSET ?";
         
-        // Qué hace: Abre la conexión a base de datos y compila el statement parametrizado.
-        try (Connection con = Conexion.obtener();
-             PreparedStatement ps = con.prepareStatement(sql)) {
-            // Qué hace: Vincula los parámetros del plan, tipo de gráfico traducido, límite y offset.
+        // try-with-resources: Inicializa y administra de forma limpia el statement y la conexión.
+        try (Connection con = Conexion.obtener(); // Solicita la conexión a base de datos.
+             PreparedStatement ps = con.prepareStatement(sql)) { // Prepara la consulta parametrizada.
+             
+            // Vincula el ID del plan familiar.
             ps.setInt(1, planId);
+            // Vincula el tipo de gráfico traducido.
             ps.setString(2, aValorBD(tipo));
+            // Vincula el límite de registros de imágenes a obtener.
             ps.setInt(3, limit);
+            // Vincula el desplazamiento (offset) inicial de lectura.
             ps.setInt(4, offset);
             
-            // Qué hace: Inicializa la lista dinámica que contendrá las imágenes.
+            // Inicializa la lista dinámica para almacenar las imágenes mapeadas.
             List<ImagenDTO> lista = new ArrayList<>();
-            // Qué hace: Ejecuta el query de lectura y procesa el ResultSet.
+            
+            // Ejecuta la consulta de lectura de base de datos.
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    // Qué hace: Instancia el DTO de imagen y mapea cada columna.
+                    // Instancia un nuevo DTO para mapear las columnas de la fila actual
                     ImagenDTO dto = new ImagenDTO();
                     dto.setId(rs.getInt("id"));
-                    // Qué hace: Traduce la cadena enum al formato que el frontend espera mediante aValorJava.
+                    // Traduce el valor enum de la BD ("mapa" / "entorno") al formato java del front ("georeferenciacion" / "entorno").
                     dto.setTipoGrafico(aValorJava(rs.getString("tipo_grafico")));
                     dto.setPath(rs.getString("ruta_archivo"));
-                    // Qué hace: Maneja nulos en el campo descripción de la imagen.
+                    // Controla valores nulos en la descripción asignando cadena vacía por defecto.
                     dto.setDescription(rs.getString("descripcion") != null ? rs.getString("descripcion") : "");
                     dto.setPlanId(rs.getInt("plan_id"));
-                    // Qué hace: Agrega el DTO a la lista de retorno.
+                    
+                    // Agrega el DTO a la lista de retorno.
                     lista.add(dto);
                 }
             }
-            // Qué hace: Retorna la lista resultante de imágenes.
+            // Retorna la colección completa con las imágenes de la página actual.
             return lista;
         }
     }
@@ -113,31 +121,33 @@ public class ImagenDAO {
     // Qué problema resuelve: Recupera la información de un único registro de forma atómica y segura mediante JDBC.
     public ImagenDTO obtenerPorId(int id) throws SQLException {
         // Explicación de consulta SQL:
-        // - Información buscada: Detalles del registro de imagen.
-        // - Tablas participantes: imagenes.
-        // - Filtros aplicados: id = ? (id de la imagen).
+        // - SELECT recupera los atributos del registro de imagen.
+        // - WHERE id = ? filtra por la clave primaria única.
         String sql = "SELECT id, tipo_grafico, ruta_archivo, descripcion, plan_id FROM imagenes WHERE id = ?";
-        // Qué hace: Abre la conexión a la base de datos y compila el PreparedStatement.
-        try (Connection con = Conexion.obtener();
-             PreparedStatement ps = con.prepareStatement(sql)) {
-            // Qué hace: Asigna el ID de la imagen al statement.
+        
+        // try-with-resources: Abre la conexión a la base de datos y compila el PreparedStatement.
+        try (Connection con = Conexion.obtener(); // Abre la conexión física.
+             PreparedStatement ps = con.prepareStatement(sql)) { // Prepara la consulta parametrizada.
+             
+            // Vincula el ID de la imagen en la consulta.
             ps.setInt(1, id);
-            // Qué hace: Ejecuta el query y lee la fila única resultante.
+            
+            // Ejecuta la consulta y lee el ResultSet.
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
-                    // Qué hace: Instancia el DTO de imagen y mapea cada columna del ResultSet.
+                    // Instancia el DTO de imagen y mapea las columnas.
                     ImagenDTO dto = new ImagenDTO();
                     dto.setId(rs.getInt("id"));
                     dto.setTipoGrafico(aValorJava(rs.getString("tipo_grafico")));
                     dto.setPath(rs.getString("ruta_archivo"));
                     dto.setDescription(rs.getString("descripcion") != null ? rs.getString("descripcion") : "");
                     dto.setPlanId(rs.getInt("plan_id"));
-                    // Qué hace: Retorna la imagen encontrada.
+                    // Retorna la imagen encontrada.
                     return dto;
                 }
             }
         }
-        // Qué hace: Retorna null si la imagen no existe.
+        // Retorna null si no se localizó ningún registro con ese ID.
         return null;
     }
 
@@ -146,33 +156,36 @@ public class ImagenDAO {
     // Qué problema resuelve: Facilita la obtención directa de la imagen correspondiente usando únicamente el ID del plan.
     public ImagenDTO obtenerPorPlanYTipo(int planId, String tipo) throws SQLException {
         // Explicación de consulta SQL:
-        // - Información buscada: Columnas de la imagen asociada al plan y tipo.
-        // - Tablas participantes: imagenes.
-        // - Filtros aplicados: plan_id = ? AND tipo_grafico = ?.
+        // - SELECT recupera las columnas de la imagen asociada al plan.
+        // - WHERE plan_id = ? AND tipo_grafico = ? filtra las imágenes pertenecientes al plan familiar y tipo de gráfico.
         String sql = "SELECT id, tipo_grafico, ruta_archivo, descripcion, plan_id "
                    + "FROM imagenes WHERE plan_id = ? AND tipo_grafico = ?";
-        // Qué hace: Abre la conexión JDBC y prepara el statement parametrizado.
-        try (Connection con = Conexion.obtener();
-             PreparedStatement ps = con.prepareStatement(sql)) {
-            // Qué hace: Vincula el ID del plan y el tipo de gráfico traducido.
+                   
+        // try-with-resources: Abre la conexión JDBC y prepara el statement de forma segura.
+        try (Connection con = Conexion.obtener(); // Abre la conexión física.
+             PreparedStatement ps = con.prepareStatement(sql)) { // Prepara la consulta.
+             
+            // Vincula el ID del plan familiar.
             ps.setInt(1, planId);
+            // Vincula el tipo de gráfico traducido para la base de datos.
             ps.setString(2, aValorBD(tipo));
-            // Qué hace: Ejecuta la consulta y lee el ResultSet.
+            
+            // Ejecuta la consulta de lectura.
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
-                    // Qué hace: Instancia el DTO y realiza el mapeo.
+                    // Instancia y realiza el mapeo al DTO.
                     ImagenDTO dto = new ImagenDTO();
                     dto.setId(rs.getInt("id"));
                     dto.setTipoGrafico(aValorJava(rs.getString("tipo_grafico")));
                     dto.setPath(rs.getString("ruta_archivo"));
                     dto.setDescription(rs.getString("descripcion") != null ? rs.getString("descripcion") : "");
                     dto.setPlanId(rs.getInt("plan_id"));
-                    // Qué hace: Retorna el DTO de la imagen encontrada.
+                    // Retorna el DTO de la imagen única encontrada.
                     return dto;
                 }
             }
         }
-        // Qué hace: Retorna null si no se localizó la imagen.
+        // Retorna null si la imagen única no ha sido creada para este plan.
         return null;
     }
 
@@ -181,32 +194,35 @@ public class ImagenDAO {
     // Qué problema resuelve: Mapea el objeto DTO en memoria hacia las columnas de la tabla de forma parametrizada y protegida.
     public int crear(ImagenDTO dto) throws SQLException {
         // Explicación de consulta SQL:
-        // - Información buscada: Registrar una nueva imagen.
-        // - Tablas participantes: imagenes.
+        // - INSERT INTO registra un nuevo registro de imagen en imagenes.
+        // - Las columnas tipo_grafico, ruta_archivo, descripcion y plan_id reciben valores mediante marcadores '?'.
         String sql = "INSERT INTO imagenes (tipo_grafico, ruta_archivo, descripcion, plan_id) VALUES (?, ?, ?, ?)";
-        // Qué hace: Abre la conexión a base de datos y prepara el PreparedStatement con retorno de llaves generadas.
-        try (Connection con = Conexion.obtener();
-             PreparedStatement ps = con.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+        
+        // try-with-resources: Abre la conexión y prepara el PreparedStatement con retorno de llaves autogeneradas.
+        try (Connection con = Conexion.obtener(); // Abre la conexión física.
+             PreparedStatement ps = con.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) { // Habilita la obtención del ID generado.
             
-            // Qué hace: Vincula los parámetros básicos de la imagen.
+            // Vincula el tipo de gráfico traducido al primer parámetro '?'.
             ps.setString(1, aValorBD(dto.getTipoGrafico()));
+            // Vincula la ruta física del archivo en el servidor al segundo parámetro '?'.
             ps.setString(2, dto.getPath());
-            // Qué hace: Setea NULL si la descripción viene vacía.
+            // Setea NULL si la descripción viene vacía, de lo contrario vincula el texto.
             ps.setString(3, dto.getDescription() != null && !dto.getDescription().isEmpty() ? dto.getDescription() : null);
+            // Vincula el ID del plan de emergencia familiar al cuarto parámetro '?'.
             ps.setInt(4, dto.getPlanId());
             
-            // Qué hace: Ejecuta la inserción.
+            // Ejecuta la inserción en la base de datos.
             ps.executeUpdate();
             
-            // Qué hace: Recupera la llave autoincremental generada por MySQL.
+            // Recupera la llave primaria autoincremental asignada de forma automática por MySQL.
             try (ResultSet rsKeys = ps.getGeneratedKeys()) {
                 if (rsKeys.next()) {
-                    // Qué hace: Retorna el ID autogenerado.
+                    // Retorna el ID autogenerado.
                     return rsKeys.getInt(1);
                 }
             }
         }
-        // Qué hace: Lanza una excepción si falla la inserción de la imagen.
+        // Lanza una excepción si falla la inserción de la imagen.
         throw new SQLException("No se pudo obtener el ID autogenerado de la imagen.");
     }
 
@@ -215,17 +231,20 @@ public class ImagenDAO {
     // Qué problema resuelve: Ejecuta la actualización parcial en base de datos sin alterar la ruta del archivo.
     public void actualizarDescripcion(int id, String descripcion) throws SQLException {
         // Explicación de consulta SQL:
-        // - Información buscada: Modificar la columna descripción.
-        // - Tablas participantes: imagenes.
-        // - Filtros aplicados: WHERE id = ?.
+        // - UPDATE modifica la columna descripcion de la tabla imagenes.
+        // - WHERE id = ? restringe el cambio a la imagen especificada.
         String sql = "UPDATE imagenes SET descripcion = ? WHERE id = ?";
-        // Qué hace: Abre la conexión JDBC y prepara el PreparedStatement.
-        try (Connection con = Conexion.obtener();
-             PreparedStatement ps = con.prepareStatement(sql)) {
-            // Qué hace: Vincula la descripción (o NULL si viene vacía) y el ID de la imagen.
+        
+        // try-with-resources: Abre la conexión JDBC y prepara el statement.
+        try (Connection con = Conexion.obtener(); // Abre la conexión física.
+             PreparedStatement ps = con.prepareStatement(sql)) { // Prepara la actualización.
+             
+            // Vincula la descripción (o NULL si viene vacía) al primer parámetro.
             ps.setString(1, descripcion != null && !descripcion.isEmpty() ? descripcion : null);
+            // Vincula el ID de la imagen al segundo parámetro.
             ps.setInt(2, id);
-            // Qué hace: Ejecuta la actualización.
+            
+            // Ejecuta la actualización en MySQL.
             ps.executeUpdate();
         }
     }
@@ -235,17 +254,20 @@ public class ImagenDAO {
     // Qué problema resuelve: Sobrescribe la referencia de ruta de manera segura mediante JDBC.
     public void actualizarRuta(int id, String ruta) throws SQLException {
         // Explicación de consulta SQL:
-        // - Información buscada: Modificar la columna ruta_archivo.
-        // - Tablas participantes: imagenes.
-        // - Filtros aplicados: WHERE id = ?.
+        // - UPDATE modifica la columna ruta_archivo.
+        // - WHERE id = ? restringe la actualización al registro correspondiente.
         String sql = "UPDATE imagenes SET ruta_archivo = ? WHERE id = ?";
-        // Qué hace: Abre la conexión a la base de datos y compila el PreparedStatement.
-        try (Connection con = Conexion.obtener();
-             PreparedStatement ps = con.prepareStatement(sql)) {
-            // Qué hace: Vincula la nueva ruta de archivo y el ID de imagen.
+        
+        // try-with-resources: Abre la conexión a la base de datos y compila el PreparedStatement.
+        try (Connection con = Conexion.obtener(); // Abre la conexión física.
+             PreparedStatement ps = con.prepareStatement(sql)) { // Prepara la actualización.
+             
+            // Vincula la nueva ruta de archivo al primer parámetro.
             ps.setString(1, ruta);
+            // Vincula el ID de la imagen al segundo parámetro.
             ps.setInt(2, id);
-            // Qué hace: Ejecuta la actualización en MySQL.
+            
+            // Ejecuta la actualización física en MySQL.
             ps.executeUpdate();
         }
     }
@@ -255,15 +277,18 @@ public class ImagenDAO {
     // Qué problema resuelve: Borra el registro en cascada o de forma directa en el motor SQL de forma atómica.
     public void eliminar(int id) throws SQLException {
         // Explicación de consulta SQL:
-        // - Información buscada: Eliminar el registro de imagen.
-        // - Tablas participantes: imagenes.
-        // - Filtros aplicados: WHERE id = ?.
+        // - DELETE FROM elimina físicamente registros que cumplan la condición WHERE.
+        // - WHERE id = ? restringe el borrado al ID exacto de la imagen.
         String sql = "DELETE FROM imagenes WHERE id = ?";
-        // Qué hace: Abre la conexión JDBC y prepara el PreparedStatement.
-        try (Connection con = Conexion.obtener();
-             PreparedStatement ps = con.prepareStatement(sql)) {
-            // Qué hace: Vincula el ID de imagen y ejecuta la eliminación física.
+        
+        // try-with-resources: Abre la conexión JDBC y prepara el statement de forma segura.
+        try (Connection con = Conexion.obtener(); // Abre la conexión física.
+             PreparedStatement ps = con.prepareStatement(sql)) { // Prepara el statement de borrado.
+             
+            // Vincula el ID de la imagen al parámetro del WHERE.
             ps.setInt(1, id);
+            
+            // Ejecuta la eliminación física en MySQL.
             ps.executeUpdate();
         }
     }

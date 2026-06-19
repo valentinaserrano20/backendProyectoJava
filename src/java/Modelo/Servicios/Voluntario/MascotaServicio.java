@@ -93,29 +93,38 @@ public class MascotaServicio {
     // Por qué existe: Asegura que no se registren mascotas incompletas en la base de datos de Defensa Civil.
     // Qué problema resuelve: Previene la inserción de registros erróneos o nulos mediante validaciones previas del lado del servidor.
     public String crearMascota(MascotaDTO dto) {
+        // Instanciamos un objeto JSON para compilar el retorno de la petición
         JSONObject res = new JSONObject();
+        // Usamos el método .trim() y .isEmpty() para validar que el nombre de la mascota no sea nulo ni consista de puros espacios vacíos
         if (dto.getName() == null || dto.getName().trim().isEmpty()) {
             return res.put("success", false).put("message", "El nombre de la mascota es obligatorio.").toString();
         }
+        // Validamos que se haya provisto una especie numérica de catálogo válida
         if (dto.getSpeciesId() <= 0) {
             return res.put("success", false).put("message", "La especie de la mascota es obligatoria.").toString();
         }
+        // Validamos que se haya provisto un género de animal de catálogo válido
         if (dto.getAnimalGenderId() <= 0) {
             return res.put("success", false).put("message", "El género de la mascota es obligatorio.").toString();
         }
         
         try {
+            // Llamamos al método crearMascota de la clase MascotaDAO para realizar la inserción física en la base de datos
             int newId = dao.crearMascota(dto);
+            // Creamos un JSONObject para empaquetar el ID autogenerado devuelto por MySQL
             JSONObject data = new JSONObject();
             data.put("id", newId);
             
+            // Estructuramos la confirmación de éxito en el JSON de respuesta
             res.put("success", true);
             res.put("message", "Mascota registrada correctamente.");
             res.put("data", data);
         } catch (Exception e) {
+            // Capturamos cualquier excepción de base de datos e inyectamos el mensaje del fallo
             res.put("success", false);
             res.put("message", "Error al registrar la mascota: " + e.getMessage());
         }
+        // Retornamos el JSON formateado como cadena de texto
         return res.toString();
     }
 
