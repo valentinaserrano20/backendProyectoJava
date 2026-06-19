@@ -19,126 +19,111 @@ import org.json.JSONObject;
 @WebServlet("/api/register")
 public class RegisterServlet extends HttpServlet {
 
+    // =========================================================================
+    // UBICACIÓN: RegisterServlet.java (Método doPost)
+    // Código real de tu proyecto con comentarios explicativos inyectados
+    // =========================================================================
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        // =========================================
-        // CONFIGURACIÓN DE RESPUESTA HTTP
-        // =========================================
-
-        // Configura el encabezado HTTP indicando que el servidor responderá en formato JSON
+        // EXPLICACIÓN DE CONCEPTOS LÍNEA POR LÍNEA:
+        
+        // response.setContentType("application/json") le pone un sello a la cabecera de la respuesta HTTP.
+        // Sirve para avisarle al navegador del usuario que lo que le vamos a devolver al final del día
+        // no es una página web visual (HTML), sino un bloque de datos estructurado en formato JSON.
         response.setContentType("application/json");
-        // Asegura que la codificación de caracteres de salida sea UTF-8 para admitir tildes y caracteres especiales
+        
+        // response.setCharacterEncoding("UTF-8") define el mapa de traducción binaria para las letras.
+        // Sirve para que caracteres como la "ñ", los acentos o caracteres especiales en español no se rompan 
+        // ni se transformen en símbolos extraños (como 'Ã±') durante su viaje de regreso por internet.
         response.setCharacterEncoding("UTF-8");
 
-        // Obtiene el escritor de salida para imprimir la respuesta JSON de vuelta al cliente
+        // PrintWriter es una clase de Java que actúa como un "escribano de red". El método response.getWriter()
+        // nos entrega un objeto conectado directamente al puerto de internet del usuario que hizo la petición.
+        // Todo lo que escribamos en la variable 'out' viajará inmediatamente de vuelta al navegador web.
         PrintWriter out = response.getWriter();
 
-        // Inicia el bloque try para atrapar cualquier fallo de parseo, validación o base de datos
+        // Iniciamos un bloque try-catch. Si algo falla adentro (un dato inválido, base de datos caída),
+        // el código saltará de inmediato al bloque "catch" de abajo para evitar que el servidor colapse.
         try {
 
-            // =========================================
-            // LEER EL BODY JSON QUE MANDA EL FRONTEND
-            // =========================================
+            // JSONUtil.leerJson(request) es una clase de utilidad de tu proyecto. Va al flujo de entrada de la red,
+            // lee todo el texto JSON plano que envió JavaScript en el Paso 2, y lo transforma en un objeto JSONObject
+            // de Java para que podamos extraer sus propiedades usando métodos como .getString().
+            JSONObject body = JSONUtil.leerJson(request);
 
-            // Lee y parsea todo el cuerpo de entrada de la petición HTTP devolviendo un objeto JSONObject
-            JSONObject body =JSONUtil.leerJson(request);
-
-            // Valida que la propiedad 'names' exista en el JSON y que su contenido no esté en blanco
+            // VALIDACIONES DE ENTRADA: 
+            // .has("names") revisa si la propiedad existe en el JSON. .getString("names").trim().isEmpty() 
+            // extrae el texto, le borra los espacios de los lados y comprueba si el usuario lo dejó en blanco.
             if (!body.has("names") || body.getString("names").trim().isEmpty()) {
-                // Lanza una excepción inmediata si el parámetro obligatorio no está presente
+                // Si la validación falla, lanza un error controlado deteniendo el flujo del programa de inmediato.
                 throw new IllegalArgumentException("El nombre es requerido");
             }
-            // Valida que la propiedad 'last_names' exista en el JSON y no esté en blanco
             if (!body.has("last_names") || body.getString("last_names").trim().isEmpty()) {
-                // Lanza una excepción si el parámetro obligatorio del apellido falta
                 throw new IllegalArgumentException("El apellido es requerido");
             }
-            // Valida que la propiedad 'email' exista en el JSON y no esté en blanco
             if (!body.has("email") || body.getString("email").trim().isEmpty()) {
-                // Detiene la ejecución si el correo electrónico obligatorio está vacío
                 throw new IllegalArgumentException("El correo electrónico es requerido");
             }
-            // Valida que la propiedad 'password' exista en el JSON y no esté en blanco
             if (!body.has("password") || body.getString("password").trim().isEmpty()) {
-                // Arroja un error si la contraseña obligatoria no fue enviada
                 throw new IllegalArgumentException("La contraseña es requerida");
             }
-            // Valida que la propiedad 'document_number' exista en el JSON y no esté en blanco
             if (!body.has("document_number") || body.getString("document_number").trim().isEmpty()) {
-                // Arroja un error si la identificación está ausente
                 throw new IllegalArgumentException("El número de documento es requerido");
             }
-            // Valida que la propiedad 'birth_date' exista en el JSON y no esté en blanco
             if (!body.has("birth_date") || body.getString("birth_date").trim().isEmpty()) {
-                // Arroja un error si la fecha de nacimiento no existe
                 throw new IllegalArgumentException("La fecha de nacimiento es requerida");
             }
-            // Valida que la propiedad 'phone' exista en el JSON y no esté en blanco
             if (!body.has("phone") || body.getString("phone").trim().isEmpty()) {
-                // Arroja un error si el número de teléfono celular está ausente
                 throw new IllegalArgumentException("El celular o teléfono es requerido");
             }
-            // Valida que la propiedad 'document_type_id' exista en el JSON y no esté en blanco
             if (!body.has("document_type_id") || body.getString("document_type_id").trim().isEmpty()) {
-                // Arroja un error si el id del tipo de documento falta
                 throw new IllegalArgumentException("El tipo de documento es requerido");
             }
-            // Valida que la propiedad 'gender_id' exista en el JSON y no esté en blanco
             if (!body.has("gender_id") || body.getString("gender_id").trim().isEmpty()) {
-                // Arroja un error si el género no fue proporcionado
                 throw new IllegalArgumentException("El género es requerido");
             }
-            // Valida que la propiedad 'organization_id' exista en el JSON y no esté en blanco
             if (!body.has("organization_id") || body.getString("organization_id").trim().isEmpty()) {
-                // Arroja un error si la seccional u organización no existe en la petición
                 throw new IllegalArgumentException("La seccional u organización es requerida");
             }
 
-            // Sanea y extrae las cadenas de texto del JSON para utilizarlas en las variables locales de Java
+            // Una vez que sabemos que ningún campo viene vacío, extraemos los textos del objeto JSON
+            // y los guardamos dentro de variables locales estándar de Java (String).
             String nombres = body.getString("names").trim();
-            // Extrae los apellidos y limpia espacios innecesarios
             String apellidos = body.getString("last_names").trim();
-            // Extrae el email y limpia espacios innecesarios
             String email = body.getString("email").trim();
-            // Extrae la contraseña en texto plano sin alterar sus caracteres
-            String password = body.getString("password");
-            // Extrae el número de documento de identificación
+            String password = body.getString("password"); // Conserva la clave original para encriptarla luego
             String numDocumento = body.getString("document_number").trim();
-            // Extrae la fecha de nacimiento
             String fechaNac = body.getString("birth_date").trim();
-            // Extrae el teléfono de contacto del voluntario
             String telefono = body.getString("phone").trim();
 
-            // Declara las variables para almacenar los identificadores numéricos de las tablas catálogo
+            // Declaramos variables enteras (int) para almacenar las claves numéricas de los catálogos de la base de datos.
             int tipoDocumentoId;
             int generoId;
             int organizacionId;
 
-            // Inicia el bloque para convertir a enteros las variables de IDs numéricos que vienen como string
+            // Usamos un try interno porque convertir texto a número puede fallar si mandan letras en lugar de números.
             try {
-                // Convierte a tipo entero el ID del tipo de documento
+                // Integer.parseInt() toma el texto del JSON (ej: "1") y lo transforma en un número entero real (1).
                 tipoDocumentoId = Integer.parseInt(body.getString("document_type_id"));
-                // Convierte a tipo entero el ID del género
                 generoId = Integer.parseInt(body.getString("gender_id"));
-                // Convierte a tipo entero el ID de la organización
                 organizacionId = Integer.parseInt(body.getString("organization_id"));
             } catch (NumberFormatException e) {
-                // Lanza un error controlado si alguno de los IDs no corresponde a un formato numérico válido
+                // Si el formato de texto no se pudo convertir a número, se lanza este error para proteger el sistema.
                 throw new IllegalArgumentException("Los IDs de tipo de documento, género y organización deben ser numéricos");
             }
 
-            // =========================================
-            // LLAMAR AL SERVICIO
-            // =========================================
-
-            // Instancia la clase de lógica de negocios para el registro del usuario.
-            // Sirve para encapsular y separar la lógica funcional del Servlet que atiende la red.
+            // =========================================================================
+            // LÍNEA CRÍTICA DE REACCIÓN EN CADENA (Invocación al Servicio):
+            // =========================================================================
+            
+            // Creamos un objeto vivo en la memoria (Instancia) de la clase RegistroServicio usando la palabra clave 'new'.
+            // Hacemos esto porque el Servlet solo maneja la red, no sabe de reglas de negocio.
             RegistroServicio servicio = new RegistroServicio();
 
-            // Invoca al método registrarUsuario en la clase de servicio pasándole todas las variables limpias.
-            // Esta línea exacta de código despierta la lógica de validación e inicia el Paso 4.
+            // Invocamos al método .registrarUsuario() pasándole todas nuestras variables limpias como argumentos.
+            // Esta línea exacta transfiere el flujo de ejecución del Servlet hacia el Paso 4 (La Capa de Servicio).
             servicio.registrarUsuario(
                     nombres,
                     apellidos,
@@ -152,87 +137,76 @@ public class RegisterServlet extends HttpServlet {
                     organizacionId
             );
 
-            // =========================================
-            // CREAR NOTIFICACIÓN PARA SUPERVISORES
-            // =========================================
+            // =========================================================================
+            // INTERACCIÓN CON COMPONENTES ADICIONALES (Uso de DTO y DAO complementario)
+            // =========================================================================
             try {
-                // Instancia el DAO de usuarios para realizar consultas
+                // Instancia el DAO de usuarios para poder consultar registros existentes de la base de datos.
                 UsuarioDAO usuarioDAO = new UsuarioDAO();
-                // Instancia el DAO de notificaciones para persistir los avisos en la base de datos
+                // Instancia el DAO de notificaciones, encargado exclusivo de guardar alertas en SQL.
                 NotificacionDAO notificacionDAO = new NotificacionDAO();
                 
-                // Obtiene un listado completo de todos los voluntarios en el sistema
+                // Llama al método del DAO para traer una lista con todos los usuarios registrados en el sistema.
                 List<Map<String, Object>> supervisores = usuarioDAO.listarVoluntariosTodos();
                 
-                // Itera sobre la lista de voluntarios para encontrar a los supervisores del sistema
+                // Itera (recorre) uno por uno los usuarios de la lista mediante un ciclo for
                 for (Map<String, Object> supervisor : supervisores) {
-                    // Si el voluntario tiene rol_id igual a 2, significa que es un Supervisor
+                    // Extrae el valor de la columna 'rol_id'. Si es igual a 2, significa que este usuario es un Supervisor.
                     if ((Integer) supervisor.get("rol_id") == 2) {
-                        // Crea un nuevo DTO (objeto de transferencia) de notificación
+                        
+                        // USO DEL DTO: Creamos un Data Transfer Object (un contenedor vacío diseñado solo para mover datos).
                         NotificacionDTO notificacion = new NotificacionDTO();
-                        // Asigna el identificador único del supervisor destinatario
-                        notificacion.setUsuarioId((Integer) supervisor.get("id"));
-                        // Establece el título descriptivo del aviso
+                        
+                        // Metemos la información dentro de la "caja" del DTO usando sus métodos setter (.set...)
+                        notificacion.setUsuarioId((Integer) supervisor.get("id")); // ID del supervisor que recibirá la alerta
                         notificacion.setTitulo("Nuevo usuario registrado");
-                        // Redacta el mensaje detallando el nombre del voluntario recién registrado
                         notificacion.setMensaje("El usuario " + nombres + " " + apellidos + " se ha registrado en el sistema y espera activación");
-                        // Define el tipo de la notificación
-                        notificacion.setTipo("nuevo_usuario");
-                        // Establece el estado de lectura de la notificación en falso
-                        notificacion.setLeida(false);
-                        // Define el enlace hash interno de la SPA hacia la bandeja de peticiones pendientes
-                        notificacion.setEnlace("#/supervisor/usuarios/peticiones");
-                        // Define la entidad relacionada del aviso en cero por omisión
+                        notificacion.setTipo("nuevo_usuario"); // Clasificación interna de la alerta
+                        notificacion.setLeida(false); // Por defecto la alerta nace marcada como "No leída"
+                        notificacion.setEnlace("#/supervisor/usuarios/peticiones"); // Destino al hacer clic en el frontend
                         notificacion.setEntidadId(0);
-                        // Persiste físicamente la notificación en la base de datos para este supervisor
+                        
+                        // REACCIÓN EN CADENA SECUNDARIA: Pasamos la caja DTO llena al método .crear() de NotificacionDAO.
+                        // Esto hace que la alerta viaje directamente hacia su propia tabla en la base de datos.
                         notificacionDAO.crear(notificacion);
                     }
                 }
             } catch (Exception e) {
-                // Imprime el fallo en la consola de error pero no cancela la transacción de registro del usuario
+                // Si falla el envío de notificaciones (por ejemplo, la tabla de alertas no existe), imprimimos el error 
+                // en la consola del servidor, pero NO detenemos el registro del usuario. El voluntario se registra igual.
                 System.err.println("Error al crear notificación: " + e.getMessage());
             }
 
-            // =========================================
-            // RESPUESTA EXITOSA
-            // =========================================
-
-            // Crea un objeto JSON para retornar los resultados exitosos al frontend
+            // RESPUESTA DE ÉXITO EN JSON:
+            // Creamos una respuesta vacía usando la clase JSONObject de la librería.
             JSONObject respuesta = new JSONObject();
-
-            // Inserta la bandera de éxito en verdadero
+            // Le insertamos una clave lógica 'success' establecida en verdadero (true).
             respuesta.put("success", true);
+            // Inyectamos el mensaje descriptivo de éxito.
+            respuesta.put("message", "Cuenta creada exitosamente, espera la activación de tu cuenta");
 
-            // Añade el mensaje que se mostrará en pantalla indicando que debe esperar confirmación
-            respuesta.put(
-                    "message",
-                    "Cuenta creada exitosamente, espera la activación de tu cuenta"
-            );
-
-            // Imprime y devuelve la respuesta JSON escrita a través del PrintStream
+            // El escritor de red 'out' toma el objeto JSON, lo convierte en texto plano y lo empuja 
+            // a través de internet de vuelta al archivo 'registerController.js' del Paso 1.
             out.print(respuesta);
 
         } catch (Exception e) {
-
-            // Comprueba si el fallo es por datos incorrectos o porque el email/documento ya existía en la BD
+            // Si algo falló arriba o el Servicio arrojó una excepción, el programa se salta todo y cae en este bloque.
+            
+            // Si el error ocurrió porque faltó un campo (IllegalArgumentException) o porque el correo/cédula ya existían:
             if (e instanceof IllegalArgumentException || e.getMessage().contains("ya está registrado")) {
-                // Responde con el estado HTTP 400 Bad Request indicando error del cliente
+                // Modificamos el estado de la respuesta HTTP a 400 (Bad Request), indicándole al navegador que fue un error del cliente.
                 response.setStatus(400);
             } else {
-                // Responde con el estado HTTP 500 para errores internos inesperados del servidor
+                // Si fue un error imprevisto (ej: código Java mal escrito o conexión a base de datos muerta), ponemos estado 500 (Server Error).
                 response.setStatus(500);
             }
 
-            // Crea un objeto JSON de respuesta para notificar la falla
+            // Creamos un objeto JSON exclusivo para empacar los datos de la falla.
             JSONObject error = new JSONObject();
-
-            // Establece la bandera de éxito en falso
             error.put("success", false);
+            error.put("message", e.getMessage()); // Captura el mensaje exacto del error (ej: "El correo ya está registrado")
 
-            // Añade el mensaje explicativo de la excepción ocurrida
-            error.put("message", e.getMessage());
-
-            // Imprime y despacha la respuesta JSON de error al navegador
+            // Escribe el JSON de error en el canal de red hacia el navegador del cliente.
             out.print(error);
         }
     }
