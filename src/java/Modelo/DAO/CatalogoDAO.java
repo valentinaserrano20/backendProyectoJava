@@ -367,9 +367,4 @@ public class CatalogoDAO {
             return lista;
         }
     }
-}       lista.add(dto);
-            }
-            return lista;
-        }
-    }
 }

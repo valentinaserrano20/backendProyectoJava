@@ -167,7 +167,4 @@ public class ActionPlanDAO {
             ps.executeUpdate();
         }
     }
-}  ps.executeUpdate();
-        }
-    }
 }
