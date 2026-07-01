@@ -1,31 +1,46 @@
 package Controlador.Voluntario.Mascotas;
 
+/*
+ * Qué hace (la acción): Importa la clase DTO de vacunas de mascotas, la capa de servicio de mascotas, utilidades de JSON, respuestas web y APIs estándares de servlets de Jakarta.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - Modelo.DTO.VacunaMascotaDTO: Contenedor que modela la información sanitaria de inmunización de las mascotas (nombre de vacuna y fecha de aplicación).
+ *   - Modelo.Servicios.Voluntario.MascotaServicio: Servicio de negocio que realiza operaciones CRUD en base de datos para las mascotas y sus cartillas de vacunación.
+ * Para qué se usa (el propósito): Proveer las dependencias de red y negocio requeridas para gestionar las vacunas de los animales domésticos.
+ * Por qué es importante (el impacto o problema que resuelve): Sin estas importaciones, no se podría registrar las fechas de vacunación de los animales, lo cual es vital en la prevención de zoonosis durante evacuaciones colectivas.
+ */
 import Modelo.DTO.VacunaMascotaDTO;
 import Modelo.Servicios.Voluntario.MascotaServicio;
+import Modelo.Utilidades.JSONUtil;
+import Modelo.Utilidades.ResponseUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
-import java.io.BufferedReader;
 import java.io.IOException;
 import org.json.JSONObject;
 
-// Qué hace: Servlet encargado de mapear las peticiones HTTP CRUD (GET, POST, PATCH, DELETE) sobre el historial sanitario de vacunas de mascotas.
-// Por qué existe: Actúa como el controlador de entrada para gestionar la información de inmunizaciones de los animales del hogar evaluado.
-// Qué pasaría si no estuviera: Los voluntarios no tendrían un endpoint específico para registrar el control de vacunas de las mascotas, imposibilitando el seguimiento sanitario en refugios.
+/*
+ * Qué hace (la acción): Asocia el servlet VacunaMascotaServlet con el endpoint "/api/petVaccines/*" utilizando la anotación @WebServlet.
+ * Qué significa (conceptos, métodos, tipos involucrados): Mapea la ruta para que Tomcat procese el historial sanitario de las mascotas del plan familiar.
+ * Para qué se usa (el propósito): Servir como el endpoint de red CRUD para gestionar las vacunas de los animales de compañía.
+ * Por qué es importante (el impacto o problema que resuelve): Permite registrar de forma asíncrona qué vacunas tienen aplicadas las mascotas del hogar, facilitando el control y prevención ante emergencias.
+ */
 @WebServlet("/api/petVaccines/*")
 public class VacunaMascotaServlet extends HttpServlet {
-    // Qué hace: Instancia el servicio de lógica de negocios de mascotas.
-    // Por qué existe: Separa la lógica de control de HTTP de la capa de acceso y negocio de mascotas.
-    // Qué pasaría si no estuviera: El servlet tendría que interactuar directamente con los DAOs y la base de datos MySQL.
-    // Flujo: De aquí pasamos a MascotaServicio.
+
+    /*
+     * Qué hace (la acción): Instancia de manera privada y constante la variable servicio de tipo MascotaServicio.
+     * Qué significa (conceptos, métodos, tipos involucrados): Instancia de la clase de servicios de negocio para mascotas y vacunas.
+     * Para qué se usa (el propósito): Invocar las funciones lógicas de administración del historial de vacunación.
+     */
     private final MascotaServicio servicio = new MascotaServicio();
 
-    // Qué hace: Intercepta peticiones HTTP entrantes redirigiendo el método PATCH a doPatch y enviando los demás a la rutina de super.service.
-    // Por qué existe: Habilita el soporte para peticiones parciales PATCH que la especificación de HttpServlet base de Java EE/Jakarta EE no cubre por defecto.
-    // Qué pasaría si no estuviera: Las llamadas de tipo PATCH realizadas por el frontend arrojarían un error HTTP 405 (Method Not Allowed).
+    /*
+     * Qué hace (la acción): Sobrescribe el método service para canalizar las peticiones HTTP PATCH hacia el método doPatch.
+     * Qué significa (conceptos, métodos, tipos involucrados): Redirecciona el método de red PATCH en Jakarta Servlet API.
+     * Para qué se usa (el propósito): Habilitar la actualización parcial de la cartilla sanitaria en el servidor.
+     */
     @Override
     protected void service(HttpServletRequest req, HttpServletResponse resp) 
             throws ServletException, IOException {
@@ -37,30 +52,21 @@ public class VacunaMascotaServlet extends HttpServlet {
         }
     }
 
-    // Qué hace: Atiende peticiones GET para listar las vacunas de una mascota (bajo /pet/{mascotaId}) o consultar los detalles de una vacuna singular (bajo /{id}).
-    // Por qué existe: Permite a la interfaz web desplegar las vacunas aplicadas en la tarjeta de la mascota o precargar datos en el modal de edición.
-    // Qué pasaría si no estuviera: El voluntario no podría visualizar el historial médico de las vacunas en el frontend.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doGet para listar las vacunas aplicadas a una mascota en particular en la subruta "/pet/{petId}", o consultar el detalle de una vacuna individual por su ID.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - parts[1].equals("pet"): Identifica que se solicita listar el historial de vacunas de un animal.
+     *   - parts[1]: ID numérico directo que representa la consulta unitaria de una vacuna.
+     * Para qué se usa (el propósito): Mostrar las inmunizaciones registradas para cada mascota en los formularios del plan familiar.
+     * Por qué es importante (el impacto o problema que resuelve): Permite que el voluntario visualice de manera inmediata el estado sanitario de sus mascotas.
+     */
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-        
-        // Qué hace: Valida que el usuario tenga una sesión de servidor activa.
-        // Por qué existe: Protege la información de las mascotas familiares contra accesos de usuarios no autenticados.
-        // Qué pasaría si no estuviera: Cualquier atacante externo podría consultar los datos y vacunas de las mascotas de la comunidad.
-        HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("usuarioId") == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Inicie sesión.").toString());
-            return;
-        }
-        
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || pathInfo.equals("/")) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Recurso no especificado.").toString());
+            response.getWriter().write(ResponseUtil.error("Recurso no especificado."));
             return;
         }
         
@@ -70,101 +76,69 @@ public class VacunaMascotaServlet extends HttpServlet {
             if (parts[1].equals("pet")) {
                 if (parts.length < 3) {
                     response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                    response.getWriter().write(new JSONObject().put("success", false).put("message", "ID de mascota no provisto.").toString());
+                    response.getWriter().write(ResponseUtil.error("ID de mascota no provisto."));
                     return;
                 }
                 int mascotaId = Integer.parseInt(parts[2]);
                 
-                // Qué hace: Obtiene la lista de vacunas asociadas a la mascota.
-                // y luego de esto pasamos a MascotaServicio.listarVacunas, que realiza la consulta SQL en la base de datos.
                 String resJson = servicio.listarVacunas(mascotaId);
                 response.getWriter().write(resJson);
             } else {
                 int id = Integer.parseInt(parts[1]);
-                
-                // Qué hace: Obtiene los detalles de una vacuna específica por su ID.
-                // y luego de esto pasamos a MascotaServicio.obtenerVacuna, que ejecuta el SELECT correspondiente.
                 String resJson = servicio.obtenerVacuna(id);
                 response.getWriter().write(resJson);
             }
         } catch (NumberFormatException e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "El identificador debe ser numérico.").toString());
+            response.getWriter().write(ResponseUtil.error("El identificador debe ser numérico."));
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Error interno: " + e.getMessage()).toString());
+            response.getWriter().write(ResponseUtil.error("Error interno: " + e.getMessage()));
         }
     }
 
-    // Qué hace: Atiende peticiones POST para registrar una vacuna nueva a una mascota.
-    // Por qué existe: Habilita la inserción de nuevos registros sanitarios en el historial médico de las mascotas.
-    // Qué pasaría si no estuviera: No se podrían registrar nuevas vacunas aplicadas a los animales de compañía.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doPost para crear y guardar un nuevo registro de vacuna en la base de datos SQL.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - JSONUtil.leerJson(request): Parsea la petición asíncrona a un objeto JSON.
+     *   - dto.setPetId: Vincula la vacuna con la clave foránea de la mascota.
+     * Para qué se usa (el propósito): Insertar una vacuna nueva en el historial sanitario del animal doméstico.
+     * Por qué es importante (el impacto o problema que resuelve): Previene el registro de vacunas con datos nulos o inconsistentes en MySQL validando el cuerpo JSON antes de ejecutar la inserción en base de datos.
+     */
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-        
-        // Qué hace: Valida la sesión del usuario.
-        // Por qué existe: Evita que usuarios sin credenciales envíen peticiones de creación.
-        // Qué pasaría si no estuviera: Cualquier persona podría agregar datos erróneos al historial sanitario de las mascotas.
-        HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("usuarioId") == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Inicie sesión.").toString());
-            return;
-        }
-        
         try {
-            StringBuilder buffer = new StringBuilder();
-            String line;
-            try (BufferedReader reader = request.getReader()) {
-                while ((line = reader.readLine()) != null) {
-                    buffer.append(line);
-                }
-            }
-            
-            JSONObject json = new JSONObject(buffer.toString());
+            JSONObject json = JSONUtil.leerJson(request);
             VacunaMascotaDTO dto = new VacunaMascotaDTO();
             dto.setName(json.getString("name"));
             dto.setDate(json.getString("date"));
             dto.setPetId(json.getInt("pet_id"));
             
-            // Qué hace: Guarda el DTO de la vacuna mediante el servicio de mascotas.
-            // y luego de esto pasamos a MascotaServicio.crearVacuna, que persiste la vacuna en MySQL.
             String resJson = servicio.crearVacuna(dto);
             response.getWriter().write(resJson);
-            
+        } catch (IllegalArgumentException e) {
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            response.getWriter().write(ResponseUtil.error("JSON mal formado: " + e.getMessage()));
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Error al crear vacuna: " + e.getMessage()).toString());
+            response.getWriter().write(ResponseUtil.error("Error al crear vacuna: " + e.getMessage()));
         }
     }
 
-    // Qué hace: Atiende peticiones PATCH para actualizar la información de una vacuna específica.
-    // Por qué existe: Soporta la modificación de dosis, nombres o fechas del historial sanitario del animal.
-    // Qué pasaría si no estuviera: Si el voluntario comete un error al escribir el nombre o la fecha, no podría editarlo y tendría que borrar la vacuna por completo.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doPatch para actualizar de manera parcial el nombre de la vacuna o la fecha de aplicación de una vacuna existente por su ID.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - doPatch: Procesador de modificaciones parciales.
+     *   - servicio.actualizarVacuna(id, dto): Actualiza la fila en base de datos.
+     * Para qué se usa (el propósito): Modificar datos de la vacuna sin tener que eliminarla y volverla a crear.
+     */
     protected void doPatch(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-        
-        // Qué hace: Valida la sesión del usuario.
-        // Por qué existe: Asegura que solo usuarios logueados alteren los registros.
-        // Qué pasaría si no estuviera: Usuarios anónimos podrían desordenar los datos del historial vacunal de las mascotas.
-        HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("usuarioId") == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Inicie sesión.").toString());
-            return;
-        }
-        
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || pathInfo.equals("/")) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "ID de vacuna no provisto.").toString());
+            response.getWriter().write(ResponseUtil.error("ID de vacuna no provisto."));
             return;
         }
         
@@ -173,57 +147,38 @@ public class VacunaMascotaServlet extends HttpServlet {
         try {
             int id = Integer.parseInt(parts[1]);
             
-            StringBuilder buffer = new StringBuilder();
-            String line;
-            try (BufferedReader reader = request.getReader()) {
-                while ((line = reader.readLine()) != null) {
-                    buffer.append(line);
-                }
-            }
-            
-            JSONObject json = new JSONObject(buffer.toString());
+            JSONObject json = JSONUtil.leerJson(request);
             VacunaMascotaDTO dto = new VacunaMascotaDTO();
             dto.setName(json.getString("name"));
             dto.setDate(json.getString("date"));
             
-            // Qué hace: Actualiza la vacuna en el servicio de negocio.
-            // y luego de esto pasamos a MascotaServicio.actualizarVacuna, el cual modifica el registro correspondiente en la base de datos.
             String resJson = servicio.actualizarVacuna(id, dto);
             response.getWriter().write(resJson);
-            
         } catch (NumberFormatException e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "ID de vacuna debe ser numérico.").toString());
+            response.getWriter().write(ResponseUtil.error("ID de vacuna debe ser numérico."));
+        } catch (IllegalArgumentException e) {
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            response.getWriter().write(ResponseUtil.error("JSON mal formado: " + e.getMessage()));
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Error al actualizar vacuna: " + e.getMessage()).toString());
+            response.getWriter().write(ResponseUtil.error("Error al actualizar vacuna: " + e.getMessage()));
         }
     }
 
-    // Qué hace: Atiende peticiones DELETE para eliminar de la base de datos una vacuna por su ID.
-    // Por qué existe: Habilita al usuario del sistema a quitar registros de vacunación obsoletos o erróneos.
-    // Qué pasaría si no estuviera: Las vacunas mal ingresadas o duplicadas quedarían guardadas para siempre, ensuciando la base de datos.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doDelete para dar de baja física y eliminar una vacuna por su ID en la base de datos SQL.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - servicio.eliminarVacuna(id): Remueve la fila correspondiente en base de datos.
+     * Para qué se usa (el propósito): Eliminar del historial sanitario una vacuna errónea de forma definitiva.
+     */
     @Override
     protected void doDelete(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-        
-        // Qué hace: Valida la sesión del usuario.
-        // Por qué existe: Protege contra eliminaciones malintencionadas o no autorizadas.
-        // Qué pasaría si no estuviera: Cualquiera podría invocar DELETE en los endpoints sanitarios y borrar registros médicos reales.
-        HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("usuarioId") == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Inicie sesión.").toString());
-            return;
-        }
-        
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || pathInfo.equals("/")) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "ID de vacuna no provisto.").toString());
+            response.getWriter().write(ResponseUtil.error("ID de vacuna no provisto."));
             return;
         }
         
@@ -231,18 +186,14 @@ public class VacunaMascotaServlet extends HttpServlet {
         
         try {
             int id = Integer.parseInt(parts[1]);
-            
-            // Qué hace: Elimina la vacuna de la base de datos a través del servicio.
-            // y luego de esto pasamos a MascotaServicio.eliminarVacuna, que remueve el registro físico de la base de datos.
             String resJson = servicio.eliminarVacuna(id);
             response.getWriter().write(resJson);
-            
         } catch (NumberFormatException e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "ID de vacuna debe ser numérico.").toString());
+            response.getWriter().write(ResponseUtil.error("ID de vacuna debe ser numérico."));
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Error al eliminar vacuna: " + e.getMessage()).toString());
+            response.getWriter().write(ResponseUtil.error("Error al eliminar vacuna: " + e.getMessage()));
         }
     }
 }

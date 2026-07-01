@@ -1,197 +1,203 @@
 package Controlador.Auth;
 
+/*
+ * Qué hace (la acción): Importa la entidad Usuario, el DAO de base de datos de usuarios, el servicio de autenticación y las APIs de servlets y JSON.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - Modelo.Entidades.Usuario: Entidad que modela un usuario en el sistema.
+ *   - Modelo.Servicios.Auth.AuthServicio: Servicio de negocio que maneja la autenticación y encriptación.
+ *   - Modelo.DAO.UsuarioDAO: Acceso directo a base de datos de usuarios.
+ *   - jakarta.servlet.http.HttpSession: Clase de servidor para recordar el estado del cliente mediante sesiones.
+ *   - Modelo.Utilidades.JSONUtil: Utilidad para parsear el cuerpo JSON de la petición HTTP.
+ * Para qué se usa (el propósito): Proveer las dependencias necesarias para procesar el inicio de sesión y la autorización en el sistema.
+ * Por qué es importante (el impacto o problema que resuelve): Sin estas importaciones, el compilador daría errores de sintaxis y no sabríamos cómo procesar los datos recibidos ni guardarlos en sesión.
+ */
 import Modelo.Entidades.Usuario;
 import Modelo.Servicios.Auth.AuthServicio;
 import Modelo.DAO.UsuarioDAO;
-
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
-
 import Modelo.Utilidades.JSONUtil;
 import java.io.IOException;
 import java.io.PrintWriter;
-
 import org.json.JSONObject;
 
-// Qué hace: Registra este Servlet ante el servidor Tomcat para responder en la ruta "/api/login".
-// Por qué existe: Habilita el punto de entrada (Endpoint) del API para la autenticación de usuarios.
-// Qué pasaría si no estuviera: El servidor no sabría qué controlador debe responder a la petición de inicio de sesión de la SPA.
+/*
+ * Qué hace (la acción): Registra e inicializa el servlet LoginServlet mapeándolo al endpoint "/api/login".
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - @WebServlet("/api/login"): Registra el servlet ante Tomcat para que responda cuando alguien llame a esa URL.
+ *   - extends HttpServlet: Permite heredar los métodos de ejecución web estándar (doPost, doGet).
+ * Para qué se usa (el propósito): Servir como el endpoint de autenticación principal de la aplicación web.
+ * Por qué es importante (el impacto o problema que resuelve): Permite interceptar las credenciales (email y contraseña) de los usuarios que intenten loguearse en el sistema.
+ */
 @WebServlet("/api/login")
 public class LoginServlet extends HttpServlet {
 
-    // Qué hace: Sobrescribe el método doPost para atender peticiones de tipo POST HTTP.
-    // Por qué existe: El inicio de sesión transmite credenciales que deben enviarse en el cuerpo de la petición por seguridad.
-    // Qué pasaría si no estuviera: Las llamadas de tipo POST al endpoint /api/login retornarían error 405 (Method Not Allowed).
+    /*
+     * Qué hace (la acción): Sobrescribe doPost para capturar y procesar las llamadas de autenticación asíncronas de tipo POST.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - doPost: Método de HttpServlet diseñado para recibir parámetros de forma oculta y segura dentro del cuerpo de la petición.
+     *   - HttpServletRequest, HttpServletResponse: Objetos para leer los datos del cliente y escribir la respuesta de red.
+     * Para qué se usa (el propósito): Controlar el inicio de sesión, verificar las claves encriptadas y crear la sesión en el servidor.
+     * Por qué es importante (el impacto o problema que resuelve): Si no se sobrescribe, cualquier solicitud POST a esta ruta devolverá un código HTTP 405 (Método no permitido).
+     */
     @Override
-    protected void doPost(
-            HttpServletRequest request,
-            HttpServletResponse response)
+    protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        // Usamos setContentType para indicarle al navegador del cliente que la respuesta vendrá estructurada como un documento JSON.
-        // Si no se define, el navegador podría interpretar el resultado como texto plano o HTML sin formato.
+        /*
+         * Qué hace (la acción): Configura la cabecera de la respuesta como JSON codificado en UTF-8.
+         * Qué significa (conceptos, métodos, tipos involucrados):
+         *   - setContentType("application/json"): Indica que el tipo de datos devueltos es JSON estructurado.
+         *   - setCharacterEncoding("UTF-8"): Establece que la codificación de caracteres es UTF-8.
+         * Para qué se usa (el propósito): Notificar al cliente web cómo debe interpretar el texto devuelto y garantizar que caracteres especiales (como acentos o la letra ñ) se rendericen correctamente.
+         * Por qué es importante (el impacto o problema que resuelve): Si se omitiera, el navegador podría ver la respuesta como texto sin formato, bloqueando el mapeo en el frontend.
+         */
         response.setContentType("application/json");
-        
-        // Usamos setCharacterEncoding para forzar que el flujo de salida sea interpretado en UTF-8, evitando la mutilación de caracteres especiales como acentos.
-        // Si no estuviera, los nombres de usuarios con tildes o la letra 'ñ' se verían corrompidos con caracteres extraños en el frontend.
         response.setCharacterEncoding("UTF-8");
 
-        // Obtenemos el PrintWriter para escribir texto formateado directamente en el cuerpo de la respuesta HTTP que viaja al navegador.
-        // Si no se obtiene, sería imposible enviar de vuelta cualquier respuesta de éxito o fracaso al cliente.
+        /*
+         * Qué hace (la acción): Obtiene el flujo de salida PrintWriter para enviar el texto de respuesta al cliente.
+         * Qué significa (conceptos, métodos, tipos involucrados): response.getWriter() obtiene el stream de escritura web.
+         * Para qué se usa (el propósito): Poder mandar respuestas en formato de texto directamente al navegador cliente.
+         * Por qué es importante (el impacto o problema que resuelve): Sin este stream no habría forma física de retornar datos al cliente, dejando su solicitud sin respuesta.
+         */
         PrintWriter out = response.getWriter();
 
         try {
-            // =========================================
-            // 1. LEER EL JSON DEL FRONTEND
-            // =========================================
-            // Invocamos el método leerJson de JSONUtil para leer el cuerpo de la petición de red y transformarlo en un JSONObject manipulable
+            /*
+             * Qué hace (la acción): Parsea el stream del request HTTP convirtiéndolo en un objeto de tipo JSONObject.
+             * Qué significa (conceptos, métodos, tipos involucrados): JSONUtil.leerJson(request) lee el flujo de entrada de la petición y lo mapea a un JSONObject.
+             * Para qué se usa (el propósito): Recuperar los campos estructurados "email" y "password" enviados desde el formulario del frontend.
+             * Por qué es importante (el impacto o problema que resuelve): Evita leer y parsear manualmente bytes de red, reduciendo el código y previniendo fallos de parseo.
+             */
             JSONObject body = JSONUtil.leerJson(request);
 
-            // Obtenemos el correo electrónico asociado a la llave "email" del JSON recibido.
+            /*
+             * Qué hace (la acción): Extrae las cadenas correspondientes a las llaves "email" y "password" de los datos de la petición.
+             * Qué significa (conceptos, métodos, tipos involucrados): body.getString(clave) extrae la cadena asociada a esa clave en el JSON.
+             * Para qué se usa (el propósito): Obtener las credenciales en texto del usuario para procesar su autenticación.
+             * Por qué es importante (el impacto o problema que resuelve): Son las variables clave indispensables para buscar al usuario y contrastar su contraseña.
+             */
             String email = body.getString("email");
-            // Obtenemos la contraseña asociada a la llave "password" del JSON recibido.
             String password = body.getString("password");
 
-            // =========================================
-            // 2. AUTENTICAR USUARIO (SERVICIO)
-            // =========================================
-            // Instanciamos el servicio encargado de coordinar la lógica de negocio asociada a la autenticación.
-            // y luego de esto pasamos a AuthServicio, el cual se encarga de la lógica de comparación de contraseñas seguras.
+            /*
+             * Qué hace (la acción): Crea una instancia de AuthServicio y ejecuta su método login para validar las credenciales contra la base de datos.
+             * Qué significa (conceptos, métodos, tipos involucrados):
+             *   - new AuthServicio(): Instancia la clase de servicios de autenticación.
+             *   - authServicio.login(email, password): Método que busca el correo electrónico del usuario y comprueba la contraseña usando la encriptación BCrypt.
+             * Para qué se usa (el propósito): Resolver la autenticación delegando la lógica de seguridad a la capa de negocio.
+             * Por qué es importante (el impacto o problema que resuelve): Evita mezclar consultas directas a base de datos y validación de hash dentro del servlet, respetando la arquitectura de capas del proyecto.
+             */
             AuthServicio authServicio = new AuthServicio();
-            
-            // Ejecutamos la lógica de verificación de credenciales con BCrypt delegando al servicio.
-            // Si la contraseña coincide y el correo existe, nos retornará el objeto del Usuario logueado.
             Usuario usuario = authServicio.login(email, password);
 
-            // Validamos defensivamente si el objeto de retorno es nulo para evitar fallos catastróficos de puntero nulo.
+            /*
+             * Qué hace (la acción): Valida si el objeto usuario retornado es nulo. Si es así, responde con estado 401 Unauthorized, genera un JSON de error y detiene la petición.
+             * Qué significa (conceptos, métodos, tipos involucrados):
+             *   - SC_UNAUTHORIZED: Constante de HttpServletResponse equivalente al error HTTP 401.
+             *   - return: Corta la ejecución del servlet inmediatamente.
+             * Para qué se usa (el propósito): Proteger la sesión e impedir que usuarios con credenciales inválidas se logueen en la plataforma.
+             * Por qué es importante (el impacto o problema que resuelve): Si no se detuviera la ejecución aquí, el flujo procedería de manera errónea a crear una sesión para un usuario inexistente o no autorizado.
+             */
             if (usuario == null) {
-                // Seteamos el estado HTTP a 401 (No autorizado) porque las credenciales no son válidas o el usuario no existe.
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED); 
-                
-                // Creamos un nuevo objeto JSON para compilar la respuesta de credenciales incorrectas.
                 JSONObject errorJson = new JSONObject();
                 errorJson.put("success", false);
                 errorJson.put("message", "Usuario no encontrado en el sistema.");
-                
-                // Enviamos el mensaje de error formateado como string al cliente a través del PrintWriter.
                 out.print(errorJson);
-                
-                // Detenemos la ejecución del servlet inmediatamente para no proceder a crear la sesión.
                 return; 
             }
 
-            // =========================================
-            // 3. ESTABLECER LA SESIÓN EN EL SERVIDOR (HttpSession)
-            // =========================================
-            // Solicitamos al contenedor Servlet crear o recuperar la sesión activa del cliente mediante request.getSession(true).
-            // Si se pasa 'true', crea una nueva sesión si es que el cliente aún no tiene una cookie JSESSIONID válida en sus cabeceras.
-            // Si no establesiéramos la sesión, el servidor olvidaría al usuario en la siguiente petición y no funcionaría el estado persistente.
+            /*
+             * Qué hace (la acción): Obtiene o crea la sesión HTTP para este usuario y le asigna el tiempo máximo de inactividad de 30 minutos (1800 segundos).
+             * Qué significa (conceptos, métodos, tipos involucrados):
+             *   - request.getSession(true): Obtiene la sesión actual o crea una nueva si no existe.
+             *   - setMaxInactiveInterval(1800): Configura la expiración de la sesión por inactividad.
+             * Para qué se usa (el propósito): Guardar el estado de autenticación de forma segura del lado del servidor para futuras peticiones del cliente.
+             * Por qué es importante (el impacto o problema que resuelve): Mantiene al usuario logueado en la aplicación de manera segura y automática sin que tenga que loguearse con cada click. El tiempo de expiración previene que la sesión quede abierta indefinidamente si el usuario abandona la pestaña.
+             */
             HttpSession session = request.getSession(true);
-            
-            // Almacenamos el ID del usuario en la sesión bajo el atributo "user_id" para recordar su identidad en futuras llamadas.
             session.setAttribute("user_id", usuario.getId());
-            // Almacenamos el ID también bajo el atributo "usuarioId" para mantener la compatibilidad con otros Servlets del backend.
             session.setAttribute("usuarioId", usuario.getId()); 
-            
-            // Configuramos un tiempo de expiración incondicional de 1800 segundos (30 minutos) de inactividad para proteger la sesión.
-            // Si transcurre este lapso sin interacción, el servidor destruye la sesión liberando memoria y protegiendo al usuario.
             session.setMaxInactiveInterval(1800); 
 
-            // =========================================
-            // 4. ARMAR RESPUESTA JSON CON MAPEO DE ROLES
-            // =========================================
-            // Instanciamos un JSONObject para estructurar los datos del usuario que se le devolverán a la SPA.
+            /*
+             * Qué hace (la acción): Crea un JSONObject de respuesta, consulta los permisos del rol mediante el DAO de usuarios y compila una cadena de texto de permisos.
+             * Qué significa (conceptos, métodos, tipos involucrados):
+             *   - new UsuarioDAO(): Instancia del DAO de base de datos de usuarios.
+             *   - usuarioDAO.obtenerPermisosPorRol(rolId): Método de base de datos que trae la lista de permisos asignados a ese rol (ej: "home-frontend.voluntario").
+             * Para qué se usa (el propósito): Retornar al cliente web la información necesaria (id, nombre, rol, organización, permisos) para inicializar el perfil en el frontend de Vue.
+             * Por qué es importante (el impacto o problema que resuelve): Permite que el frontend (Vue/Vite) sepa dinámicamente qué páginas y funcionalidades habilitar para el usuario (si es Voluntario o Supervisor) de acuerdo a sus roles.
+             */
             JSONObject data = new JSONObject();
-            // Asignamos el identificador del usuario.
             data.put("id", usuario.getId());
-            // Asignamos el nombre completo uniendo los campos de nombre y apellido.
-            data.put(
-                    "full_name",
-                    usuario.getNombre() + " " + usuario.getApellido()
-            );
+            data.put("full_name", usuario.getNombre() + " " + usuario.getApellido());
 
-            // Obtiene el ID del rol del usuario autenticado (1 = Voluntario, 2 = Supervisor).
             int mappedRoleId = usuario.getRolId();
-            
-            // Instanciamos la clase de acceso a datos de Usuarios para consultar la base de datos relacional.
-            // y luego de esto pasamos a UsuarioDAO, el cual se encarga de consultar los permisos asignados a este rol en MySQL.
             UsuarioDAO usuarioDAO = new UsuarioDAO();
-            
-            // Llama al método obtenerPermisosPorRol pasando el ID del rol para recuperar la lista de permisos en texto (ej. "planes:crear").
-            // Si no se hiciera, no podríamos cargar permisos de forma dinámica desde las tablas del sistema de base de datos.
             java.util.List<String> dbPerms = usuarioDAO.obtenerPermisosPorRol(mappedRoleId);
-            
-            // Inicializamos un StringBuilder para compilar la cadena de permisos que la SPA espera recibir.
             StringBuilder permissionsBuilder = new StringBuilder();
 
-            // Mapeo inicial de permisos base requeridos por el enrutador Vue/JS en el frontend para dirigir a la landing page.
             if (mappedRoleId == 1) {
-                // Si es voluntario, le asignamos inicialmente el permiso de entrada al módulo voluntario.
                 permissionsBuilder.append("home-frontend.voluntario");
             } else if (mappedRoleId == 2) {
-                // Si es supervisor/gestor, le agregamos permisos a la bandeja del supervisor y administración.
                 permissionsBuilder.append("home-frontend.supervisor,home-frontend.administrador");
             } else {
-                // Permiso de fallback por si existiese otro tipo de rol en el futuro.
                 permissionsBuilder.append("home-frontend.desconocido");
             }
 
-            // Iteramos sobre todos los permisos que retornó la base de datos para este rol en específico.
             for (String perm : dbPerms) {
-                // Concatenamos cada permiso obtenido de base de datos delimitándolo con una coma.
                 permissionsBuilder.append(",").append(perm);
             }
 
-            // Convertimos la acumulación de permisos a String para asignarlo en el JSON de respuesta.
             String permissions = permissionsBuilder.toString();
-
-            // Guardamos el ID del rol en el JSON.
             data.put("role_id", mappedRoleId);
-            // Guardamos la cadena completa de permisos concatenada en el JSON.
             data.put("permissions", permissions);
-            // Mapeamos el ID de la organización (seccional) a la que pertenece el usuario. Si es nulo asigna 1 por defecto (Bucaramanga/Santander).
             data.put("sectional_id", usuario.getOrganizacionId() != null ? usuario.getOrganizacionId() : 1);
-            // Mapeamos el ID del género del usuario para completar el perfil demográfico.
             data.put("gender", usuario.getGeneroId());
 
-            // Instanciamos el JSON principal de respuesta satisfactoria.
             JSONObject respuesta = new JSONObject();
             respuesta.put("success", true);
-            respuesta.put(
-                    "message",
-                    "Bienvenido, " + usuario.getNombre() + "!"
-            );
+            respuesta.put("message", "Bienvenido, " + usuario.getNombre() + "!");
             respuesta.put("data", data);
 
-            // Imprimimos la respuesta serializada al canal de salida para transmitirla a la petición HTTP del navegador.
+            /*
+             * Qué hace (la acción): Imprime la respuesta JSON construida en el stream PrintWriter hacia la red.
+             * Qué significa (conceptos, métodos, tipos involucrados): out.print(respuesta) envía el JSON de respuesta serializado en texto al cliente HTTP.
+             * Para qué se usa (el propósito): Finalizar exitosamente la llamada de inicio de sesión comunicando al frontend los datos del perfil y sus permisos.
+             * Por qué es importante (el impacto o problema que resuelve): Es el paso de confirmación que le permite a la interfaz de usuario dar la bienvenida y redirigir al panel principal.
+             */
             out.print(respuesta);
 
         } catch (Exception e) {
-            // Capturamos cualquier excepción (ej. credenciales inválidas, fallo de conexión a BD, etc.).
+            /*
+             * Qué hace (la acción): Captura cualquier error ocurrido durante el flujo de login, configura un estado HTTP de error apropiado (401, 403 o 500) y responde un JSON explicativo.
+             * Qué significa (conceptos, métodos, tipos involucrados):
+             *   - SC_UNAUTHORIZED: Error HTTP 401.
+             *   - SC_FORBIDDEN: Error HTTP 403 (ej: cuenta no activa).
+             *   - SC_INTERNAL_SERVER_ERROR: Error HTTP 500 para fallos del servidor.
+             * Para qué se usa (el propósito): Controlar de forma limpia las excepciones y notificar al frontend exactamente qué falló.
+             * Por qué es importante (el impacto o problema que resuelve): Previene fugas de información interna al ocultar las trazas del servidor Java y proporciona al usuario final una explicación clara de por qué falló su inicio de sesión (por ejemplo, si su cuenta voluntaria no ha sido aprobada por un supervisor).
+             */
             String msg = e.getMessage();
 
-            // Asigna los códigos de estado HTTP correctos para responder al cliente según la excepción capturada.
             if ("El correo electrónico no se encuentra registrado.".equals(msg) || 
                 "La contraseña ingresada es incorrecta.".equals(msg)) {
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED); // 401 Unauthorized
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED); 
             } else if ("Tu cuenta aún no está activa".equals(msg)) {
-                // Si la cuenta del voluntario aún no está habilitada por el supervisor, retornamos 403 Forbidden.
                 response.setStatus(HttpServletResponse.SC_FORBIDDEN); 
             } else {
-                // Seteamos el estado HTTP a 500 para cualquier otro error crítico interno del servidor.
                 response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR); 
             }
 
-            // Compilamos la estructura del JSON de error que interpretará el cliente frontend.
             JSONObject error = new JSONObject();
             error.put("success", false);
             error.put("message", msg);
-            
-            // Escribimos el JSON de error en el PrintWriter de salida.
             out.print(error);
         }
     }

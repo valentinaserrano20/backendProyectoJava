@@ -1,5 +1,14 @@
 package Controlador.Public;
 
+/*
+ * Qué hace (la acción): Importa la clase CatalogoDAO, APIs de servlets HTTP, excepciones y la biblioteca JSON.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - Modelo.DAO.CatalogoDAO: DAO para interactuar con la base de datos de catálogos generales.
+ *   - jakarta.servlet.*: Clases del ciclo de vida del servlet.
+ *   - org.json.JSONObject / JSONArray: Librerías para modelar respuestas JSON.
+ * Para qué se usa (el propósito): Proveer al servlet de las APIs de comunicación y acceso a datos geográficos públicos.
+ * Por qué es importante (el impacto o problema que resuelve): Sin estas importaciones no se podría interceptar la petición web ni estructurar la respuesta JSON que el cliente espera recibir.
+ */
 import Modelo.DAO.CatalogoDAO;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -11,21 +20,30 @@ import java.io.PrintWriter;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-// Qué hace: Servlet público encargado de enrutar las peticiones de catálogos geográficos (departamentos, ciudades, sectores) sin requerir autenticación.
-// Por qué existe: Habilita el registro de nuevos voluntarios y la consulta de ubicaciones para visitantes anónimos en la SPA.
-// Qué problema resuelve: Centraliza las consultas geográficas públicas en un único endpoint paramétrico.
+/*
+ * Qué hace (la acción): Asocia el servlet PublicServlet con el endpoint público "/api/public/*" mediante la anotación @WebServlet.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - @WebServlet("/api/public/*"): Expone el servlet permitiendo subrutas dinámicas para la geografía (ej: "/departments", "/cities", "/sectors").
+ *   - extends HttpServlet: Modela la clase como un controlador web HTTP.
+ * Para qué se usa (el propósito): Proveer datos geográficos y paramétricos públicos a usuarios no autenticados en el sistema (ej. durante el registro).
+ * Por qué es importante (el impacto o problema que resuelve): Centraliza todas las consultas territoriales colombianas en un único endpoint público que no requiere login para operar, facilitando el formulario de registro del nuevo voluntario.
+ */
 @WebServlet("/api/public/*")
 public class PublicServlet extends HttpServlet {
 
-    // Qué hace: Atiende peticiones GET públicas para consultar divisiones territoriales colombianas.
-    // Por qué existe: Permite a los dropdowns de ubicación (Departamento -> Ciudad -> Sector) cargarse dinámicamente en el formulario de registro.
-    // Qué problema resuelve: Delega la lógica de negocio al servicio correspondiente en lugar de llamar directamente al DAO, respetando la arquitectura MVC.
-    // Flujo: De aquí pasamos a CatalogoServicio.obtenerCatalogo para resolver el listado.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doGet para procesar consultas geográficas, delegando la carga al servicio de catálogos y respondiendo con un objeto JSON.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - request.getPathInfo(): Obtiene la sección dinámica de la URL (ej: "/cities" o "/sectors").
+     *   - CatalogoServicio: Clase de negocio que coordina las consultas geográficas.
+     *   - servicio.obtenerCatalogo(pathInfo): Retorna el JSON ya formateado de la base de datos según el tipo de catálogo geográfico solicitado.
+     * Para qué se usa (el propósito): Retornar la lista de departamentos, ciudades o sectores para los selectores dependientes en el frontend.
+     * Por qué es importante (el impacto o problema que resuelve): Separa las responsabilidades. El servlet solo atiende la red, delega la carga al servicio y formatea el código HTTP de respuesta (200 o 404), garantizando modularidad y estabilidad.
+     */
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        // Configuración de cabeceras HTTP estándar para respuestas JSON
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
 
@@ -35,14 +53,10 @@ public class PublicServlet extends HttpServlet {
         try {
             System.out.println("PATH INFO: " + pathInfo);
 
-            // Qué hace: Instancia el servicio de catálogos públicos y solicita el recurso correspondiente.
-            // Por qué existe: Sigue la arquitectura de capas evitando acoplamiento directo entre el controlador y el DAO.
-            // Qué problema resuelve: Ejecuta la consulta de departamentos, ciudades o sectores de forma parametrizada.
             Modelo.Servicios.Public.CatalogoServicio servicio = new Modelo.Servicios.Public.CatalogoServicio();
             String respuestaJson = servicio.obtenerCatalogo(pathInfo);
 
             JSONObject jsonRes = new JSONObject(respuestaJson);
-            // Si la consulta falló o la subruta no existe, responde con código 404 (No encontrado)
             if (!jsonRes.getBoolean("success")) {
                 response.setStatus(404);
             }
@@ -58,4 +72,3 @@ public class PublicServlet extends HttpServlet {
         }
     }
 }
-

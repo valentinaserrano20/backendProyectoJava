@@ -1,45 +1,52 @@
 package Controlador.Voluntario;
 
+/*
+ * Qué hace (la acción): Importa los DTOs de registro e identificación de planes familiares, servicios de negocio, utilidades de JSON, sesión y APIs estándares de servlets de Jakarta.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - Modelo.DTO.RegistroPlanDTO: DTO para el registro inicial básico de un plan familiar de emergencia.
+ *   - Modelo.DTO.ActualizarIdentificacionDTO: DTO que transporta los datos detallados de dirección, calidad de vivienda, sector y teléfono de contacto.
+ *   - Modelo.Servicios.Voluntario.PlanFamiliarServicio / VulnerabilidadServicio: Capa de servicios para la administración física, accesos y transiciones de estado de planes.
+ * Para qué se usa (el propósito): Proveer al servlet de los DTOs, utilidades y clases de negocio para la gestión integral del censo familiar.
+ * Por qué es importante (el impacto o problema que resuelve): Sin estas importaciones, no se podría procesar la información del censo de la vivienda familiar ni realizar transiciones de estado lógicas.
+ */
 import Modelo.DTO.RegistroPlanDTO;
 import Modelo.DTO.ActualizarIdentificacionDTO;
 import Modelo.Servicios.Voluntario.PlanFamiliarServicio;
 import Modelo.Servicios.Voluntario.VulnerabilidadServicio;
-import Modelo.DAO.NotificacionDAO;
-import Modelo.DTO.NotificacionDTO;
-import Modelo.DAO.PlanFamiliarDAO;
+import Modelo.Utilidades.JSONUtil;
+import Modelo.Utilidades.SessionUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse; 
 import jakarta.servlet.http.HttpSession;
-import java.io.BufferedReader;
 import java.io.IOException;
 import org.json.JSONObject;
 
-/**
- * Qué hace: Registra e inicializa el Servlet mapeado a la subruta "/api/familyPlans/*" para gestionar planes familiares.
- * Por qué existe: Actúa como el controlador de red principal para crear, actualizar parcial (PATCH) y consultar la información del censo familiar.
- * Qué pasaría si no estuviera: El cliente frontend no tendría un endpoint de red unificado para administrar la información de los planes familiares de emergencia.
+/*
+ * Qué hace (la acción): Asocia el servlet PlanFamiliarServlet con el endpoint "/api/familyPlans/*" a través de @WebServlet.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - @WebServlet("/api/familyPlans/*"): Comodín que intercepta la gestión general, actualizaciones, verificaciones de acceso y fichas técnicas del plan familiar.
+ * Para qué se usa (el propósito): Servir como el controlador web centralizado para el ciclo de vida del Plan Familiar de Emergencia del voluntario.
+ * Por qué es importante (el impacto o problema que resuelve): Unifica las responsabilidades CRUD y de control de estado del censo familiar en un solo punto, separando la lógica del servlet de la persistencia JDBC.
  */
 @WebServlet("/api/familyPlans/*")
 public class PlanFamiliarServlet extends HttpServlet {
 
-    // Qué hace: Instancia la clase de lógica de negocios para los planes familiares.
-    // Por qué existe: Delega la lógica de guardado, lectura y validación de la propiedad de los planes familiares.
-    // Qué pasaría si no estuviera: Se tendría que escribir SQL y lógica de negocio directamente en el servlet.
-    // Flujo: De aquí pasamos a PlanFamiliarServicio para orquestar la manipulación de base de datos.
+    /*
+     * Qué hace (la acción): Instancia de manera privada y constante las variables de servicio del plan y de vulnerabilidad.
+     * Qué significa (conceptos, métodos, tipos involucrados): Instancias de PlanFamiliarServicio y VulnerabilidadServicio.
+     * Para qué se usa (el propósito): Ejecutar los procesos de lógica de negocio.
+     */
     private final PlanFamiliarServicio planServicio = new PlanFamiliarServicio();
-
-    // Qué hace: Instancia la clase de lógica de negocios de vulnerabilidad.
-    // Por qué existe: Delega el cambio de estados de planes y auditoría de seguimiento.
-    // Qué pasaría si no estuviera: No podríamos transicionar el plan de estado o guardar las bitácoras de rechazo/aprobación.
-    // Flujo: De aquí pasamos a VulnerabilidadServicio.
     private final VulnerabilidadServicio vulServicio = new VulnerabilidadServicio();
 
-    // Qué hace: Intercepta todas las peticiones entrantes para desviar los verbos PATCH.
-    // Por qué existe: Java Servlet estándar no soporta directamente doPatch en la jerarquía tradicional sin este filtro de enrutamiento manual.
-    // Qué pasaría si no estuviera: Las peticiones de tipo PATCH hechas por el frontend fallarían con código HTTP 405 (Method Not Allowed).
+    /*
+     * Qué hace (la acción): Sobrescribe el método service para canalizar peticiones del verbo HTTP PATCH hacia el método doPatch.
+     * Qué significa (conceptos, métodos, tipos involucrados): doPatch redirigido manualmente para soportar actualizaciones parciales.
+     * Para qué se usa (el propósito): Habilitar PATCH en el contenedor Tomcat.
+     */
     @Override
     protected void service(HttpServletRequest req, HttpServletResponse resp) 
             throws ServletException, IOException {
@@ -51,46 +58,37 @@ public class PlanFamiliarServlet extends HttpServlet {
         }
     }
 
-    // Qué hace: Atiende llamadas HTTP GET para listar planes familiares, verificar accesos, integrantes o retornar la ficha técnica completa.
-    // Por qué existe: Expone la información necesaria para pintar las tablas o formularios en la UI.
-    // Qué pasaría si no estuviera: El voluntario no podría ver el listado de sus planes creados ni recuperar la información guardada previamente.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doGet para listar planes familiares asignados al usuario logueado en la sesión de manera paginada, verificar los accesos al plan, corroborar si tiene integrantes ingresados o retornar su ficha técnica unificada completa.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - check-access: Valida si el voluntario tiene autorización para editar el plan (ej: si pertenece a su cuenta o si posee rol de supervisor).
+     *   - has-members: Verifica si el plan cuenta con por lo menos un miembro registrado en su censo familiar.
+     *   - planServicio.obtenerPlanDetallado(planId): Consulta y consolida en un único JSON la ficha técnica completa del plan de emergencia familiar.
+     * Para qué se usa (el propósito): Proveer los datos de consulta para los dashboards y ventanas de confirmación en la UI del voluntario y supervisor.
+     * Por qué es importante (el impacto o problema que resuelve): Permite validar permisos de seguridad y estados de avance antes de permitir la edición, previniendo visualizaciones cruzadas no autorizadas de planes familiares.
+     */
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) 
             throws ServletException, IOException {
         
-        // Qué hace: Configura la respuesta a formato JSON estructurado.
-        response.setContentType("application/json");
-        // Qué hace: Asegura la codificación UTF-8 para admitir eñes y acentos.
-        response.setCharacterEncoding("UTF-8");
-
-        // Qué hace: Recupera la sesión activa sin crear una nueva.
-        // Por qué existe: Bloquea accesos anónimos a los datos sensibles de los planes y viviendas de los ciudadanos.
-        // Qué pasaría si no estuviera: Cualquier persona podría descargar censos familiares de la base de datos sin estar autenticado.
         HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("usuarioId") == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Inicie sesión.").toString());
-            return;
-        }
-
-        // Qué hace: Captura el segmento adicional de la ruta URL.
-        // Por qué existe: Permite diferenciar si se pide la lista paginada (/), verificar acceso (/check-access/{id}) o miembros (/has-members/{id}).
-        // Qué pasaría si no estuviera: No podríamos mapear dinámicamente diferentes consultas GET bajo la misma ruta raíz.
         String pathInfo = request.getPathInfo();
+        
         if (pathInfo == null || pathInfo.equals("/")) {
             try {
-                // Qué hace: Obtiene el ID del usuario en sesión.
-                int usuarioId = (int) session.getAttribute("usuarioId");
+                Integer usuarioId = SessionUtil.getUsuarioId(session);
+                if (usuarioId == null) {
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Sesión inválida.").toString());
+                    return;
+                }
                 
-                // Qué hace: Lee el parámetro de paginación.
                 String pageParam = request.getParameter("page");
                 int page = 1;
                 if (pageParam != null && !pageParam.trim().isEmpty()) {
                     page = Integer.parseInt(pageParam);
                 }
                 
-                // Qué hace: Invocación delegada para traer el listado JSON.
-                // y luego de esto pasamos a PlanFamiliarServicio.listarPlanesPaginado, el cual realiza las consultas SQL paginadas en la base de datos.
                 String jsonRespuesta = planServicio.listarPlanesPaginado(usuarioId, page);
                 response.getWriter().write(jsonRespuesta);
             } catch (Exception e) {
@@ -100,7 +98,6 @@ public class PlanFamiliarServlet extends HttpServlet {
             return;
         }
 
-        // Qué hace: Divide la ruta para procesar sub-recursos REST.
         String[] partes = pathInfo.split("/");
         
         try {
@@ -111,10 +108,13 @@ public class PlanFamiliarServlet extends HttpServlet {
                     return;
                 }
                 int planId = Integer.parseInt(partes[2]);
-                int usuarioId = (int) session.getAttribute("usuarioId");
+                Integer usuarioId = SessionUtil.getUsuarioId(session);
+                if (usuarioId == null) {
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Sesión inválida.").toString());
+                    return;
+                }
                 
-                // Qué hace: Solicita verificar si este voluntario es dueño del plan familiar solicitado.
-                // y luego de esto pasamos a PlanFamiliarServicio.verificarAccesoAPlan, el cual valida los permisos de pertenencia en base de datos.
                 String jsonRespuesta = planServicio.verificarAccesoAPlan(planId, usuarioId);
                 response.getWriter().write(jsonRespuesta);
                 
@@ -126,17 +126,11 @@ public class PlanFamiliarServlet extends HttpServlet {
                 }
                 int planId = Integer.parseInt(partes[2]);
                 
-                // Qué hace: Consulta si el plan ya cuenta con integrantes familiares asociados.
-                // y luego de esto pasamos a PlanFamiliarServicio.verificarTieneIntegrantes, que cuenta los integrantes activos en la base de datos.
                 String jsonRespuesta = planServicio.verificarTieneIntegrantes(planId);
                 response.getWriter().write(jsonRespuesta);
                 
             } else {
-                // Qué hace: Parsea el ID primario directo de la ruta (ej. /api/familyPlans/12).
                 int planId = Integer.parseInt(partes[1]);
-                
-                // Qué hace: Retorna la ficha técnica de la vivienda y miembros en un JSON unificado.
-                // y luego de esto pasamos a PlanFamiliarServicio.obtenerPlanDetallado, el cual recupera toda la ficha técnica desde la BD.
                 String json = planServicio.obtenerPlanDetallado(planId);
                 response.getWriter().write(json);
             }
@@ -149,71 +143,53 @@ public class PlanFamiliarServlet extends HttpServlet {
         }
     }
 
-    // Qué hace: Atiende peticiones HTTP POST para inicializar el censo familiar en el Paso 1 (apellidos, zona, municipio).
-    // Por qué existe: Crea de forma inicial el registro físico en la tabla de base de datos relacional.
-    // Qué pasaría si no estuviera: No se podría dar de alta un plan familiar en el sistema.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doPost para inicializar y registrar un nuevo plan familiar para la seccional y zona correspondiente en la base de datos SQL.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - RegistroPlanDTO: DTO que modela los campos requeridos para abrir un plan.
+     *   - planServicio.registrarNuevoPlan(dto): Valida y escribe la nueva fila en base de datos.
+     * Para qué se usa (el propósito): Crear el plan familiar base que posteriormente será rellenado con integrantes, croquis, riesgos y maletines.
+     * Por qué es importante (el impacto o problema que resuelve): Asocia de forma limpia la cuenta del voluntario creador al plan de emergencia familiar, garantizando consistencia.
+     */
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) 
             throws ServletException, IOException {
-        
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-
-        HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("usuarioId") == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Inicie sesión.").toString());
-            return;
-        }
-
-        // Qué hace: Lee el cuerpo JSON enviado por el cliente asíncrono.
-        // Por qué existe: Permite capturar las variables estructuradas enviadas en el payload.
-        // Qué pasaría si no estuviera: No podríamos obtener los datos del formulario de registro enviados desde la SPA.
-        StringBuilder buffer = new StringBuilder();
-        String linea;
-        try (BufferedReader reader = request.getReader()) {
-            while ((linea = reader.readLine()) != null) {
-                buffer.append(linea);
-            }
-        }
-
         try {
-            JSONObject json = new JSONObject(buffer.toString());
+            HttpSession session = request.getSession(false);
+            JSONObject json = JSONUtil.leerJson(request);
             
-            // Qué hace: Crea el DTO para el registro.
             RegistroPlanDTO dto = new RegistroPlanDTO();
             dto.setLastNames(json.optString("last_names"));
             dto.setZoneId(json.optInt("zone_id"));
             dto.setOrganizacionId(json.optInt("city_id"));
-            dto.setUserId((int) session.getAttribute("usuarioId"));
+            
+            Integer usuarioId = SessionUtil.getUsuarioId(session);
+            if (usuarioId == null) {
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Sesión inválida.").toString());
+                return;
+            }
+            dto.setUserId(usuarioId);
 
-            // Qué hace: Llama al servicio para registrar el nuevo plan.
-            // y luego de esto pasamos a PlanFamiliarServicio.registrarNuevoPlan, el cual inserta el registro en MySQL y retorna el ID generado.
             String jsonRespuesta = planServicio.registrarNuevoPlan(dto);
             response.getWriter().write(jsonRespuesta);
-
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "JSON mal formado.").toString());
+            response.getWriter().write(new JSONObject().put("success", false).put("message", "JSON mal formado o inválido: " + e.getMessage()).toString());
         }
     }
 
-    // Qué hace: Procesa peticiones HTTP PATCH para transicionar de estado el plan o para guardar el censo de identificación.
-    // Por qué existe: Permite actualizar propiedades parciales del plan de emergencia sin necesidad de enviar todo el objeto completo.
-    // Qué pasaría si no estuviera: Tendríamos que hacer peticiones PUT masivas consumiendo más ancho de banda y arriesgando sobreescrituras accidentales.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doPatch para realizar modificaciones parciales, como actualizar el estado del plan (Enviar a revisión, Aprobar, Rechazar con comentarios) o rellenar detalladamente la identificación del hogar (dirección, calidad de la vivienda, sector y teléfono).
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - accion.equals("change-status"): Ejecuta el cambio de estado del plan de emergencia familiar llamando a vulServicio.cambiarEstadoPlan.
+     *   - accion.equals("identify"): Guarda los datos de ubicación e infraestructura de la vivienda llamando a planServicio.guardarIdentificacion.
+     * Para qué se usa (el propósito): Actualizar secciones específicas del censo familiar a medida que el voluntario avanza en el formulario o el supervisor evalúa.
+     * Por qué es importante (el impacto o problema que resuelve): Posibilita guardar de forma parcial el formulario y enrutar las transiciones de estado del plan a revisión, aprobados o rechazados con comentarios de retroalimentación para el voluntario.
+     */
     protected void doPatch(HttpServletRequest request, HttpServletResponse response) 
             throws ServletException, IOException {
-        
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-
         HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("usuarioId") == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Inicie sesión.").toString());
-            return;
-        }
-
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || pathInfo.equals("/")) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
@@ -232,7 +208,6 @@ public class PlanFamiliarServlet extends HttpServlet {
             int planId;
             String accion;
 
-            // Qué hace: Evalúa la estructura del pathInfo para clasificar peticiones de estado de forma segura.
             if (partes[1].equals("status")) {
                 planId = Integer.parseInt(partes[2]);
                 accion = "change-status";
@@ -243,79 +218,22 @@ public class PlanFamiliarServlet extends HttpServlet {
 
             // Escenario 1: Cambiar el estado del plan (Enviar, Aprobar, Rechazar)
             if (accion.equals("change-status")) {
-                StringBuilder buffer = new StringBuilder();
-                String linea;
-                try (BufferedReader reader = request.getReader()) {
-                    while ((linea = reader.readLine()) != null) {
-                        buffer.append(linea);
-                    }
-                }
-                
-                JSONObject json = new JSONObject(buffer.toString());
+                JSONObject json = JSONUtil.leerJson(request);
                 int statusPlanId = json.getInt("status_plan_id");
                 String comentary = json.has("comentary") && !json.isNull("comentary") ? json.getString("comentary") : null;
-                int usuarioId = (int) session.getAttribute("usuarioId");
-
-                // Qué hace: Modifica el estado del plan familiar delegando al servicio.
-                // y luego de esto pasamos a VulnerabilidadServicio.cambiarEstadoPlan, el cual actualiza el estado y escribe la bitácora en la BD.
-                String resJson = vulServicio.cambiarEstadoPlan(planId, statusPlanId, comentary, usuarioId);
-                
-                // =========================================
-                // CREAR NOTIFICACIÓN PARA EL VOLUNTARIO
-                // =========================================
-                try {
-                    // y luego de esto instanciamos PlanFamiliarDAO y NotificacionDAO para interactuar con la persistencia en MySQL.
-                    PlanFamiliarDAO planDAO = new PlanFamiliarDAO();
-                    NotificacionDAO notificacionDAO = new NotificacionDAO();
-                    
-                    String sql = "SELECT voluntario_id FROM planes_familiares WHERE id = ?";
-                    
-                    // Qué hace: Consulta directa para averiguar qué voluntario es el destinatario de la alerta.
-                    try (java.sql.Connection con = Modelo.Config.Conexion.obtener();
-                         java.sql.PreparedStatement ps = con.prepareStatement(sql)) {
-                        
-                        ps.setInt(1, planId);
-                        
-                        try (java.sql.ResultSet rs = ps.executeQuery()) {
-                            if (rs.next()) {
-                                int voluntarioId = rs.getInt("voluntario_id");
-                                
-                                // Qué hace: Valida si el plan transiciona a Aprobado (6) o Rechazado (7) para alertar al voluntario.
-                                if (statusPlanId == 6 || statusPlanId == 7) {
-                                    NotificacionDTO notificacion = new NotificacionDTO();
-                                    notificacion.setUsuarioId(voluntarioId);
-                                    notificacion.setTitulo(statusPlanId == 6 ? "Plan Aprobado" : "Plan Rechazado");
-                                    notificacion.setMensaje(statusPlanId == 6 
-                                        ? "Tu plan familiar ha sido aprobado exitosamente" 
-                                        : "Tu plan familiar ha sido rechazado. " + (comentary != null ? comentary : ""));
-                                    notificacion.setTipo("plan_estado");
-                                    notificacion.setLeida(false);
-                                    notificacion.setEnlace("#/voluntario/plan_familiar");
-                                    notificacion.setEntidadId(planId);
-                                    
-                                    // Qué hace: Persiste de forma física la notificación del voluntario.
-                                    notificacionDAO.crear(notificacion);
-                                }
-                            }
-                        }
-                    }
-                } catch (Exception e) {
-                    System.err.println("Error al crear notificación: " + e.getMessage());
+                Integer usuarioId = SessionUtil.getUsuarioId(session);
+                if (usuarioId == null) {
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Sesión inválida.").toString());
+                    return;
                 }
-                
+
+                String resJson = vulServicio.cambiarEstadoPlan(planId, statusPlanId, comentary, usuarioId);
                 response.getWriter().write(resJson);
             } 
             // Escenario 2: Guardar los datos de identificación detallados de la vivienda (PATCH de identificación)
             else if (accion.equals("identify")) {
-                StringBuilder buffer = new StringBuilder();
-                String linea;
-                try (BufferedReader reader = request.getReader()) {
-                    while ((linea = reader.readLine()) != null) {
-                        buffer.append(linea);
-                    }
-                }
-
-                JSONObject json = new JSONObject(buffer.toString());
+                JSONObject json = JSONUtil.leerJson(request);
                 
                 ActualizarIdentificacionDTO dto = new ActualizarIdentificacionDTO();
                 dto.setLastNames(json.getString("last_names"));
@@ -326,8 +244,6 @@ public class PlanFamiliarServlet extends HttpServlet {
                 dto.setLandlinePhone(json.optString("landline_phone"));
                 dto.setZoneId(json.optInt("zone_id", 0));
 
-                // Qué hace: Actualiza la información de identificación de la vivienda en la BD.
-                // y luego de esto pasamos a PlanFamiliarServicio.guardarIdentificacion, que ejecuta el UPDATE SQL en MySQL.
                 String resJson = planServicio.guardarIdentificacion(planId, dto);
                 response.getWriter().write(resJson);
             }

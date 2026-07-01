@@ -1,6 +1,15 @@
 package Controlador.Public;
 
+/*
+ * Qué hace (la acción): Importa la clase de conexión a base de datos, utilidad de respuestas web, APIs de servlets y objetos JSON.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - Modelo.Config.Conexion: Mapea la conexión JDBC del sistema.
+ *   - Modelo.Utilidades.ResponseUtil: Genera la estructura JSON de respuesta estándar del backend.
+ * Para qué se usa (el propósito): Proveer el acceso al listado de estados de los planes familiares registrados.
+ * Por qué es importante (el impacto o problema que resuelve): Sin estas importaciones, no podríamos conectar con la base de datos de estados de planes ni devolver la información estructurada al cliente.
+ */
 import Modelo.Config.Conexion;
+import Modelo.Utilidades.ResponseUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -14,59 +23,49 @@ import java.sql.ResultSet;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-// Sirve para: Proveer un endpoint unificado para obtener los estados de los planes familiares de emergencia
-// Qué hace: Consulta los estados de plan de la base de datos y los retorna en un arreglo JSON mapeando 'nombre' a 'name'
-// Por qué es importante: El frontend utiliza este endpoint para poblar los filtros de selección en las bandejas del supervisor y del voluntario
+/*
+ * Qué hace (la acción): Mapea el servlet StatusPlansServlet al endpoint de red "/api/statusPlans/*" mediante la anotación @WebServlet.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - @WebServlet: Registra e inicializa el servlet ante el contenedor web Tomcat.
+ * Para qué se usa (el propósito): Exponer de forma pública la consulta de los estados posibles que puede tener un plan de emergencia.
+ * Por qué es importante (el impacto o problema que resuelve): Permite que cualquier componente que necesite mapear o filtrar planes de emergencia conozca los estados vigentes en el sistema (ej. Borrador, Enviado, Aprobado, etc.).
+ */
 @WebServlet("/api/statusPlans/*")
 public class StatusPlansServlet extends HttpServlet {
 
-    // Sobrescribe doGet para procesar solicitudes HTTP GET sobre los estados de planes
+    /*
+     * Qué hace (la acción): Sobrescribe el método doGet para consultar la tabla 'estados_plan' en la base de datos SQL y retornar un arreglo JSON con los registros encontrados.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - PreparedStatement: Objeto para compilar y ejecutar de forma segura la consulta SQL "SELECT id, nombre FROM estados_plan".
+     *   - ResultSet: Puntero que itera las filas devueltas por la consulta SQL.
+     * Para qué se usa (el propósito): Cargar el listado paramétrico de estados para los filtros de búsqueda en el dashboard del supervisor o del voluntario.
+     * Por qué es importante (el impacto o problema que resuelve): Provee el catálogo oficial de estados de planes en tiempo real directamente desde la base de datos relacional.
+     */
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        // Establece el tipo de contenido y codificación UTF-8 para evitar caracteres extraños
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-
         PrintWriter out = response.getWriter();
         JSONArray data = new JSONArray();
-
-        // Consulta SQL para extraer los identificadores y descripciones de los estados
         String sql = "SELECT id, nombre FROM estados_plan";
 
-        // Inicializa la conexión y la consulta segura mediante recursos JDBC
         try (Connection con = Conexion.obtener();
              PreparedStatement ps = con.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
 
-            // Recorre cada registro de la tabla estados_plan
             while (rs.next()) {
                 JSONObject estado = new JSONObject();
-                // Inyecta el ID del estado
                 estado.put("id", rs.getInt("id"));
-                // Mapea 'nombre' en base de datos a 'name' esperado por el filtro de la SPA en el frontend
                 estado.put("name", rs.getString("nombre"));
-                // Agrega el objeto individual al arreglo principal
                 data.put(estado);
             }
 
-            // Encapsula los datos en un objeto de respuesta exitoso
-            JSONObject jsonRes = new JSONObject();
-            jsonRes.put("success", true);
-            jsonRes.put("data", data);
-
-            // Imprime y envía la respuesta al cliente
-            out.print(jsonRes.toString());
+            out.print(ResponseUtil.success(data));
 
         } catch (Exception e) {
-            // Imprime la traza en la consola de Tomcat para depuración del desarrollador
             e.printStackTrace();
-            // Retorna un código HTTP 500 en caso de fallo crítico de base de datos
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            out.print(new JSONObject()
-                    .put("success", false)
-                    .put("message", "Error al cargar estados de planes: " + e.getMessage()).toString());
+            out.print(ResponseUtil.error("Error al cargar estados de planes: " + e.getMessage()));
         }
     }
 }

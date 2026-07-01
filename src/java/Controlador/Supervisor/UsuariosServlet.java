@@ -1,10 +1,17 @@
 package Controlador.Supervisor;
 
-// ==========================================
-// IMPORTACIONES REQUERIDAS
-// ==========================================
+/*
+ * Qué hace (la acción): Importa la clase DAO para la gestión de usuarios, utilidades de sesión y lectura de JSON, APIs de servlets y objetos JSON.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - Modelo.DAO.UsuarioDAO: Capa de acceso a datos para ejecutar operaciones de lectura, actualización, aprobación y eliminación física de usuarios en la base de datos MySQL.
+ *   - Modelo.Utilidades.SessionUtil: Clase de utilidad para validar la identidad y los privilegios de los usuarios.
+ *   - org.json.JSONArray / JSONObject: Librerías para estructurar y transferir datos asíncronos en formato JSON.
+ * Para qué se usa (el propósito): Proveer al servlet de todas las dependencias necesarias para controlar la gobernanza de usuarios en la plataforma de emergencia familiar.
+ * Por qué es importante (el impacto o problema que resuelve): Sin estas importaciones no se podría interactuar con el repositorio de usuarios en la base de datos SQL ni serializar la información al formato esperado por la SPA.
+ */
 import Modelo.DAO.UsuarioDAO;
 import Modelo.Utilidades.JSONUtil;
+import Modelo.Utilidades.SessionUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -19,56 +26,37 @@ import java.util.Map;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-/**
- * Servlet: UsuariosServlet
- * Mapeo: /api/usuarios/*
- * Capa: Controlador
- * Responsabilidad: Manejar las peticiones HTTP GET, PUT, PATCH para el módulo
- * de
- * gestión de usuarios por parte de los supervisores y administradores.
+/*
+ * Qué hace (la acción): Asocia el servlet UsuariosServlet con el endpoint "/api/usuarios/*" mediante la anotación @WebServlet.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - @WebServlet("/api/usuarios/*"): Comodín "*" que permite capturar e interpretar subrutas dinámicas para la gestión de usuarios (ej: cambiar rol, ver historial, activar cuenta, etc.).
+ *   - extends HttpServlet: Modela la clase como un controlador web estándar de Java.
+ * Para qué se usa (el propósito): Servir como el panel centralizado del supervisor o administrador para auditar, modificar y aprobar cuentas de voluntarios del sistema.
+ * Por qué es importante (el impacto o problema que resuelve): Concentra toda la lógica de gobernanza de usuarios en un solo servlet de la capa de controladores, reduciendo el número de endpoints del backend y facilitando la gestión de permisos.
  */
 @WebServlet("/api/usuarios/*")
 public class UsuariosServlet extends HttpServlet {
 
-    // Instancia del DAO de acceso a datos de usuario
+    /*
+     * Qué hace (la acción): Instancia de manera privada y constante la variable usuarioDAO de tipo UsuarioDAO.
+     * Qué significa (conceptos, métodos, tipos involucrados): Instancia de la clase de persistencia UsuarioDAO.
+     * Para qué se usa (el propósito): Acceder a los métodos SQL de la tabla 'usuarios' y 'historial_datos_maestros'.
+     */
     private final UsuarioDAO usuarioDAO = new UsuarioDAO();
 
-    /**
-     * Qué hace: Procesa las peticiones HTTP GET para listados, ficha de usuario e
-     * historial.
-     * Por qué existe: Sirve de enrutador para obtener datos de usuarios en el
-     * sistema.
-     * Qué problema resuelve: Centraliza la obtención de datos según el pathInfo en
-     * español.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doGet para canalizar las solicitudes de lectura (como peticiones pendientes de aprobación, listados paginados de voluntarios, fichas técnicas individuales e historiales de cambios).
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - pathInfo.matches("^/\\d+/(historial|history)$"): Detecta si la ruta solicita el historial de cambios del usuario (ej: "/5/historial").
+     *   - pathInfo.matches("^/\\d+$"): Detecta si se pide la ficha técnica del usuario por su identificador numérico directo.
+     * Para qué se usa (el propósito): Servir la información de usuarios en los módulos de administración y auditoría del frontend.
+     * Por qué es importante (el impacto o problema que resuelve): Permite bifurcar el flujo web GET de manera segura y controlada, respondiendo con un error HTTP 404 estructurado si la subruta no es válida.
      */
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        // Qué hace: Configura las cabeceras de respuesta como JSON y codificación
-        // UTF-8.
-        // Por qué existe: Asegura que el frontend reciba y decodifique correctamente el
-        // texto JSON.
-        // Qué problema resuelve: Previene fallos de caracteres especiales en la UI del
-        // SPA.
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
         PrintWriter out = response.getWriter();
-
-        // Qué hace: Comprueba la existencia de una sesión de usuario válida.
-        // Por qué existe: Protege el endpoint contra accesos anónimos.
-        // Qué problema resuelve: Retorna un error 401 si el usuario no ha iniciado
-        // sesión.
-        HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("usuarioId") == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            out.print(new JSONObject()
-                    .put("success", false)
-                    .put("message", "Sesión inválida. Inicie sesión nuevamente.")
-                    .toString());
-            return;
-        }
-
         String pathInfo = request.getPathInfo();
 
         try {
@@ -170,44 +158,27 @@ public class UsuariosServlet extends HttpServlet {
         }
     }
 
-    /**
-     * Qué hace: Procesa peticiones HTTP PUT para actualizar datos personales.
-     * Por qué existe: El supervisor o administrador puede editar la ficha de un
-     * usuario.
-     * Qué problema resuelve: Persiste los cambios de datos en la base de datos y
-     * los audita.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doPut para procesar modificaciones en la información personal de un voluntario o supervisor y guardar el historial de cambios.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - usuarioDAO.obtenerUsuarioDetalleGestion(userId): Recupera el estado original del usuario antes de aplicar los cambios.
+     *   - usuarioDAO.actualizarDatosPersonales(...): Ejecuta el UPDATE con los nuevos datos recibidos.
+     *   - usuarioDAO.registrarAuditoria(...): Registra los pares de valores modificados en la tabla de historial.
+     * Para qué se usa (el propósito): Permitir a los administradores o supervisores corregir o actualizar la ficha demográfica y de contacto de un voluntario.
+     * Por qué es importante (el impacto o problema que resuelve): Mantiene la consistencia de los datos del usuario y asegura la trazabilidad al guardar de manera exacta qué campos fueron editados, por quién y cuándo.
      */
     @Override
     protected void doPut(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        // Qué hace: Configura el tipo de respuesta HTTP en JSON.
-        // Por qué existe: Asegura que el cliente reciba y decodifique correctamente el texto JSON.
-        // Qué problema resuelve: Previene fallos de caracteres especiales en la UI del SPA.
-        response.setContentType("application/json");
-        // Qué hace: Configura la codificación de caracteres en UTF-8.
-        // Por qué existe: Garantiza la codificación correcta de texto en español (acentos, eñes).
-        // Qué problema resuelve: Evita la corrupción visual de texto en el frontend.
-        response.setCharacterEncoding("UTF-8");
-        // Qué hace: Obtiene el PrintWriter para responder al cliente.
-        // Por qué existe: Permite escribir texto en el cuerpo de la respuesta HTTP.
-        // Qué problema resuelve: Habilita el canal de escritura para emitir los JSON de estado.
         PrintWriter out = response.getWriter();
-
-        // Qué hace: Recupera la sesión actual sin crear una nueva.
-        // Por qué existe: Valida que el cliente esté autenticado antes de permitir ediciones.
-        // Qué problema resuelve: Impide peticiones de actualización de usuarios por clientes anónimos.
         HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("usuarioId") == null) {
+        Integer actorId = SessionUtil.getUsuarioId(session);
+        if (actorId == null) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            out.print(new JSONObject().put("success", false).put("message", "Sesión inválida.").toString());
+            out.print(new JSONObject().put("success", false).put("message", "Acceso denegado. Sesión inválida."));
             return;
         }
-
-        // Qué hace: Recupera el ID del supervisor operador que ejecuta la edición.
-        // Por qué existe: Se utiliza para firmar el registro de auditoría en la base de datos.
-        // Qué problema resuelve: Identifica al responsable administrativo del cambio de datos.
-        int actorId = (int) session.getAttribute("usuarioId");
         // Qué hace: Obtiene la información de subruta de la petición.
         // Por qué existe: Permite identificar a qué ID de usuario se dirigen los cambios.
         // Qué problema resuelve: Habilita el enrutamiento RESTful para el identificador del usuario.
@@ -345,13 +316,12 @@ public class UsuariosServlet extends HttpServlet {
         }
     }
 
-    /**
-     * Qué hace: Canaliza las peticiones de tipo PATCH para cambio de rol o de
-     * estado.
-     * Por qué existe: Jakarta Servlet API no provee doPatch por defecto, por lo que
-     * se intercepta en service().
-     * Qué problema resuelve: Habilita el soporte para peticiones PATCH de forma
-     * estándar.
+    /*
+     * Qué hace (la acción): Sobrescribe el método service para desviar las llamadas PATCH hacia el método doPatch.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - service: Método del ciclo de vida del servlet.
+     *   - PATCH: Verbo HTTP para actualizaciones parciales.
+     * Para qué se usa (el propósito): Agregar soporte para modificaciones de rol o de estado parciales en el servlet.
      */
     @Override
     protected void service(HttpServletRequest req, HttpServletResponse resp)
@@ -363,39 +333,19 @@ public class UsuariosServlet extends HttpServlet {
         }
     }
 
-    /**
-     * Qué hace: Ejecuta el cambio de rol o cambio de estado según la URI
-     * solicitada.
-     * Por qué existe: Modifica propiedades específicas (rol o estado) del usuario
-     * administrado.
-     * Qué problema resuelve: Registra logs en la bitácora relacionando los IDs
-     * correspondientes.
+    /*
+     * Qué hace (la acción): Procesa las peticiones PATCH para suspender/reactivar cuentas, cambiar roles o aprobar solicitudes de voluntarios pendientes.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - change-status: Sub-endpoint para modificar el estado lógico del usuario (Activo/Inactivo).
+     *   - role / rol: Sub-endpoint para asignar un nuevo rol_id (1 = Voluntario, 2 = Supervisor).
+     *   - aprobar: Sub-endpoint para aprobar un registro pendiente activando su cuenta (estado = 1) y asignándole un rol.
+     * Para qué se usa (el propósito): Cambiar de manera selectiva las propiedades administrativas del usuario y guardar los eventos de auditoría.
+     * Por qué es importante (el impacto o problema que resuelve): Permite a los supervisores activar cuentas o cambiar roles ágilmente sin alterar el resto de los datos demográficos del usuario.
      */
     protected void doPatch(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        // Qué hace: Configura el tipo de respuesta HTTP en JSON.
-        // Por qué existe: Asegura que el cliente reciba y decodifique correctamente el texto JSON.
-        // Qué problema resuelve: Previene fallos de caracteres especiales en la UI del SPA.
-        response.setContentType("application/json");
-        // Qué hace: Configura la codificación de caracteres en UTF-8.
-        // Por qué existe: Garantiza la codificación correcta de texto en español (acentos, eñes).
-        // Qué problema resuelve: Evita la corrupción visual de texto en el frontend.
-        response.setCharacterEncoding("UTF-8");
-        // Qué hace: Obtiene el PrintWriter para responder al cliente.
-        // Por qué existe: Permite escribir texto en el cuerpo de la respuesta HTTP.
-        // Qué problema resuelve: Habilita el canal de escritura para emitir los JSON de estado.
         PrintWriter out = response.getWriter();
-
-        // Qué hace: Recupera la sesión actual sin crear una nueva.
-        // Por qué existe: Valida que el cliente esté autenticado antes de permitir ediciones.
-        // Qué problema resuelve: Impide peticiones de actualización de usuarios por clientes anónimos.
-        HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("usuarioId") == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            out.print(new JSONObject().put("success", false).put("message", "Sesión inválida.").toString());
-            return;
-        }
 
         // Qué hace: Recupera el pathInfo de la URL para analizar a qué sub-endpoint PATCH se llamó.
         // Por qué existe: Permite enrutar la petición a la acción adecuada (cambio de estado, rol o aprobación).
@@ -580,37 +530,18 @@ public class UsuariosServlet extends HttpServlet {
         }
     }
 
-    /**
-     * Qué hace: Elimina permanentemente un usuario rechazado de la base de datos.
-     * Por qué existe: Permite al supervisor borrar peticiones que no deben persistir.
-     * Qué problema resuelve: Limpia registros no aprobados del sistema.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doDelete para procesar la eliminación física de un registro de usuario de la base de datos SQL y dejar registro en la auditoría.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - usuarioDAO.eliminarUsuario(userId): Ejecuta la sentencia SQL DELETE FROM usuarios WHERE id = ?.
+     * Para qué se usa (el propósito): Eliminar definitivamente del sistema las solicitudes de registro rechazadas o no deseadas.
+     * Por qué es importante (el impacto o problema que resuelve): Limpia y libera espacio en la base de datos eliminando registros inconsistentes, salvaguardando antes una copia de auditoría de los datos borrados.
      */
     @Override
     protected void doDelete(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        // Qué hace: Establece el tipo de respuesta HTTP en JSON.
-        // Por qué existe: Garantiza la serialización y codificación estructurada para el frontend.
-        // Qué problema resuelve: Asegura la comunicación correcta y uniforme con la UI del cliente.
-        response.setContentType("application/json");
-        // Qué hace: Configura la codificación a UTF-8.
-        // Por qué existe: Habilita caracteres acentuados y eñes en los mensajes de respuesta.
-        // Qué problema resuelve: Previene inconsistencias en la codificación de caracteres especiales.
-        response.setCharacterEncoding("UTF-8");
-        // Qué hace: Obtiene el stream de escritura PrintWriter.
-        // Por qué existe: Utilizado para enviar el payload de respuesta de vuelta al cliente.
-        // Qué problema resuelve: Abre el canal de salida para escribir la respuesta.
         PrintWriter out = response.getWriter();
-
-        // Qué hace: Recupera la sesión HTTP actual sin crear una nueva.
-        // Por qué existe: Valida la identidad y rol del supervisor que realiza la eliminación física.
-        // Qué problema resuelve: Bloquea intentos de eliminación anónimos o no autorizados.
-        HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("usuarioId") == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            out.print(new JSONObject().put("success", false).put("message", "Sesión inválida.").toString());
-            return;
-        }
 
         // Qué hace: Recupera los segmentos adicionales de ruta (pathInfo) de la URL.
         // Por qué existe: Sirve para identificar el ID del usuario que se desea eliminar.
@@ -688,13 +619,11 @@ public class UsuariosServlet extends HttpServlet {
     // MÉTODOS AUXILIARES Y DE RENDERIZACIÓN
     // ==========================================
 
-    /**
-     * Qué hace: Retorna todos los usuarios registrados sin paginación como JSON con
-     * estructura estándar.
-     * Por qué existe: Alimenta la vista de grid con scroll sin necesidad de
-     * paginar.
-     * Qué problema resuelve: Elimina la lógica de paginación para la vista de
-     * gestión con tarjetas en grid.
+    /*
+     * Qué hace (la acción): Retorna todos los voluntarios registrados sin paginación en un JSONArray.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - usuarioDAO.listarVoluntariosTodos(): Obtiene la lista completa de voluntarios activos/inactivos de base de datos.
+     * Para qué se usa (el propósito): Alimentar rejillas dinámicas o controles que requieran scroll infinito.
      */
     private void listarVoluntariosTodos(PrintWriter out) throws SQLException {
         // Obtiene la lista completa de voluntarios activos e inactivos
@@ -708,9 +637,13 @@ public class UsuariosServlet extends HttpServlet {
                 .toString());
     }
 
-    // Qué hace: Obtiene la lista de voluntarios paginada con sus respectivos campos.
-    // Por qué existe: Permite mostrar a los voluntarios en la UI de forma paginada para optimizar la carga.
-    // Qué problema resuelve: Limita los registros transferidos por la red calculando el offset y limit de MySQL.
+    /*
+     * Qué hace (la acción): Carga de la base de datos la lista de voluntarios de forma paginada para la rejilla principal del panel del supervisor.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - offset: Punto de inicio calculado para la cláusula SQL LIMIT (ej. (current_page - 1) * limit).
+     *   - paginate: Estructura JSON que detalla total de páginas, registros por página y la página actual.
+     * Para qué se usa (el propósito): Visualizar segmentadamente los voluntarios para no sobrecargar el navegador de datos.
+     */
     private void listarVoluntarios(HttpServletRequest request, PrintWriter out) throws SQLException {
         // Qué hace: Define la página actual por defecto en 1.
         // Por qué existe: Asegura que si no se envía página se muestren los primeros resultados.
@@ -767,9 +700,12 @@ public class UsuariosServlet extends HttpServlet {
                 .toString());
     }
 
-    // Qué hace: Obtiene el listado de peticiones de registro pendientes paginadas.
-    // Por qué existe: Permite a los supervisores visualizar y administrar las nuevas solicitudes de acceso en porciones controladas.
-    // Qué problema resuelve: Facilita el procesamiento de altas sin saturar la red con listados gigantes.
+    /*
+     * Qué hace (la acción): Carga de la base de datos la lista de solicitudes de registro pendientes de aprobación (en estado 3) de manera paginada.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - usuarioDAO.contarPeticionesVoluntarios(): Retorna la cantidad de usuarios pendientes de aprobación.
+     * Para qué se usa (el propósito): Alimentar la bandeja de peticiones de nuevos usuarios en el panel del supervisor.
+     */
     private void listarPeticiones(HttpServletRequest request, PrintWriter out) throws SQLException {
         // Qué hace: Inicializa la página en 1 por defecto.
         // Por qué existe: Asegura un valor por defecto si no se incluye el parámetro.
@@ -808,9 +744,12 @@ public class UsuariosServlet extends HttpServlet {
                 .toString());
     }
 
-    // Qué hace: Obtiene el listado global de todos los usuarios del sistema (excepto el superadministrador o según negocio) para la administración.
-    // Por qué existe: Permite al administrador la gestión centralizada de cuentas de voluntarios y supervisores.
-    // Qué problema resuelve: Paginación y visualización del censo de usuarios total.
+    /*
+     * Qué hace (la acción): Carga todos los usuarios del sistema (excepto superadministradores) de forma paginada para la consola del Administrador.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - usuarioDAO.contarUsuariosAdmin(): Cuenta los usuarios para el rol de administración.
+     * Para qué se usa (el propósito): Alimentar el panel principal de administración de usuarios.
+     */
     private void listarAdmin(HttpServletRequest request, PrintWriter out) throws SQLException {
         int page = 1;
         if (request.getParameter("page") != null) {
@@ -846,9 +785,12 @@ public class UsuariosServlet extends HttpServlet {
                 .toString());
     }
 
-    // Qué hace: Consulta los datos detallados de perfil de un usuario específico por su ID y los escribe al canal de salida.
-    // Por qué existe: Permite cargar el formulario con la ficha técnica completa del usuario.
-    // Qué problema resuelve: Provee acceso estructurado a un perfil individual.
+    /*
+     * Qué hace (la acción): Consulta a la base de datos el perfil detallado del usuario por su identificador y lo imprime en formato JSON de éxito.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - usuarioDAO.obtenerUsuarioDetalleGestion(id): Consulta SQL con JOIN a organizaciones y roles.
+     * Para qué se usa (el propósito): Rellenar los formularios de visualización o edición del voluntario seleccionado en la UI.
+     */
     private void obtenerFichaUsuario(int id, PrintWriter out) throws SQLException {
         // Qué hace: Ejecuta la consulta SQL con JOINs para obtener toda la información del usuario por su ID.
         // Por qué existe: Recupera la información unificada desde la base de datos de forma limpia.
@@ -861,9 +803,12 @@ public class UsuariosServlet extends HttpServlet {
         }
     }
 
-    // Qué hace: Recupera el historial de auditoría de cambios sobre la cuenta del usuario seleccionado.
-    // Por qué existe: Alimenta la vista de historial de cambios del usuario en el frontend.
-    // Qué problema resuelve: Retorna directamente un arreglo JSON simple para coincidir con la lectura directa en el frontend (historial.js).
+    /*
+     * Qué hace (la acción): Consulta y escribe el historial de cambios del usuario seleccionado directamente en la respuesta como un JSONArray.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - usuarioDAO.obtenerHistorialUsuario(id): Consulta cronológica sobre la tabla 'historial_datos_maestros' para el usuario.
+     * Para qué se usa (el propósito): Visualizar el historial de modificaciones del voluntario en la ventana de auditoría.
+     */
     private void obtenerHistorial(int id, PrintWriter out) throws SQLException {
         // Qué hace: Realiza la consulta SQL sobre la tabla de auditoría filtrando por el ID de usuario involucrado.
         // Por qué existe: Recupera las bitácoras ordenadas de forma cronológica descendente.
@@ -876,9 +821,12 @@ public class UsuariosServlet extends HttpServlet {
         out.print(arr.toString());
     }
 
-    // Qué hace: Analiza el pathInfo de la URL para buscar y extraer el primer ID entero que encuentre.
-    // Por qué existe: Permite identificar la clave primaria del registro de usuario en rutas RESTful (ej. /api/usuarios/change-status/15 -> 15).
-    // Qué problema resuelve: Facilita la recuperación del ID de usuario de forma robusta e independiente de barras adicionales.
+    /*
+     * Qué hace (la acción): Recorre el pathInfo de la URL extrayendo el primer número entero que sirva como ID.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - segment.matches("^\\d+$"): RegExp para validar que un segmento sea puramente numérico.
+     * Para qué se usa (el propósito): Extraer el ID de usuario de rutas complejas REST (ej: "/role/5" -> 5).
+     */
     private int obtenerIdDePath(String pathInfo) {
         // Separa el pathInfo por "/" y busca el segmento numérico
         String[] parts = pathInfo.split("/");

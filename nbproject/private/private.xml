@@ -3,13 +3,21 @@
     <editor-bookmarks xmlns="http://www.netbeans.org/ns/editor-bookmarks/2" lastBookmarkId="0"/>
     <open-files xmlns="http://www.netbeans.org/ns/projectui-open-files/2">
         <group>
-            <file>file:/D:/proyectoJava/backendProyectoJava/src/java/Modelo/DAO/UsuarioDAO.java</file>
-            <file>file:/D:/proyectoJava/backendProyectoJava/src/java/Modelo/DAO/CatalogoDAO.java</file>
-            <file>file:/D:/proyectoJava/backendProyectoJava/src/java/Modelo/DTO/TipoDocumentoDTO.java</file>
-            <file>file:/D:/proyectoJava/backendProyectoJava/src/java/Controlador/Auth/RegisterServlet.java</file>
-            <file>file:/D:/proyectoJava/backendProyectoJava/src/java/Modelo/Servicios/Auth/RegistroServicio.java</file>
-            <file>file:/D:/proyectoJava/backendProyectoJava/src/java/Modelo/DAO/ActionPlanDAO.java</file>
-            <file>file:/D:/proyectoJava/backendProyectoJava/src/java/Modelo/DAO/NotificacionDAO.java</file>
+            <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Controlador/Auth/RegisterServlet.java</file>
+            <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Modelo/DAO/UsuarioDAO.java</file>
+            <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Modelo/Servicios/Auth/RegistroServicio.java</file>
+            <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Controlador/Voluntario/Mascotas/MascotaServlet.java</file>
+            <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Controlador/Voluntario/Mascotas/VacunaMascotaServlet.java</file>
+            <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Modelo/DAO/MascotaDAO.java</file>
+            <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Modelo/Config/Conexion.java</file>
+            <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Modelo/DTO/TipoRecursoDTO.java</file>
+            <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Modelo/DTO/TipoDocumentoDTO.java</file>
+            <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Modelo/DTO/GeneroDTO.java</file>
+            <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Modelo/DTO/ActualizarIdentificacionDTO.java</file>
+            <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Modelo/Entidades/Usuario.java</file>
+            <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Modelo/DAO/PlanFamiliarDAO.java</file>
+            <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Controlador/Voluntario/ActionPlanActionsServlet.java</file>
+            <file>file:/C:/Proyectos/java/backendProyectoJava/src/java/Controlador/Voluntario/Riesgos/FactoresRiesgoServlet.java</file>
         </group>
     </open-files>
 </project-private>

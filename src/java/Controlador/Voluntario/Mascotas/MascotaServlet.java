@@ -1,34 +1,47 @@
 package Controlador.Voluntario.Mascotas;
 
+/*
+ * Qué hace (la acción): Importa la clase DTO de mascotas, la capa de servicio de mascotas, utilidades de JSON, respuestas web y APIs estándares de servlets de Jakarta.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - Modelo.DTO.MascotaDTO: Contenedor que modela la información de un animal de compañía (nombre, raza, fecha de nacimiento, especie y género).
+ *   - Modelo.Servicios.Voluntario.MascotaServicio: Servicio de negocio que procesa las reglas del censo de mascotas en la base de datos SQL.
+ * Para qué se usa (el propósito): Proveer al servlet de las dependencias requeridas para procesar peticiones CRUD sobre las mascotas de la familia.
+ * Por qué es importante (el impacto o problema que resuelve): Sin estas importaciones, no se podrían registrar las mascotas asociadas a la vivienda familiar para su respectiva evacuación.
+ */
 import Modelo.DTO.MascotaDTO;
 import Modelo.Servicios.Voluntario.MascotaServicio;
+import Modelo.Utilidades.JSONUtil;
+import Modelo.Utilidades.ResponseUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
-import java.io.BufferedReader;
 import java.io.IOException;
 import org.json.JSONObject;
 
-/**
- * Qué hace: Servlet encargado de mapear las peticiones HTTP CRUD (GET, POST, PATCH, DELETE) sobre la entidad mascotas.
- * Por qué existe: Actúa como el controlador de entrada para gestionar el flujo de datos de los animales de compañía de la familia evaluada.
- * Qué pasaría si no estuviera: Las familias no tendrían cómo reportar perros, gatos o ganado de tracción en su plan familiar, lo cual es crítico en evacuaciones.
+/*
+ * Qué hace (la acción): Asocia el servlet MascotaServlet con el endpoint "/api/pets/*" utilizando la anotación @WebServlet.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - @WebServlet: Anotación de Jakarta para registrar el enrutador en Tomcat.
+ * Para qué se usa (el propósito): Servir como el endpoint de red CRUD para gestionar las mascotas en el Plan de Emergencia Familiar.
+ * Por qué es importante (el impacto o problema que resuelve): Permite registrar de forma asíncrona la información de los animales de compañía, lo cual es de gran importancia en desastres naturales para coordinar refugios compatibles.
  */
 @WebServlet("/api/pets/*")
 public class MascotaServlet extends HttpServlet {
 
-    // Qué hace: Instancia el servicio de lógica de negocios para las mascotas familiares.
-    // Por qué existe: Mantiene aislada la lógica de acceso a base de datos del enrutador de red Servlet.
-    // Qué pasaría si no estuviera: El controlador web tendría que orquestar las sentencias PreparedStatements directas en MySQL.
-    // Flujo: De aquí pasamos a MascotaServicio.
+    /*
+     * Qué hace (la acción): Instancia de manera privada y constante la variable servicio de tipo MascotaServicio.
+     * Qué significa (conceptos, métodos, tipos involucrados): Instancia de la clase de servicios de negocio para mascotas.
+     * Para qué se usa (el propósito): Invocar los métodos lógicos para administrar el censo de mascotas.
+     */
     private final MascotaServicio servicio = new MascotaServicio();
 
-    // Qué hace: Intercepta todas las peticiones entrantes, capturando el método PATCH para redirigirlo a doPatch, y delegando otros verbos a super.service.
-    // Por qué existe: Java Servlet API (HttpServlet) estándar no provee soporte nativo directo para el método doPatch.
-    // Qué pasaría si no estuviera: Las llamadas de actualización parcial PATCH arrojarían un error HTTP 405 (Method Not Allowed).
+    /*
+     * Qué hace (la acción): Sobrescribe el método service para desviar las peticiones que utilizan el verbo HTTP PATCH hacia el método doPatch.
+     * Qué significa (conceptos, métodos, tipos involucrados): Redirección manual del método PATCH en Jakarta Servlet API.
+     * Para qué se usa (el propósito): Habilitar la edición parcial de los datos de la mascota en Tomcat.
+     */
     @Override
     protected void service(HttpServletRequest req, HttpServletResponse resp) 
             throws ServletException, IOException {
@@ -40,30 +53,21 @@ public class MascotaServlet extends HttpServlet {
         }
     }
 
-    // Qué hace: Atiende peticiones GET para obtener la lista paginada de mascotas (bajo /familyPlan/{planId}) o el detalle individual (bajo /{id}).
-    // Por qué existe: Provee al cliente los datos de las mascotas para pintar las tarjetas de listado y rellenar formularios.
-    // Qué pasaría si no estuviera: El voluntario no podría ver el listado de mascotas en la SPA.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doGet para listar las mascotas asociadas a un plan familiar en la subruta "/familyPlan/{planId}" de manera paginada, o consultar la información detallada de una mascota individual.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - parts[1].equals("familyPlan"): Detecta si se solicita listar todas las mascotas vinculadas al censo familiar.
+     *   - pageParam: Parámetro que especifica la página actual para pintar la tabla en la UI.
+     * Para qué se usa (el propósito): Alimentar la tabla de censo de mascotas en la interfaz del voluntario.
+     * Por qué es importante (el impacto o problema que resuelve): Permite mostrar e interactuar de forma ordenada y paginada con el padrón de animales domésticos en el hogar de forma robusta.
+     */
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-        
-        // Qué hace: Comprueba que la sesión de usuario se encuentre activa.
-        // Por qué existe: Resguarda los datos demográficos y la existencia de mascotas de las viviendas de accesos externos sin autorización.
-        // Qué pasaría si no estuviera: Cualquier persona podría auditar qué animales y de qué razas existen en cada vivienda sin iniciar sesión.
-        HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("usuarioId") == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Inicie sesión.").toString());
-            return;
-        }
-        
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || pathInfo.equals("/")) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Recurso no especificado.").toString());
+            response.getWriter().write(ResponseUtil.error("Recurso no especificado."));
             return;
         }
         
@@ -73,7 +77,7 @@ public class MascotaServlet extends HttpServlet {
             if (parts[1].equals("familyPlan")) {
                 if (parts.length < 3) {
                     response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                    response.getWriter().write(new JSONObject().put("success", false).put("message", "ID de plan familiar no provisto.").toString());
+                    response.getWriter().write(ResponseUtil.error("ID de plan familiar no provisto."));
                     return;
                 }
                 int planId = Integer.parseInt(parts[2]);
@@ -83,54 +87,35 @@ public class MascotaServlet extends HttpServlet {
                     page = Integer.parseInt(pageParam);
                 }
                 
-                // Qué hace: Recupera las mascotas del plan de emergencia familiar de forma paginada.
-                // y luego de esto pasamos a MascotaServicio.listarMascotas, que ejecuta la consulta en la BD MySQL.
                 String resJson = servicio.listarMascotas(planId, page);
                 response.getWriter().write(resJson);
             } else {
                 int id = Integer.parseInt(parts[1]);
-                
-                // Qué hace: Obtiene la información detallada de una mascota por su ID.
-                // y luego de esto pasamos a MascotaServicio.obtenerMascota, que hace SELECT por ID en la BD.
                 String resJson = servicio.obtenerMascota(id);
                 response.getWriter().write(resJson);
             }
         } catch (NumberFormatException e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "El identificador debe ser numérico.").toString());
+            response.getWriter().write(ResponseUtil.error("El identificador debe ser numérico."));
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Error interno: " + e.getMessage()).toString());
+            response.getWriter().write(ResponseUtil.error("Error interno: " + e.getMessage()));
         }
     }
 
-    // Qué hace: Atiende peticiones POST para registrar una nueva mascota.
-    // Por qué existe: Permite procesar el formulario de creación de mascotas del frontend.
-    // Qué pasaría si no estuviera: No podríamos registrar animales en la ficha familiar de la SPA.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doPost para recibir el JSON de una nueva mascota (nombre, raza, fecha de nacimiento, especie y género) y guardarla en la base de datos SQL vinculada a su plan familiar.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - JSONUtil.leerJson(request): Parsea la petición asíncrona a un objeto JSON.
+     *   - dto.setPlanId: Vincula a la mascota con la clave foránea del plan de emergencia familiar.
+     * Para qué se usa (el propósito): Insertar un nuevo animal de compañía en el censo familiar de emergencia de la vivienda.
+     * Por qué es importante (el impacto o problema que resuelve): Previene el registro de mascotas con datos nulos o inconsistentes en MySQL validando el cuerpo JSON antes de ejecutar la inserción en base de datos.
+     */
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-        
-        HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("usuarioId") == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Inicie sesión.").toString());
-            return;
-        }
         try {
-            StringBuilder buffer = new StringBuilder();
-            String line;
-            
-            try (BufferedReader reader = request.getReader()) {
-                while ((line = reader.readLine()) != null) {
-                    buffer.append(line);
-                }
-            }
-            
-            JSONObject json = new JSONObject(buffer.toString());
+            JSONObject json = JSONUtil.leerJson(request);
             MascotaDTO dto = new MascotaDTO();
             dto.setName(json.getString("name"));
             dto.setBreed(json.optString("breed", null));
@@ -139,37 +124,30 @@ public class MascotaServlet extends HttpServlet {
             dto.setAnimalGenderId(json.optInt("animal_gender_id", 0));
             dto.setPlanId(json.getInt("family_plan_id"));
             
-            // Qué hace: Inserta una mascota nueva.
-            // y luego de esto pasamos a MascotaServicio.crearMascota, que valida la información en la capa de negocio.
             String resJson = servicio.crearMascota(dto);
             response.getWriter().write(resJson);
-            
+        } catch (IllegalArgumentException e) {
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            response.getWriter().write(ResponseUtil.error("JSON mal formado: " + e.getMessage()));
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Error al crear mascota: " + e.getMessage()).toString());
+            response.getWriter().write(ResponseUtil.error("Error al crear mascota: " + e.getMessage()));
         }
     }
 
-    // Qué hace: Atiende peticiones PATCH para actualizar la información de una mascota existente por su ID.
-    // Por qué existe: Canaliza las actualizaciones parciales del formulario de edición.
-    // Qué pasaría si no estuviera: No podríamos corregir el nombre, raza, especie o género de una mascota ya registrada.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doPatch para actualizar de manera parcial el nombre, raza, fecha de nacimiento, especie o género de una mascota existente por su ID.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - doPatch: Procesador de modificaciones parciales.
+     *   - servicio.actualizarMascota(id, dto): Actualiza en base de datos el registro seleccionado.
+     * Para qué se usa (el propósito): Modificar datos de la mascota sin tener que eliminarla y volverla a crear.
+     */
     protected void doPatch(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-        
-        HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("usuarioId") == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Inicie sesión.").toString());
-            return;
-        }
-        
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || pathInfo.equals("/")) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "ID de mascota no provisto.").toString());
+            response.getWriter().write(ResponseUtil.error("ID de mascota no provisto."));
             return;
         }
         
@@ -177,16 +155,7 @@ public class MascotaServlet extends HttpServlet {
         
         try {
             int id = Integer.parseInt(parts[1]);
-            
-            StringBuilder buffer = new StringBuilder();
-            String line;
-            try (BufferedReader reader = request.getReader()) {
-                while ((line = reader.readLine()) != null) {
-                    buffer.append(line);
-                }
-            }
-            
-            JSONObject json = new JSONObject(buffer.toString());
+            JSONObject json = JSONUtil.leerJson(request);
             MascotaDTO dto = new MascotaDTO();
             dto.setName(json.getString("name"));
             dto.setBreed(json.optString("breed", null));
@@ -194,41 +163,33 @@ public class MascotaServlet extends HttpServlet {
             dto.setSpeciesId(json.optInt("species_id", 0));
             dto.setAnimalGenderId(json.optInt("animal_gender_id", 0));
             
-            // Qué hace: Actualiza los detalles de la mascota.
-            // y luego de esto pasamos a MascotaServicio.actualizarMascota, que actualiza la fila en base de datos.
             String resJson = servicio.actualizarMascota(id, dto);
             response.getWriter().write(resJson);
-            
         } catch (NumberFormatException e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "ID de mascota debe ser numérico.").toString());
+            response.getWriter().write(ResponseUtil.error("ID de mascota debe ser numérico."));
+        } catch (IllegalArgumentException e) {
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            response.getWriter().write(ResponseUtil.error("JSON mal formado: " + e.getMessage()));
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Error al actualizar mascota: " + e.getMessage()).toString());
+            response.getWriter().write(ResponseUtil.error("Error al actualizar mascota: " + e.getMessage()));
         }
     }
 
-    // Qué hace: Atiende peticiones DELETE para eliminar físicamente una mascota del plan familiar.
-    // Por qué existe: Permite dar de baja animales cargados por error o inactivos de la familia.
-    // Qué pasaría si no estuviera: Las mascotas registradas por error quedarían asociadas permanentemente.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doDelete para dar de baja física y eliminar una mascota por su ID en la base de datos SQL.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - servicio.eliminarMascota(id): Remueve la fila correspondiente en base de datos.
+     * Para qué se usa (el propósito): Eliminar del censo familiar a una mascota del hogar de forma definitiva.
+     */
     @Override
     protected void doDelete(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-        
-        HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("usuarioId") == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Inicie sesión.").toString());
-            return;
-        }
-        
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || pathInfo.equals("/")) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "ID de mascota no provisto.").toString());
+            response.getWriter().write(ResponseUtil.error("ID de mascota no provisto."));
             return;
         }
         
@@ -236,18 +197,14 @@ public class MascotaServlet extends HttpServlet {
         
         try {
             int id = Integer.parseInt(parts[1]);
-            
-            // Qué hace: Remueve la mascota.
-            // y luego de esto pasamos a MascotaServicio.eliminarMascota, que borra el registro en MySQL.
             String resJson = servicio.eliminarMascota(id);
             response.getWriter().write(resJson);
-            
         } catch (NumberFormatException e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "ID de mascota debe ser numérico.").toString());
+            response.getWriter().write(ResponseUtil.error("ID de mascota debe ser numérico."));
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Error al eliminar mascota: " + e.getMessage()).toString());
+            response.getWriter().write(ResponseUtil.error("Error al eliminar mascota: " + e.getMessage()));
         }
     }
 }

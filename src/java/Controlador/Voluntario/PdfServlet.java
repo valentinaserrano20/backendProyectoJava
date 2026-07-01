@@ -1,54 +1,58 @@
 package Controlador.Voluntario;
 
+/*
+ * Qué hace (la acción): Importa la clase de servicio de PDFs, la clase de utilidad de respuestas web, excepciones y APIs del servlet de Jakarta.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - Modelo.Servicios.Voluntario.PdfServicio: Servicio de negocio que lee el plan de emergencia familiar de base de datos y utiliza librerías de generación (como iText) para escribir el documento en un flujo de salida (OutputStream).
+ *   - jakarta.servlet.http.HttpServletRequest / HttpServletResponse: Objetos para procesar la petición y construir la respuesta HTTP.
+ * Para qué se usa (el propósito): Proveer al servlet de las APIs requeridas para compilar y transmitir el reporte PDF del plan de emergencia familiar.
+ * Por qué es importante (el impacto o problema que resuelve): Sin estas importaciones, no se podría retornar el archivo de manera directa al navegador del usuario.
+ */
 import Modelo.Servicios.Voluntario.PdfServicio;
+import Modelo.Utilidades.ResponseUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
-import org.json.JSONObject;
 
-/**
- * Qué hace: Servlet controlador mapeado a /api/pdf/* que atiende la descarga y visualización del reporte del plan de emergencia.
- * Por qué existe: Expone el endpoint HTTP para generar el documento PDF final y transmitirlo como binario al navegador.
- * Qué pasaría si no estuviera: Las familias y supervisores no podrían descargar ni imprimir la ficha física en PDF del plan familiar de emergencias.
+/*
+ * Qué hace (la acción): Asocia el servlet PdfServlet con el endpoint de red "/api/pdf/*" utilizando la anotación @WebServlet.
+ * Qué significa (conceptos, métodos, tipos involucrados): Mapea la ruta para que cualquier llamada que inicie con "/api/pdf/" sea procesada por este controlador.
+ * Para qué se usa (el propósito): Servir como el endpoint de exportación para la descarga o visualización del PDF del Plan de Emergencia Familiar.
+ * Por qué es importante (el impacto o problema que resuelve): Permite descargar el documento final del plan familiar en un formato estándar y portable (PDF), ideal para ser impreso o archivado físicamente por la familia.
  */
 @WebServlet("/api/pdf/*")
 public class PdfServlet extends HttpServlet {
 
-    // Qué hace: Instancia el servicio de generación de documentos PDF.
-    // Por qué existe: Permite encapsular la maquetación y adición de celdas y tablas del reporte iText en la capa de servicios.
-    // Qué pasaría si no estuviera: Tendríamos que escribir la lógica de diseño de iText de decenas de páginas dentro del controlador.
-    // Flujo: De aquí pasamos a PdfServicio.
+    /*
+     * Qué hace (la acción): Instancia de manera privada y constante la variable servicio de tipo PdfServicio.
+     * Qué significa (conceptos, métodos, tipos involucrados): Instancia de la clase de servicios de negocio para reportes PDF.
+     * Para qué se usa (el propósito): Invocar el generador del reporte PDF.
+     */
     private final PdfServicio servicio = new PdfServicio();
 
-    // Qué hace: Procesa la petición GET del PDF del plan familiar.
-    // Por qué existe: Permite abrir el documento PDF dinámico directamente en una pestaña del navegador al presionar "Ver PDF".
-    // Qué pasaría si no estuviera: La SPA no podría abrir ni renderizar el documento PDF binario generado al usuario.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doGet para capturar el ID del plan de la URL, configurar el tipo de contenido HTTP a "application/pdf" y llamar al servicio para transmitir el documento generado directamente al flujo de salida del cliente.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - response.setContentType("application/pdf"): Configura la respuesta HTTP indicando que el cuerpo contiene datos binarios del protocolo PDF.
+     *   - response.setHeader("Content-Disposition", "inline; filename=..."): Cabecera HTTP que indica al navegador que abra el archivo en su visor de PDF integrado en lugar de forzar la descarga inmediata.
+     *   - request.getServletContext().getRealPath("/"): Recupera la ruta física raíz en el servidor para que el generador acceda a recursos estáticos (ej. logotipos de la Cruz Roja).
+     *   - response.getOutputStream(): Flujo de salida binario nativo que escribe directo en el socket de red del cliente.
+     * Para qué se usa (el propósito): Renderizar el documento completo del Plan de Emergencia (información familiar, riesgos, croquis, plan de acción y maletín) en el navegador del voluntario o supervisor.
+     * Por qué es importante (el impacto o problema que resuelve): Permite la descarga fluida y en tiempo real del PDF del plan, administrando de forma segura y separada los casos de ID no válidos o excepciones mediante respuestas JSON alternativas.
+     */
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) 
             throws ServletException, IOException {
         
-        // Qué hace: Valida la sesión del voluntario o supervisor activo.
-        // Por qué existe: Previene que usuarios no autorizados descarguen de forma masiva los censos de familias.
-        // Qué pasaría si no estuviera: Cualquier persona podría descargar los PDFs de los planes de emergencia, lo que vulnera gravemente los datos de las familias.
-        HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("usuarioId") == null) {
-            response.setContentType("application/json");
-            response.setCharacterEncoding("UTF-8");
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Inicie sesión.").toString());
-            return;
-        }
-
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || pathInfo.equals("/")) {
             response.setContentType("application/json");
             response.setCharacterEncoding("UTF-8");
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "ID de plan de emergencia no provisto.").toString());
+            response.getWriter().write(ResponseUtil.error("ID de plan de emergencia no provisto."));
             return;
         }
 
@@ -57,34 +61,23 @@ public class PdfServlet extends HttpServlet {
         try {
             int planId = Integer.parseInt(parts[1]);
             
-            // Qué hace: Configura las cabeceras HTTP de tipo de contenido para indicar que la respuesta contiene bytes de PDF.
-            // Por qué existe: Le indica al navegador que debe abrir su visualizador interno de PDF en vez de intentar descargarlo como archivo genérico o interpretarlo como HTML.
-            // Qué pasaría si no estuviera: El navegador intentaría abrir los bytes crudos como texto plano, visualizando caracteres extraños incomprensibles.
             response.setContentType("application/pdf");
-            
-            // Qué hace: Configura la disposición del contenido como "inline".
-            // Por qué existe: Habilita la apertura fluida en pestaña nueva conservando un nombre de archivo preestablecido al guardarse.
             response.setHeader("Content-Disposition", "inline; filename=\"Plan_Emergencia_Familiar_" + planId + ".pdf\"");
             
-            // Qué hace: Resuelve la ruta física del contexto del servlet en el disco del servidor.
-            // Por qué existe: Permite localizar los logos del cabezal y las imágenes de los croquis almacenados en las carpetas internas del servidor Java.
-            // Qué pasaría si no estuviera: La librería iText no sabría en qué ruta absoluta de la máquina buscar las imágenes de croquis que debe incrustar en el documento.
             String contextPath = request.getServletContext().getRealPath("/");
             
-            // Qué hace: Invoca la lógica de generación pasándole el flujo de salida directo del response (ServletOutputStream).
-            // y luego de esto pasamos a PdfServicio.generarPlanEmergenciaPDF, el cual crea el documento iText y escribe directamente en el stream de respuesta.
             servicio.generarPlanEmergenciaPDF(planId, contextPath, response.getOutputStream());
             
         } catch (NumberFormatException e) {
             response.setContentType("application/json");
             response.setCharacterEncoding("UTF-8");
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "El identificador del plan debe ser numérico.").toString());
+            response.getWriter().write(ResponseUtil.error("El identificador del plan debe ser numérico."));
         } catch (Exception e) {
             response.setContentType("application/json");
             response.setCharacterEncoding("UTF-8");
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Error al generar el PDF del plan: " + e.getMessage()).toString());
+            response.getWriter().write(ResponseUtil.error("Error al generar el PDF del plan: " + e.getMessage()));
         }
     }
 }

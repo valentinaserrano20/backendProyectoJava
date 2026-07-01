@@ -1,8 +1,11 @@
 package Modelo.Servicios.Voluntario;
 
 import Modelo.DAO.VulnerabilidadDAO;
+import Modelo.DAO.NotificacionDAO;
+import Modelo.DTO.NotificacionDTO;
 import Modelo.Entidades.PreguntaTest;
 import Modelo.DTO.RespuestaTestDTO;
+import Modelo.Utilidades.ResponseUtil;
 import java.util.List;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -22,8 +25,6 @@ public class VulnerabilidadServicio {
     // Por qué existe: Permite al frontend listar el cuestionario completo dinámicamente en el formulario de la SPA.
     // Qué pasaría si no estuviera: El cuestionario tendría que estar hardcodeado en el frontend, impidiendo agregar o modificar preguntas desde la base de datos sin redesplegar el cliente.
     public String obtenerPreguntas() {
-        // Inicializa el objeto JSON de respuesta principal
-        JSONObject res = new JSONObject();
         try {
             // Qué hace: Consulta al DAO las preguntas activas.
             // y luego de esto pasamos a VulnerabilidadDAO.obtenerPreguntasActivas, que realiza la consulta SELECT.
@@ -47,26 +48,19 @@ public class VulnerabilidadServicio {
                 // Agrega el objeto JSON del DTO al arreglo
                 datos.put(obj);
             }
-            // Agrega el indicador de éxito true
-            res.put("success", true);
-            // Agrega el arreglo de preguntas envuelto en el nodo "data" requerido por el frontend
-            res.put("data", datos);
+            return ResponseUtil.success(datos);
         } catch (Exception e) {
-            // Si ocurre algún fallo, marca éxito como false y retorna la descripción
-            res.put("success", false);
-            // Inserta el mensaje detallado del error
-            res.put("message", "Error al obtener las preguntas: " + e.getMessage());
+            return ResponseUtil.error("Error al obtener las preguntas: " + e.getMessage());
         }
-        // Devuelve la respuesta en formato de cadena JSON
-        return res.toString();
     }
 
+
+    // Qué hace: Obtiene un subconjunto de preguntas activas de forma paginada para la administración del test.
+    // Por qué existe: Evita la sobrecarga de red al transferir listas masivas de preguntas en una sola petición.
     // Qué hace: Obtiene un subconjunto de preguntas activas de forma paginada para la administración del test.
     // Por qué existe: Evita la sobrecarga de red al transferir listas masivas de preguntas en una sola petición.
     // Qué pasaría si no estuviera: Las interfaces administrativas de preguntas cargarían lento al procesar todo de golpe.
     public String obtenerPreguntasPaginadas(int page, int perPage) {
-        // Inicializa el objeto JSON principal
-        JSONObject res = new JSONObject();
         try {
             // Qué hace: Cuenta el total de preguntas para calcular el número de páginas.
             // y luego de esto pasamos a VulnerabilidadDAO.contarPreguntasActivas.
@@ -107,27 +101,16 @@ public class VulnerabilidadServicio {
             // Inserta el total de elementos activos
             paginate.put("total", total);
 
-            // Marca la respuesta como exitosa
-            res.put("success", true);
-            // Inserta el arreglo en "data"
-            res.put("data", datos);
-            // Inserta los metadatos de paginación en el nodo "paginate"
-            res.put("paginate", paginate);
+            return ResponseUtil.paginate(datos, paginate);
         } catch (Exception e) {
-            // Captura errores e inyecta la descripción del fallo
-            res.put("success", false);
-            res.put("message", "Error en la paginación: " + e.getMessage());
+            return ResponseUtil.error("Error en la paginación: " + e.getMessage());
         }
-        // Retorna la cadena JSON
-        return res.toString();
     }
 
     // Qué hace: Obtiene las respuestas guardadas previamente en un plan familiar específico.
     // Por qué existe: Permite precargar las respuestas en el cuestionario cuando el voluntario vuelve a ingresar al test.
     // Qué pasaría si no estuviera: El usuario tendría que responder todas las preguntas nuevamente cada vez que entre a la pestaña del test.
     public String obtenerRespuestasPlan(int planId) {
-        // Inicializa el objeto JSON de respuesta
-        JSONObject res = new JSONObject();
         try {
             // Qué hace: Recupera las respuestas guardadas para el plan.
             // y luego de esto pasamos a VulnerabilidadDAO.obtenerRespuestasPorPlan, el cual hace un SELECT de las respuestas.
@@ -145,29 +128,19 @@ public class VulnerabilidadServicio {
                 // Agrega al arreglo de datos
                 datos.put(obj);
             }
-            // Agrega el éxito
-            res.put("success", true);
-            // Agrega el arreglo en "data" para el mapeo del frontend
-            res.put("data", datos);
+            return ResponseUtil.success(datos);
         } catch (Exception e) {
-            // Captura fallos e informa al cliente
-            res.put("success", false);
-            res.put("message", "Error al precargar las respuestas: " + e.getMessage());
+            return ResponseUtil.error("Error al precargar las respuestas: " + e.getMessage());
         }
-        // Devuelve el JSON en String
-        return res.toString();
     }
 
     // Qué hace: Guarda transaccionalmente el lote de respuestas del test y actualiza en caliente el tipo de vulnerabilidad familiar calculado.
     // Por qué existe: Consolida las respuestas del test y determina si la familia califica en condición vulnerable (5 o más respuestas 'Sí' evaluables).
     // Qué pasaría si no estuviera: No se podrían registrar las respuestas del test en lote ni se actualizaría el estado de vulnerabilidad de la familia de forma automática.
     public String procesarGuardadoLote(int planId, List<RespuestaTestDTO> respuestas) {
-        // Inicializa el objeto de respuesta JSON
-        JSONObject res = new JSONObject();
-        
         // Valida que el lote contenga datos válidos para procesar
         if (respuestas == null || respuestas.isEmpty()) {
-            return res.put("success", false).put("message", "El test no tiene respuestas para guardar.").toString();
+            return ResponseUtil.error("El test no tiene respuestas para guardar.");
         }
 
         try {
@@ -205,34 +178,23 @@ public class VulnerabilidadServicio {
                 String msg = "El test de vulnerabilidad se ha guardado correctamente. La familia ha sido catalogada como " + 
                              (puntos >= 5 ? "VULNERABLE." : "NO VULNERABLE.");
                 
-                // Agrega el éxito de la petición
-                res.put("success", true);
-                // Agrega el mensaje final
-                res.put("message", msg);
-                // Devuelve los puntos obtenidos
-                res.put("puntos", puntos);
-                // Indica el tipo de familia id (1 = Vulnerable, 2 = No vulnerable)
-                res.put("family_type_id", puntos >= 5 ? 1 : 2);
+                JSONObject data = new JSONObject();
+                data.put("puntos", puntos);
+                data.put("family_type_id", puntos >= 5 ? 1 : 2);
+
+                return ResponseUtil.success(msg, data);
             } else {
-                // Informa si falló
-                res.put("success", false);
-                res.put("message", "No se pudo guardar el test.");
+                return ResponseUtil.error("No se pudo guardar el test.");
             }
         } catch (Exception e) {
-            // Captura y propaga la descripción del error técnico en base de datos
-            res.put("success", false);
-            res.put("message", "Error al persistir respuestas: " + e.getMessage());
+            return ResponseUtil.error("Error al persistir respuestas: " + e.getMessage());
         }
-        // Devuelve el JSON
-        return res.toString();
     }
     
     // Qué hace: Actualiza el estado de revisión del plan familiar (Ej: de 'En revisión' a 'Aprobado') y deja constancia en la bitácora de seguimiento.
     // Por qué existe: Permite a los supervisores de la Defensa Civil auditar, aprobar o rechazar planes con comentarios específicos.
     // Qué pasaría si no estuviera: Los planes se quedarían en un solo estado indefinidamente y no habría historial de quién aprobó o rechazó qué cosa.
     public String cambiarEstadoPlan(int planId, int estadoId, String comentario, int usuarioId) {
-        // Inicializa el JSON
-        JSONObject res = new JSONObject();
         try {
             // Qué hace: Ejecuta la sentencia de actualización del estado del plan.
             // y luego de esto pasamos a VulnerabilidadDAO.actualizarEstadoPlan.
@@ -242,15 +204,40 @@ public class VulnerabilidadServicio {
             // y luego de esto pasamos a VulnerabilidadDAO.registrarSeguimiento.
             dao.registrarSeguimiento(planId, usuarioId, estadoId, comentario);
             
-            // Agrega éxito y el mensaje informativo
-            res.put("success", true);
-            res.put("message", "Estado del plan familiar actualizado con éxito.");
+            // Generar notificaciones en base de datos si corresponde (estado 6 = Aprobado, 7 = Rechazado)
+            if (estadoId == 6 || estadoId == 7) {
+                try {
+                    NotificacionDAO notificacionDAO = new NotificacionDAO();
+                    String sql = "SELECT voluntario_id FROM planes_familiares WHERE id = ?";
+                    try (java.sql.Connection con = Modelo.Config.Conexion.obtener();
+                         java.sql.PreparedStatement ps = con.prepareStatement(sql)) {
+                        ps.setInt(1, planId);
+                        try (java.sql.ResultSet rs = ps.executeQuery()) {
+                            if (rs.next()) {
+                                int voluntarioId = rs.getInt("voluntario_id");
+                                NotificacionDTO notificacion = new NotificacionDTO();
+                                notificacion.setUsuarioId(voluntarioId);
+                                notificacion.setTitulo(estadoId == 6 ? "Plan Aprobado" : "Plan Rechazado");
+                                notificacion.setMensaje(estadoId == 6 
+                                    ? "Tu plan familiar ha sido aprobado exitosamente" 
+                                    : "Tu plan familiar ha sido rechazado. " + (comentario != null ? comentario : ""));
+                                notificacion.setTipo("plan_estado");
+                                notificacion.setLeida(false);
+                                notificacion.setEnlace("#/voluntario/plan_familiar");
+                                notificacion.setEntidadId(planId);
+                                
+                                notificacionDAO.crear(notificacion);
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    System.err.println("Error al crear notificación en servicio: " + e.getMessage());
+                }
+            }
+
+            return ResponseUtil.success("Estado del plan familiar actualizado con éxito.");
         } catch (Exception e) {
-            // Captura errores y responde false
-            res.put("success", false);
-            res.put("message", "Error al actualizar estado: " + e.getMessage());
+            return ResponseUtil.error("Error al actualizar estado: " + e.getMessage());
         }
-        // Devuelve la respuesta en formato de cadena JSON
-        return res.toString();
     }
 }

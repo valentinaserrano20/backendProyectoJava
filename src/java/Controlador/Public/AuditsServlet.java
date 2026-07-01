@@ -1,5 +1,14 @@
 package Controlador.Public;
 
+/*
+ * Qué hace (la acción): Importa la clase de conexión a la base de datos, APIs de servlets HTTP y utilidades auxiliares como SimpleDateFormat y colecciones de JSON.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - Modelo.Config.Conexion: Clase personalizada para obtener conexiones JDBC con la base de datos relacional.
+ *   - java.sql.Connection / PreparedStatement / ResultSet: APIs estándares de Java Database Connectivity (JDBC) para ejecutar consultas SQL.
+ *   - org.json.JSONArray / JSONObject: Componentes de la librería JSON para mapear listas y objetos de datos.
+ * Para qué se usa (el propósito): Proveer todas las dependencias necesarias para realizar consultas estadísticas, formatear fechas y construir respuestas JSON complejas.
+ * Por qué es importante (el impacto o problema que resuelve): Sin estas importaciones, no podríamos conectar Java con la base de datos SQL para generar estadísticas en tiempo real ni serializar la información al formato estructurado que espera el frontend.
+ */
 import Modelo.Config.Conexion;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -16,51 +25,43 @@ import java.util.Calendar;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-/**
- * Servlet: AuditsServlet
- * Provee los endpoints de estadísticas y auditoría para los dashboards del Supervisor y Administrador.
- * Mapea la ruta de la API /api/audits/* y procesa las peticiones GET concurrentes.
+/*
+ * Qué hace (la acción): Declara la clase AuditsServlet heredando de HttpServlet y la registra en el endpoint "/api/audits/*".
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - @WebServlet("/api/audits/*"): Anotación que mapea el servlet a cualquier petición que inicie con "/api/audits/". El comodín "*" permite recibir parámetros dinámicos en la ruta.
+ * Para qué se usa (el propósito): Controlar la lógica de obtención de datos estadísticos e historiales para los distintos perfiles de administración (Supervisor, Administrador y Super Administrador).
+ * Por qué es importante (el impacto o problema que resuelve): Centraliza toda la lógica de analítica y auditoría en un único controlador, evitando crear múltiples servlets para cada tipo de dashboard.
  */
 @WebServlet("/api/audits/*")
 public class AuditsServlet extends HttpServlet {
 
-    // Qué hace: Sobrescribe el método doGet para canalizar las peticiones del dashboard.
-    // Por qué existe: Escucha e interpreta las solicitudes HTTP GET enviadas por el frontend.
-    // Qué problema resuelve: Permite procesar peticiones para supervisor y administrador en un solo servlet.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doGet para canalizar las peticiones del cliente web hacia el dashboard correspondiente basándose en la subruta de la petición.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - request.getPathInfo(): Retorna la parte adicional de la URL después del mapeo del servlet (ej: "/dashBoardSupervisor").
+     *   - response.setContentType / setCharacterEncoding: Configura el tipo de respuesta HTTP.
+     * Para qué se usa (el propósito): Determinar qué método específico de consulta de base de datos se debe ejecutar según la llamada recibida.
+     * Por qué es importante (el impacto o problema que resuelve): Permite bifurcar el flujo web de forma controlada y segura, respondiendo con un error HTTP 404 estructurado si la subruta solicitada no es válida.
+     */
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
         
-        // Qué hace: Configura las cabeceras de respuesta HTTP como tipo JSON y codificación UTF-8.
-        // Por qué existe: Garantiza que el navegador interprete la respuesta como JSON legible y sin fallos de caracteres.
-        // Qué problema resuelve: Previene la corrupción de textos con tildes o caracteres especiales en el frontend.
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
 
         PrintWriter out = response.getWriter();
         String pathInfo = request.getPathInfo();
 
-        // Qué hace: Valida si la ruta solicitada corresponde al dashboard de supervisión.
-        // Por qué existe: Determina qué lógica de consulta SQL ejecutar según la solicitud de red.
-        // Qué problema resuelve: Enruta la petición hacia el método que genera las métricas de planes familiares.
         if (pathInfo != null && pathInfo.equals("/dashBoardSupervisor")) {
             obtenerDashBoardSupervisor(response, out);
         } 
-        // Qué hace: Valida si la ruta solicitada corresponde al dashboard de administración.
-        // Por qué existe: Canaliza la petición para calcular las métricas de usuarios, roles e historiales.
-        // Qué problema resuelve: Enruta la petición al método correspondiente a la auditoría del administrador.
         else if (pathInfo != null && pathInfo.equals("/dashBoardAdmin")) {
             obtenerDashBoardAdmin(response, out);
         }
-        // Qué hace: Valida si la ruta solicitada corresponde al dashboard de super administrador.
-        // Por qué existe: Canaliza la petición para calcular las métricas de planes por organización y estado.
-        // Qué problema resuelve: Enruta la petición al método correspondiente a la auditoría del super administrador.
         else if (pathInfo != null && pathInfo.equals("/dashBoardSuperAdmin")) {
             obtenerDashBoardSuperAdmin(response, out);
         }
-        // Qué hace: Devuelve un error 404 si la ruta solicitada no coincide con ninguna acción.
-        // Por qué existe: Provee un fallback seguro de error para evitar loops o estados indefinidos.
-        // Qué problema resuelve: Informa al cliente que el endpoint específico no está soportado.
         else {
             response.setStatus(HttpServletResponse.SC_NOT_FOUND);
             out.print(new JSONObject()
@@ -69,20 +70,15 @@ public class AuditsServlet extends HttpServlet {
         }
     }
 
-    // Qué hace: Consulta los planes familiares y genera un objeto JSON consolidado con las métricas de supervisión.
-    // Por qué existe: Realiza los cálculos agregados directamente en la base de datos para responder al frontend.
-    // Qué problema resuelve: Reúne los totales de planes aprobados, rechazados y pendientes (enviados) excluyendo borradores.
+    /*
+     * Qué hace (la acción): Realiza una consulta SQL de agregación para obtener las métricas de conteo de planes de emergencia y las imprime en formato JSON.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - SUM(CASE WHEN ...): Expresión condicional en SQL que suma 1 si el estado del plan coincide con la regla evaluada (ej: estado_id = 7 para Aprobados).
+     *   - try-with-resources: Declara e inicializa Connection, PreparedStatement y ResultSet asegurando su cierre automático al terminar el bloque.
+     * Para qué se usa (el propósito): Cargar el número de planes en estado pendiente, aprobados, rechazados y en revisión para las tarjetas informativas del panel del supervisor.
+     * Por qué es importante (el impacto o problema que resuelve): Permite al supervisor tener un conteo general e inmediato del trabajo realizado por los voluntarios sin necesidad de listar y contar manualmente todos los planes en el frontend.
+     */
     private void obtenerDashBoardSupervisor(HttpServletResponse response, PrintWriter out) {
-        // Qué hace: Define la consulta SQL de agregación sumando planes por estado excluyendo borradores (estados 2 y 3).
-        // Por qué existe: Obtiene las métricas en una única consulta agregada optimizando el rendimiento.
-        // Qué problema resuelve: Evita procesar múltiples lecturas o bucles para calcular conteos de estados.
-        // Explicación de consulta SQL:
-        // - Información buscada: Conteo total de planes pendientes (enviados), aprobados y rechazados.
-        // - Tablas participantes: planes_familiares.
-        // - Filtros aplicados: Ninguno explícito en WHERE ya que se filtra con condicionales CASE WHEN para contar solo estados enviados (1) y evaluados (4, 7, 5, 6).
-        // Qué hace: Ejecuta una consulta SQL de agregación para totalizar los planes según su estado.
-        // Por qué existe: Permite alimentar las métricas estadísticas del supervisor en el dashboard del home.
-        // Qué problema resuelve: Corrige la asignación errónea de totales donde planes rechazados contaban como aprobados, y calcula planes en revisión.
         String sql = "SELECT "
                 + "  SUM(CASE WHEN estado_id = 1 THEN 1 ELSE 0 END) as pending, "
                 + "  SUM(CASE WHEN estado_id = 5 THEN 1 ELSE 0 END) as in_review, "
@@ -90,53 +86,29 @@ public class AuditsServlet extends HttpServlet {
                 + "  SUM(CASE WHEN estado_id IN (4, 6) THEN 1 ELSE 0 END) as rejected "
                 + "FROM planes_familiares";
 
-        // Qué hace: Abre conexión JDBC limpia y compila la sentencia para su ejecución.
-        // Por qué existe: Permite interactuar directamente con la base de datos de manera segura.
-        // Qué problema resuelve: Previene fugas de recursos cerrando la conexión y el statement automáticamente.
         try (Connection con = Conexion.obtener();
              PreparedStatement ps = con.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
 
-            // Qué hace: Crea el objeto JSON de salida que contendrá el mapa de métricas.
-            // Por qué existe: Serializa los resultados en el formato estructurado esperado por el controlador JS.
-            // Qué problema resuelve: Adapta los tipos de datos de base de datos a un formato consumible por la web SPA.
             JSONObject data = new JSONObject();
-            // Qué hace: Evalúa si la consulta devolvió resultados válidos.
-            // Por qué existe: Recupera los totales acumulados del ResultSet de base de datos.
-            // Qué problema resuelve: Asigna fallback de 0 si no se encuentran filas.
             if (rs.next()) {
-                // Qué hace: Asigna cada valor numérico calculado a su clave correspondiente en el JSON.
-                // Por qué existe: Llena las propiedades para los badges y tarjetas de métricas del frontend.
-                // Qué problema resuelve: Reemplaza los datos vacíos con conteos reales en tiempo real.
                 data.put("pending_plans", rs.getInt("pending"));
                 data.put("approved_plans", rs.getInt("approved"));
                 data.put("rejected_plans", rs.getInt("rejected"));
                 data.put("in_review_plans", rs.getInt("in_review"));
             } else {
-                // Qué hace: Inicializa los valores en cero en caso de no existir registros en la tabla.
-                // Por qué existe: Asegura que el frontend reciba un contrato válido con valores numéricos.
-                // Qué problema resuelve: Previene errores de ejecución por propiedades indefinidas en JS.
                 data.put("pending_plans", 0);
                 data.put("approved_plans", 0);
                 data.put("rejected_plans", 0);
                 data.put("in_review_plans", 0);
             }
 
-            // Qué hace: Encapsula el nodo de datos en el formato de respuesta general de la API.
-            // Por qué existe: Envuelve el objeto en la estructura estándar de respuesta del servidor {success, data}.
-            // Qué problema resuelve: Cumple el protocolo de comunicación establecido con el cliente.
             JSONObject jsonRes = new JSONObject();
             jsonRes.put("success", true);
             jsonRes.put("data", data);
-            // Qué hace: Imprime la respuesta JSON en el flujo de salida del Servlet.
-            // Por qué existe: Envía de vuelta el stream de texto JSON al navegador del cliente.
-            // Qué problema resuelve: Completa la petición HTTP del cliente de manera exitosa.
             out.print(jsonRes.toString());
 
         } catch (Exception e) {
-            // Qué hace: Captura cualquier excepción de base de datos e imprime el stack trace.
-            // Por qué existe: Registra los errores en el log del servidor para depuración técnica.
-            // Qué problema resuelve: Previene la caída total del hilo de Tomcat enviando un error HTTP estructurado.
             e.printStackTrace();
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             out.print(new JSONObject()
@@ -145,9 +117,15 @@ public class AuditsServlet extends HttpServlet {
         }
     }
 
-    // Qué hace: Consulta los usuarios, roles y el historial de cambios del administrador en la base de datos.
-    // Por qué existe: Obtiene la información estructurada que consume el controlador JS para armar gráficos e historiales.
-    // Qué problema resuelve: Provee en una sola respuesta JSON los datos de auditoría de usuarios y de tablas del catálogo general.
+    /*
+     * Qué hace (la acción): Consulta a la base de datos múltiples métricas de administración (resumen de usuarios activos/inactivos, conteo por rol, historial de cambios de miembros, historial de catálogos generales y tendencia de cambios de los últimos 6 meses) y las unifica en una respuesta JSON.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - SimpleDateFormat("dd/MM/yyyy HH:mm"): Formateador para convertir fechas SQL (Timestamp) a cadenas de texto legibles.
+     *   - Calendar.getInstance(): Clase de Java para realizar operaciones de cálculo con fechas.
+     *   - JSONArray: Lista estructurada de objetos JSON.
+     * Para qué se usa (el propósito): Proveer al administrador del sistema las estadísticas demográficas, gráficos de actividad y auditorías en tiempo real sobre los datos maestros y cuentas del sistema.
+     * Por qué es importante (el impacto o problema que resuelve): Consolida toda la información crítica de gobernanza del sistema en una única consulta integrada. El cálculo dinámico del historial de los últimos 6 meses dibuja correctamente la tendencia de uso de la plataforma.
+     */
     private void obtenerDashBoardAdmin(HttpServletResponse response, PrintWriter out) {
         try (Connection con = Conexion.obtener()) {
 
@@ -243,7 +221,6 @@ public class AuditsServlet extends HttpServlet {
             }
 
             // 5. Generar tendencia mensual de cambios en catálogos (monthly_changes)
-            // Se realiza un padding de los últimos 6 meses para que el gráfico de línea se dibuje completo
             JSONArray monthlyChanges = new JSONArray();
             String[] mesesNom = {"Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"};
             
@@ -251,7 +228,7 @@ public class AuditsServlet extends HttpServlet {
             cal.add(Calendar.MONTH, -5); // retrocedemos 5 meses en el tiempo para tener los últimos 6 meses
             
             for (int i = 0; i < 6; i++) {
-                int monthNum = cal.get(Calendar.MONTH) + 1; // Enero es 0 en Calendar, por tanto se suma 1
+                int monthNum = cal.get(Calendar.MONTH) + 1; 
                 int yearNum = cal.get(Calendar.YEAR);
                 String labelMes = mesesNom[cal.get(Calendar.MONTH)];
                 
@@ -274,7 +251,7 @@ public class AuditsServlet extends HttpServlet {
                 monthData.put("total", totalCambios);
                 monthlyChanges.put(monthData);
                 
-                cal.add(Calendar.MONTH, 1); // avanzamos al siguiente mes
+                cal.add(Calendar.MONTH, 1); 
             }
 
             // Unificar todos los datos en la respuesta
@@ -299,9 +276,14 @@ public class AuditsServlet extends HttpServlet {
         }
     }
 
-    // Qué hace: Consulta planes por organización, planes por estado, usuarios por estado y roles para el super administrador.
-    // Por qué existe: Obtiene métricas consolidadas para el dashboard del super administrador con datos de planes y usuarios.
-    // Qué problema resuelve: Provee en una sola respuesta JSON los datos de planes por organización, estado y métricas de usuarios.
+    /*
+     * Qué hace (la acción): Consulta a la base de datos la distribución global de planes familiares por organización, por estado y el resumen de cuentas de usuarios para el super administrador.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - GROUP BY o.id, o.nombre: Agrupa los planes de acuerdo a la seccional de Cruz Roja a la que pertenece el voluntario.
+     *   - COUNT(pf.id): Cuenta el volumen total de registros.
+     * Para qué se usa (el propósito): Proveer métricas macro a nivel nacional u organizacional para la toma de decisiones estratégicas.
+     * Por qué es importante (el impacto o problema que resuelve): Permite identificar qué seccionales tienen mayor participación de voluntarios y cuál es el estado general del desarrollo de planes familiares de emergencia.
+     */
     private void obtenerDashBoardSuperAdmin(HttpServletResponse response, PrintWriter out) {
         try (Connection con = Conexion.obtener()) {
 
@@ -341,7 +323,7 @@ public class AuditsServlet extends HttpServlet {
                 }
             }
 
-            // 3. Obtener conteo de usuarios por estado (users_by_status) - reutilizando lógica de dashBoardAdmin
+            // 3. Obtener conteo de usuarios por estado (users_by_status)
             String sqlSummary = "SELECT "
                     + "  SUM(CASE WHEN estado_id = 1 THEN 1 ELSE 0 END) as active, "
                     + "  SUM(CASE WHEN estado_id = 2 THEN 1 ELSE 0 END) as inactive, "
@@ -362,7 +344,7 @@ public class AuditsServlet extends HttpServlet {
                 }
             }
 
-            // 4. Obtener conteo de usuarios por rol (roles) - reutilizando lógica de dashBoardAdmin
+            // 4. Obtener conteo de usuarios por rol (roles)
             String sqlRols = "SELECT "
                     + "  SUM(CASE WHEN rol_id = 1 THEN 1 ELSE 0 END) as volunteer, "
                     + "  SUM(CASE WHEN rol_id = 2 THEN 1 ELSE 0 END) as supervisor "

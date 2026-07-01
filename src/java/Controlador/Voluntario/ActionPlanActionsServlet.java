@@ -1,34 +1,48 @@
 package Controlador.Voluntario;
 
+/*
+ * Qué hace (la acción): Importa el DTO de acciones de plan, el servicio de gestión de acciones, las utilidades de JSON y respuestas web, y las clases de Jakarta Servlet.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - Modelo.DTO.ActionPlanActionDTO: Contenedor que modela la información de una micro-acción (Antes, Durante, Después) del Plan de Acción.
+ *   - Modelo.Servicios.Voluntario.ActionPlanActionServicio: Clase que implementa la lógica de negocio para crear, actualizar, listar y borrar tareas.
+ * Para qué se usa (el propósito): Proveer al servlet las dependencias de transferencia de datos y negocio para administrar las acciones del plan.
+ * Por qué es important (el impacto o problema que resuelve): Sin estas importaciones, el controlador no podría coordinar las peticiones HTTP con la lógica de negocio que persiste los planes familiares.
+ */
 import Modelo.DTO.ActionPlanActionDTO;
 import Modelo.Servicios.Voluntario.ActionPlanActionServicio;
+import Modelo.Utilidades.JSONUtil;
+import Modelo.Utilidades.ResponseUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
-import java.io.BufferedReader;
 import java.io.IOException;
 import org.json.JSONObject;
 
-/**
- * Qué hace: Servlet controlador mapeado a /api/actionPlanActions/* que procesa todas las solicitudes HTTP del CRUD de micro-acciones (Antes, Durante, Después).
- * Por qué existe: Actúa como punto de entrada de la API para las operaciones del módulo de tareas del Plan de Acción en la interfaz SPA del voluntario.
- * Qué pasaría si no estuviera: Los voluntarios no tendrían forma de añadir, ver, editar o eliminar las micro-acciones asociadas a los planes de emergencia familiar.
+/*
+ * Qué hace (la acción): Asocia el servlet ActionPlanActionsServlet con el patrón de ruta "/api/actionPlanActions/*" a través de la anotación @WebServlet.
+ * Qué significa (conceptos, métodos, tipos involucrados): @WebServlet es el decorador de Jakarta que registra el mapeo de red del servlet en Tomcat.
+ * Para qué se usa (el propósito): Servir como el endpoint central de la API para administrar las micro-acciones (tareas) específicas de los planes de contingencia familiar.
+ * Por qué es importante (el impacto o problema que resuelve): Permite interceptar llamadas RESTful de origen cruzado para gestionar individualmente o en masa las tareas asignadas a cada miembro del hogar ante desastres.
  */
 @WebServlet("/api/actionPlanActions/*")
 public class ActionPlanActionsServlet extends HttpServlet {
 
-    // Qué hace: Instancia el servicio de lógica de negocio para las tareas individuales de los planes de acción.
-    // Por qué existe: Delega la persistencia y las reglas de negocio al servicio de micro-acciones.
-    // Qué pasaría si no estuviera: Habría que programar consultas JDBC y mapeos JSON directamente dentro de este controlador web.
-    // Flujo: De aquí pasamos a ActionPlanActionServicio.
+    /*
+     * Qué hace (la acción): Instancia de manera privada y constante la variable servicio de tipo ActionPlanActionServicio.
+     * Qué significa (conceptos, métodos, tipos involucrados): Instancia de la clase de servicios de negocio para tareas de planes familiares.
+     * Para qué se usa (el propósito): Invocar los métodos del CRUD de acciones.
+     */
     private final ActionPlanActionServicio servicio = new ActionPlanActionServicio();
 
-    // Qué hace: Captura las peticiones HTTP e enruta las de tipo PATCH hacia el método doPatch.
-    // Por qué existe: Los servlets tradicionales de Java no tienen un método doPatch heredable por defecto.
-    // Qué pasaría si no estuviera: Peticiones de tipo PATCH del frontend para actualizar campos específicos arrojarían un error HTTP 405 (Method Not Allowed).
+    /*
+     * Qué hace (la acción): Sobrescribe el método service para desviar las peticiones que utilizan el verbo HTTP PATCH hacia el método doPatch.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - service: Método del ciclo de vida del servlet que se ejecuta antes de delegar a doGet, doPost, etc.
+     *   - PATCH: Método HTTP utilizado para la actualización parcial de recursos.
+     * Para qué se usa (el propósito): Habilitar el soporte del método PATCH en la API de servlets de Jakarta.
+     */
     @Override
     protected void service(HttpServletRequest req, HttpServletResponse resp) 
             throws ServletException, IOException {
@@ -40,29 +54,22 @@ public class ActionPlanActionsServlet extends HttpServlet {
         }
     }
 
-    // Qué hace: Atiende peticiones HTTP GET para listar acciones de un plan o consultar los detalles de una acción puntual.
-    // Por qué existe: Permite renderizar y refrescar la lista de tareas en las fases de la SPA.
-    // Qué pasaría si no estuviera: No se podrían cargar ni pintar las tareas registradas en el frontend.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doGet para procesar consultas GET, permitiendo listar las acciones de un plan familiar específico o consultar los detalles de una sola acción a partir de su ID.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - parts[1].equals("actionPlan"): Detecta si la ruta solicita el listado de tareas vinculadas a un plan (ej: "/actionPlan/5").
+     *   - parts.length == 2: Detecta si se solicita la información detallada de una única acción por su ID.
+     * Para qué se usa (el propósito): Alimentar la tabla de tareas y la ventana de edición en la interfaz del voluntario.
+     * Por qué es importante (el impacto o problema que resuelve): Garantiza que el voluntario obtenga la lista exacta de tareas del plan familiar o el detalle de una tarea específica con control de errores de formato numérico.
+     */
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) 
             throws ServletException, IOException {
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-
-        // Qué hace: Valida la existencia de una sesión de voluntario activa.
-        // Por qué existe: Impide que usuarios no autenticados accedan a la lista de tareas de seguridad de la vivienda.
-        // Qué pasaría si no estuviera: Cualquiera en internet podría espiar el plan de acción familiar y sus responsables asociados.
-        HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("usuarioId") == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Inicie sesión.").toString());
-            return;
-        }
 
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || pathInfo.equals("/")) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Ruta no especificada.").toString());
+            response.getWriter().write(ResponseUtil.error("Ruta no especificada."));
             return;
         }
 
@@ -72,59 +79,41 @@ public class ActionPlanActionsServlet extends HttpServlet {
             // Caso 1: actionPlanActions/actionPlan/{planId}
             if (parts[1].equals("actionPlan") && parts.length > 2) {
                 int planId = Integer.parseInt(parts[2]);
-                
-                // Qué hace: Listado de acciones ligadas al plan de acción familiar.
-                // y luego de esto pasamos a ActionPlanActionServicio.listarPorPlan, el cual obtiene el listado desde la BD en formato JSON.
                 String jsonRes = servicio.listarPorPlan(planId);
                 response.getWriter().write(jsonRes);
             } 
             // Caso 2: actionPlanActions/{id}
             else if (parts.length == 2) {
                 int id = Integer.parseInt(parts[1]);
-                
-                // Qué hace: Recupera una acción puntual mediante su identificador primario.
-                // y luego de esto pasamos a ActionPlanActionServicio.obtenerPorId, el cual consulta la micro-acción en base de datos.
                 String jsonRes = servicio.obtenerPorId(id);
                 response.getWriter().write(jsonRes);
             } else {
                 response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                response.getWriter().write(new JSONObject().put("success", false).put("message", "Ruta de consulta no válida.").toString());
+                response.getWriter().write(ResponseUtil.error("Ruta de consulta no válida."));
             }
         } catch (NumberFormatException e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "El identificador de ruta debe ser numérico.").toString());
+            response.getWriter().write(ResponseUtil.error("El identificador de ruta debe ser numérico."));
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Error al procesar consulta: " + e.getMessage()).toString());
+            response.getWriter().write(ResponseUtil.error("Error al procesar consulta: " + e.getMessage()));
         }
     }
 
-    // Qué hace: Recibe peticiones HTTP POST para agregar una nueva micro-acción o tarea.
-    // Por qué existe: Atiende la creación de nuevas tareas desde los cuadros modales interactivos.
-    // Qué pasaría si no estuviera: Los voluntarios no tendrían forma de añadir micro-acciones dinámicas a su plan.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doPost para agregar una nueva tarea o acción de contingencia familiar.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - JSONUtil.leerJson(request): Parsea la petición asíncrona a JSONObject.
+     *   - memberIdStr: ID del integrante de la familia asignado como responsable de la tarea (campo opcional).
+     * Para qué se usa (el propósito): Crear y persistir una nueva acción (ej. "Cerrar llaves del gas") asignándola a una fase y plan familiar.
+     * Por qué es importante (el impacto o problema que resuelve): Permite registrar tareas y asignar un responsable familiar (si aplica), previniendo fallos en JSON mal estructurados.
+     */
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) 
             throws ServletException, IOException {
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-
-        HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("usuarioId") == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Inicie sesión.").toString());
-            return;
-        }
-
-        StringBuilder buffer = new StringBuilder();
-        String line;
-        try (BufferedReader reader = request.getReader()) {
-            while ((line = reader.readLine()) != null) {
-                buffer.append(line);
-            }
-        }
 
         try {
-            JSONObject json = new JSONObject(buffer.toString());
+            JSONObject json = JSONUtil.leerJson(request);
             ActionPlanActionDTO dto = new ActionPlanActionDTO();
             dto.setDescription(json.getString("description"));
             dto.setActionTypeId(json.getInt("action_type_id"));
@@ -135,35 +124,32 @@ public class ActionPlanActionsServlet extends HttpServlet {
                 dto.setMemberId(Integer.parseInt(memberIdStr));
             }
 
-            // Qué hace: Crea una nueva micro-acción en la BD.
-            // y luego de esto pasamos a ActionPlanActionServicio.crear, el cual realiza la validación e inserción en la BD.
             String jsonRes = servicio.crear(dto);
             response.getWriter().write(jsonRes);
+        } catch (IllegalArgumentException e) {
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            response.getWriter().write(ResponseUtil.error("JSON mal formado: " + e.getMessage()));
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Error al registrar la acción: " + e.getMessage()).toString());
+            response.getWriter().write(ResponseUtil.error("Error al registrar la acción: " + e.getMessage()));
         }
     }
 
-    // Qué hace: Procesa solicitudes HTTP PATCH para actualizar la descripción y responsable de una acción existente.
-    // Por qué existe: Atiende el guardado tras modificar los campos en los cuadros modales de edición.
-    // Qué pasaría si no estuviera: No podríamos actualizar el texto ni el responsable familiar de las tareas del plan de acción.
+    /*
+     * Qué hace (la acción): Define la lógica doPatch para actualizar la descripción o cambiar el responsable asignado a una tarea de contingencia familiar.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - doPatch: Procesador de cambios parciales.
+     *   - servicio.actualizar(id, dto): Actualiza en la base de datos la fila del registro seleccionado.
+     * Para qué se usa (el propósito): Modificar una tarea ya creada en la interfaz sin necesidad de rellenar de nuevo el tipo de acción o plan familiar al que pertenece.
+     * Por qué es importante (el impacto o problema que resuelve): Permite modificar de forma ágil y asíncrona la descripción y responsable de la tarea de evacuación.
+     */
     protected void doPatch(HttpServletRequest request, HttpServletResponse response) 
             throws ServletException, IOException {
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-
-        HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("usuarioId") == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Inicie sesión.").toString());
-            return;
-        }
 
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || pathInfo.equals("/")) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "ID de acción no provisto.").toString());
+            response.getWriter().write(ResponseUtil.error("ID de acción no provisto."));
             return;
         }
 
@@ -171,16 +157,7 @@ public class ActionPlanActionsServlet extends HttpServlet {
         
         try {
             int id = Integer.parseInt(parts[1]);
-            
-            StringBuilder buffer = new StringBuilder();
-            String line;
-            try (BufferedReader reader = request.getReader()) {
-                while ((line = reader.readLine()) != null) {
-                    buffer.append(line);
-                }
-            }
-
-            JSONObject json = new JSONObject(buffer.toString());
+            JSONObject json = JSONUtil.leerJson(request);
             ActionPlanActionDTO dto = new ActionPlanActionDTO();
             dto.setDescription(json.getString("description"));
             
@@ -189,39 +166,34 @@ public class ActionPlanActionsServlet extends HttpServlet {
                 dto.setMemberId(Integer.parseInt(memberIdStr));
             }
 
-            // Qué hace: Actualiza la micro-acción identificada.
-            // y luego de esto pasamos a ActionPlanActionServicio.actualizar, el cual aplica los cambios en MySQL.
             String jsonRes = servicio.actualizar(id, dto);
             response.getWriter().write(jsonRes);
         } catch (NumberFormatException e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "ID de acción debe ser numérico.").toString());
+            response.getWriter().write(ResponseUtil.error("ID de acción debe ser numérico."));
+        } catch (IllegalArgumentException e) {
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            response.getWriter().write(ResponseUtil.error("JSON mal formado: " + e.getMessage()));
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Error al actualizar la acción: " + e.getMessage()).toString());
+            response.getWriter().write(ResponseUtil.error("Error al actualizar la acción: " + e.getMessage()));
         }
     }
 
-    // Qué hace: Procesa solicitudes HTTP DELETE para eliminar una micro-acción específica por su ID.
-    // Por qué existe: Habilita la eliminación física de micro-acciones desde el modal SweetAlert.
-    // Qué pasaría si no estuviera: Las micro-acciones creadas por error quedarían registradas para siempre.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doDelete para eliminar físicamente una tarea o acción de contingencia familiar por su ID.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - servicio.eliminar(id): Elimina de la tabla SQL la fila correspondiente.
+     * Para qué se usa (el propósito): Permitir que el voluntario descarte tareas innecesarias de su plan familiar de emergencia.
+     */
     @Override
     protected void doDelete(HttpServletRequest request, HttpServletResponse response) 
             throws ServletException, IOException {
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-
-        HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("usuarioId") == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Inicie sesión.").toString());
-            return;
-        }
 
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || pathInfo.equals("/")) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "ID de acción no provisto.").toString());
+            response.getWriter().write(ResponseUtil.error("ID de acción no provisto."));
             return;
         }
 
@@ -229,17 +201,14 @@ public class ActionPlanActionsServlet extends HttpServlet {
         
         try {
             int id = Integer.parseInt(parts[1]);
-            
-            // Qué hace: Elimina físicamente la tarea por su ID primario.
-            // y luego de esto pasamos a ActionPlanActionServicio.eliminar, el cual ejecuta la remoción en base de datos.
             String jsonRes = servicio.eliminar(id);
             response.getWriter().write(jsonRes);
         } catch (NumberFormatException e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "ID de acción debe ser numérico.").toString());
+            response.getWriter().write(ResponseUtil.error("ID de acción debe ser numérico."));
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Error al eliminar la acción: " + e.getMessage()).toString());
+            response.getWriter().write(ResponseUtil.error("Error al eliminar la acción: " + e.getMessage()));
         }
     }
 }

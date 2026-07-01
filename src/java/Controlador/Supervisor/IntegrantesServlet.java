@@ -1,59 +1,56 @@
 package Controlador.Supervisor;
 
+/*
+ * Qué hace (la acción): Importa la capa de servicios de supervisor, utilidad de respuestas web y las APIs estándares de servlets de Jakarta.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - Modelo.Servicios.Supervisor.SupervisorServicio: Servicio de negocio que procesa las consultas e interacciones de administración y supervisión.
+ *   - Modelo.Utilidades.ResponseUtil: Utilidad para formatear respuestas JSON de éxito o error.
+ * Para qué se usa (el propósito): Proveer al servlet de las dependencias requeridas para consultar el listado global de integrantes de planes familiares.
+ * Por qué es importante (el impacto o problema que resuelve): Sin estas importaciones no se podría coordinar la lógica de negocio ni responder al cliente en formato JSON estándar.
+ */
 import Modelo.Servicios.Supervisor.SupervisorServicio;
+import Modelo.Utilidades.ResponseUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
-import org.json.JSONObject;
 
-// Qué hace: Servlet exclusivo del supervisor que expone el endpoint /api/integrantes/* para obtener la correspondencia global de integrantes y planes familiares.
-// Por qué existe: Separa la ruta del supervisor de la ruta /api/members/* del voluntario, evitando mezcla de roles.
-// Qué problema resuelve: Permite al frontend del supervisor consultar todos los integrantes del sistema de forma independiente a la gestión CRUD del voluntario.
+/*
+ * Qué hace (la acción): Mapea el servlet a la URL "/api/integrantes/*" a través de la anotación @WebServlet.
+ * Qué significa (conceptos, métodos, tipos involucrados): @WebServlet es el decorador del contenedor Tomcat para la registración del servlet.
+ * Para qué se usa (el propósito): Servir como el endpoint de administración del supervisor para listar de manera consolidada a todos los miembros de familias registrados en el sistema.
+ * Por qué es importante (el impacto o problema que resuelve): Separa las rutas del voluntario (quien gestiona a su propia familia) de las rutas del supervisor (quien tiene acceso al censo completo de integrantes de la comunidad), garantizando control de roles.
+ */
 @WebServlet("/api/integrantes/*")
 public class IntegrantesServlet extends HttpServlet {
 
-    // Instancia del servicio del supervisor que contiene la lógica de consulta global
+    /*
+     * Qué hace (la acción): Instancia de manera privada y constante la variable servicio de tipo SupervisorServicio.
+     * Qué significa (conceptos, métodos, tipos involucrados): Instancia de la capa de lógica de negocio del supervisor.
+     * Para qué se usa (el propósito): Llamar a las funciones de consulta de integrantes y sus datos vinculados.
+     */
     private final SupervisorServicio servicio = new SupervisorServicio();
 
-    // Qué hace: Atiende peticiones GET para retornar el listado global de integrantes con sus planes asociados.
-    // Por qué existe: El RevisionPlanController.js del supervisor consume api.get('integrantes/') para filtrar los miembros de un plan específico.
-    // Qué problema resuelve: Devuelve la estructura JSON {success, data} compatible con el helper api.get() del frontend.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doGet para obtener todos los integrantes de familias registrados y enviarlos al escritor de respuesta en formato JSON.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - servicio.obtenerTodosFamilyMembers(): Método del servicio que consulta la base de datos y retorna los miembros de las familias junto con el estado del plan familiar de cada uno.
+     *   - response.getWriter().write(): Escribe los bytes de texto directamente a la red del cliente.
+     * Para qué se usa (el propósito): Alimentar la tabla de censo general en el panel de control del supervisor de Cruz Roja.
+     * Por qué es importante (el impacto o problema que resuelve): Permite al supervisor visualizar la totalidad de integrantes y verificar a qué plan de emergencia pertenecen en una única vista consolidada.
+     */
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        // Establece el tipo de contenido de la respuesta como JSON con codificación UTF-8
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-
-        // Verifica que exista una sesión activa con un usuario autenticado
-        HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("usuarioId") == null) {
-            // Si no hay sesión válida, responde con estado 401 (No autorizado)
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write(new JSONObject()
-                    .put("success", false)
-                    .put("message", "Acceso denegado. Inicie sesión.")
-                    .toString());
-            return;
-        }
-
         try {
-            // Delega la consulta global al servicio del supervisor
             String resJson = servicio.obtenerTodosFamilyMembers();
-            // Escribe la respuesta JSON en el cuerpo de la respuesta HTTP
             response.getWriter().write(resJson);
         } catch (Exception e) {
-            // Si ocurre un error inesperado, responde con estado 500
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            response.getWriter().write(new JSONObject()
-                    .put("success", false)
-                    .put("message", "Error interno del servidor: " + e.getMessage())
-                    .toString());
+            response.getWriter().write(ResponseUtil.error("Error interno del servidor: " + e.getMessage()));
         }
     }
 }

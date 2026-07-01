@@ -288,81 +288,54 @@ public class IntegranteDAO {
     // Por qué existe: Previene la violación de restricciones de llave foránea (Foreign Key Constraints) de MySQL durante la baja física de un miembro.
     // Qué problema resuelve: Ejecuta todo el flujo de borrado bajo rollback manual, manteniendo la integridad referencial en caso de error.
     public void eliminarIntegrante(int id) throws SQLException {
-        Connection con = null;
-        try {
-            // Qué hace: Obtiene la conexión a base de datos.
-            con = Conexion.obtener();
-            // Qué hace: Desactiva el auto-commit automático para iniciar una transacción manual.
+        // Usamos try-with-resources para cerrar automáticamente la conexión al salir del bloque
+        try (Connection con = Conexion.obtener()) {
+            // Inicia la transacción manual desactivando auto-commit
             con.setAutoCommit(false);
-            
-            // Qué hace: Crea una lista para guardar los identificadores de afecciones del integrante.
-            List<Integer> afeccionesIds = new ArrayList<>();
-            // Explicación de consulta SQL:
-            // - Información buscada: Buscar los IDs de afecciones asociadas al integrante.
-            // - Tablas participantes: afecciones.
-            // - Filtros aplicados: integrante_id = ?.
-            String sqlGetAfecciones = "SELECT id FROM afecciones WHERE integrante_id = ?";
-            try (PreparedStatement psGet = con.prepareStatement(sqlGetAfecciones)) {
-                // Qué hace: Vincula el ID del integrante.
-                psGet.setInt(1, id);
-                // Qué hace: Lee el conjunto de resultados.
-                try (ResultSet rs = psGet.executeQuery()) {
-                    while (rs.next()) {
-                        // Qué hace: Registra cada ID de afección en la lista temporal.
-                        afeccionesIds.add(rs.getInt("id"));
+            try {
+                // Almacenamos los IDs de afecciones asociadas para poder eliminar los medicamentos satélite correspondientes
+                List<Integer> afeccionesIds = new ArrayList<>();
+                String sqlGetAfecciones = "SELECT id FROM afecciones WHERE integrante_id = ?";
+                try (PreparedStatement psGet = con.prepareStatement(sqlGetAfecciones)) {
+                    psGet.setInt(1, id);
+                    try (ResultSet rs = psGet.executeQuery()) {
+                        while (rs.next()) {
+                            afeccionesIds.add(rs.getInt("id"));
+                        }
                     }
                 }
-            }
-            
-            // Qué hace: Si el integrante posee afecciones asociadas.
-            if (!afeccionesIds.isEmpty()) {
-                // Explicación de consulta SQL:
-                // - Información buscada: Eliminar registros de medicamentos asociados a una afección.
-                // - Tablas participantes: medicamentos.
-                // - Filtros aplicados: afeccion_id = ?.
-                String sqlDelMeds = "DELETE FROM medicamentos WHERE afeccion_id = ?";
-                try (PreparedStatement psDelMeds = con.prepareStatement(sqlDelMeds)) {
-                    // Qué hace: Recorre la lista de afecciones para borrar en cadena cada medicamento asociado.
-                    for (int affId : afeccionesIds) {
-                        psDelMeds.setInt(1, affId);
-                        psDelMeds.executeUpdate();
+                
+                // Si el integrante posee afecciones asociadas, removemos primero sus medicamentos para evitar fallos de FK
+                if (!afeccionesIds.isEmpty()) {
+                    String sqlDelMeds = "DELETE FROM medicamentos WHERE afeccion_id = ?";
+                    try (PreparedStatement psDelMeds = con.prepareStatement(sqlDelMeds)) {
+                        for (int affId : afeccionesIds) {
+                            psDelMeds.setInt(1, affId);
+                            psDelMeds.executeUpdate();
+                        }
                     }
                 }
-            }
-            
-            // Explicación de consulta SQL:
-            // - Información buscada: Eliminar afecciones del integrante.
-            // - Tablas participantes: afecciones.
-            // - Filtros aplicados: integrante_id = ?.
-            String sqlDelAfecciones = "DELETE FROM afecciones WHERE integrante_id = ?";
-            try (PreparedStatement psDelAff = con.prepareStatement(sqlDelAfecciones)) {
-                psDelAff.setInt(1, id);
-                psDelAff.executeUpdate();
-            }
-            
-            // Explicación de consulta SQL:
-            // - Información buscada: Eliminar el registro del integrante.
-            // - Tablas participantes: integrantes.
-            // - Filtros aplicados: id = ?.
-            String sqlDelMember = "DELETE FROM integrantes WHERE id = ?";
-            try (PreparedStatement psDelMem = con.prepareStatement(sqlDelMember)) {
-                psDelMem.setInt(1, id);
-                psDelMem.executeUpdate();
-            }
-            
-            // Qué hace: Consolida y confirma los cambios de manera definitiva en la base de datos.
-            con.commit();
-        } catch (SQLException e) {
-            // Qué hace: Revierte todos los cambios de la transacción si ocurre un error durante el proceso de eliminación.
-            if (con != null) {
+                
+                // Eliminamos las afecciones del integrante
+                String sqlDelAfecciones = "DELETE FROM afecciones WHERE integrante_id = ?";
+                try (PreparedStatement psDelAff = con.prepareStatement(sqlDelAfecciones)) {
+                    psDelAff.setInt(1, id);
+                    psDelAff.executeUpdate();
+                }
+                
+                // Eliminamos finalmente el registro físico del integrante
+                String sqlDelMember = "DELETE FROM integrantes WHERE id = ?";
+                try (PreparedStatement psDelMem = con.prepareStatement(sqlDelMember)) {
+                    psDelMem.setInt(1, id);
+                    psDelMem.executeUpdate();
+                }
+                
+                // Confirmamos la transacción
+                con.commit();
+            } catch (SQLException e) {
+                // Revertimos todos los cambios en caso de excepción
                 con.rollback();
-            }
-            // Qué hace: Propaga la excepción hacia la capa superior (Servlet).
-            throw e;
-        } finally {
-            // Qué hace: Asegura el cierre de la conexión de base de datos en el bloque finally.
-            if (con != null) {
-                con.close();
+                throw e; // Propagamos el error
             }
         }
     }
@@ -392,30 +365,8 @@ public class IntegranteDAO {
             // Qué hace: Ejecuta la consulta SELECT y recorre el ResultSet.
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    // Qué hace: Instancia el DTO de afección para almacenar los datos de la fila actual.
-                    AfeccionDTO dto = new AfeccionDTO();
-                    dto.setId(rs.getInt("id"));
-                    dto.setMemberId(rs.getInt("integrante_id"));
-                    dto.setName(rs.getString("nombre_afeccion"));
-                    dto.setDose(rs.getString("dosis_diaria"));
-                    
-                    // Qué hace: Mapea la cadena literal de tipo ENMO en MySQL hacia un tipo numérico estructurado para el front.
-                    String tipoStr = rs.getString("tipo");
-                    int typeId = 1;
-                    String typeName = "Enfermedad";
-                    if (tipoStr != null) {
-                        if (tipoStr.equals("discapacidad")) {
-                            typeId = 2;
-                            typeName = "Discapacidad";
-                        } else if (tipoStr.equals("alergia")) {
-                            typeId = 3;
-                            typeName = "Alergia";
-                        }
-                    }
-                    dto.setConditionTypeId(typeId);
-                    dto.setConditionTypeName(typeName);
-                    // Qué hace: Agrega el elemento a la lista.
-                    lista.add(dto);
+                    // Utiliza el método de mapeo reutilizable para evitar código duplicado
+                    lista.add(mapearAfeccion(rs));
                 }
             }
             // Qué hace: Retorna la lista de afecciones mapeadas del integrante.
@@ -446,29 +397,8 @@ public class IntegranteDAO {
             try (ResultSet rs = ps.executeQuery()) {
                 // Qué hace: Si se encuentra la afección, se procede con el mapeo al DTO.
                 if (rs.next()) {
-                    AfeccionDTO dto = new AfeccionDTO();
-                    dto.setId(rs.getInt("id"));
-                    dto.setMemberId(rs.getInt("integrante_id"));
-                    dto.setName(rs.getString("nombre_afeccion"));
-                    dto.setDose(rs.getString("dosis_diaria"));
-                    
-                    // Qué hace: Convierte el String ENUM tipo en un ID legible y nombre descriptivo.
-                    String tipoStr = rs.getString("tipo");
-                    int typeId = 1;
-                    String typeName = "Enfermedad";
-                    if (tipoStr != null) {
-                        if (tipoStr.equals("discapacidad")) {
-                            typeId = 2;
-                            typeName = "Discapacidad";
-                        } else if (tipoStr.equals("alergia")) {
-                            typeId = 3;
-                            typeName = "Alergia";
-                        }
-                    }
-                    dto.setConditionTypeId(typeId);
-                    dto.setConditionTypeName(typeName);
-                    // Qué hace: Retorna la afección detallada.
-                    return dto;
+                    // Utiliza el método de mapeo reutilizable para evitar código duplicado
+                    return mapearAfeccion(rs);
                 }
             }
         }
@@ -477,74 +407,55 @@ public class IntegranteDAO {
     }
 
     // Qué hace: Registra transaccionalmente una afección y, en caso de incluir dosis, inserta automáticamente un medicamento satélite.
-    // Por qué existe: Mapea la recolección simplificada de la UI (nombre y dosis) hacia el esquema relacional estructurado.
-    // Qué problema resuelve: Inserta de manera segura en dos tablas distintas en una sola transacción, garantizando la consistencia de datos.
+    // Por qué existe: Habilita el registro de una afección médica en la base de datos.
     public int crearAfeccion(AfeccionDTO dto) throws SQLException {
-        Connection con = null;
-        try {
-            // Qué hace: Abre la conexión a la base de datos.
-            con = Conexion.obtener();
-            // Qué hace: Deshabilita el auto-commit automático para gestionar manualmente la transacción.
+        // Usamos try-with-resources para la conexión física JDBC
+        try (Connection con = Conexion.obtener()) {
+            // Deshabilitamos el auto-commit para control transaccional manual
             con.setAutoCommit(false);
-            
-            // Explicación de consulta SQL:
-            // - Información buscada: Registro de una nueva afección.
-            // - Tablas participantes: afecciones.
-            // - Filtros aplicados: Ninguno (INSERT con placeholders).
-            String sqlAff = "INSERT INTO afecciones (tipo, nombre_afeccion, integrante_id) VALUES (?, ?, ?)";
-            int affId = -1;
-            
-            // Qué hace: Prepara el statement para la inserción de la afección retornando la llave autogenerada.
-            try (PreparedStatement psAff = con.prepareStatement(sqlAff, Statement.RETURN_GENERATED_KEYS)) {
-                // Qué hace: Convierte el ID numérico de tipo de afección proveniente de la interfaz al ENUM que MySQL espera.
-                String tipoEnum = "enfermedad";
-                if (dto.getConditionTypeId() == 2) tipoEnum = "discapacidad";
-                else if (dto.getConditionTypeId() == 3) tipoEnum = "alergia";
+            try {
+                String sqlAff = "INSERT INTO afecciones (tipo, nombre_afeccion, integrante_id) VALUES (?, ?, ?)";
+                int affId = -1;
                 
-                psAff.setString(1, tipoEnum);
-                psAff.setString(2, dto.getName());
-                psAff.setInt(3, dto.getMemberId());
-                psAff.executeUpdate();
-                
-                // Qué hace: Obtiene la llave primaria generada de la afección.
-                try (ResultSet rsKeys = psAff.getGeneratedKeys()) {
-                    if (rsKeys.next()) {
-                        affId = rsKeys.getInt(1);
+                try (PreparedStatement psAff = con.prepareStatement(sqlAff, Statement.RETURN_GENERATED_KEYS)) {
+                    String tipoEnum = "enfermedad";
+                    if (dto.getConditionTypeId() == 2) tipoEnum = "discapacidad";
+                    else if (dto.getConditionTypeId() == 3) tipoEnum = "alergia";
+                    
+                    psAff.setString(1, tipoEnum);
+                    psAff.setString(2, dto.getName());
+                    psAff.setInt(3, dto.getMemberId());
+                    psAff.executeUpdate();
+                    
+                    try (ResultSet rsKeys = psAff.getGeneratedKeys()) {
+                        if (rsKeys.next()) {
+                            affId = rsKeys.getInt(1);
+                        }
                     }
                 }
-            }
-            
-            // Qué hace: Si no se pudo obtener el ID autogenerado, lanza una excepción para detener la transacción.
-            if (affId == -1) {
-                throw new SQLException("No se pudo obtener el ID autogenerado de la afección.");
-            }
-            
-            // Qué hace: Si el usuario diligenció una dosificación, procede a crear el medicamento correspondiente.
-            if (dto.getDose() != null && !dto.getDose().trim().isEmpty()) {
-                // Explicación de consulta SQL:
-                // - Información buscada: Registro del medicamento.
-                // - Tablas participantes: medicamentos.
-                String sqlMed = "INSERT INTO medicamentos (nombre_droga, dosis_diaria, afeccion_id) VALUES (?, ?, ?)";
-                try (PreparedStatement psMed = con.prepareStatement(sqlMed)) {
-                    // Qué hace: Registra un valor por defecto para 'nombre_droga' y asocia la dosis e ID de la afección recién creada.
-                    psMed.setString(1, "Tratamiento");
-                    psMed.setString(2, dto.getDose());
-                    psMed.setInt(3, affId);
-                    psMed.executeUpdate();
+                
+                if (affId == -1) {
+                    throw new SQLException("No se pudo obtener el ID autogenerado de la afección.");
                 }
+                
+                if (dto.getDose() != null && !dto.getDose().trim().isEmpty()) {
+                    String sqlMed = "INSERT INTO medicamentos (nombre_droga, dosis_diaria, afeccion_id) VALUES (?, ?, ?)";
+                    try (PreparedStatement psMed = con.prepareStatement(sqlMed)) {
+                        psMed.setString(1, "Tratamiento");
+                        psMed.setString(2, dto.getDose());
+                        psMed.setInt(3, affId);
+                        psMed.executeUpdate();
+                    }
+                }
+                
+                // Guardamos definitivamente los cambios de ambas tablas
+                con.commit();
+                return affId;
+            } catch (SQLException e) {
+                // Si ocurre cualquier error, revertimos la transacción
+                con.rollback();
+                throw e;
             }
-            
-            // Qué hace: Hace persistentes los cambios de la afección y el medicamento.
-            con.commit();
-            // Qué hace: Retorna el ID de la afección creada.
-            return affId;
-        } catch (SQLException e) {
-            // Qué hace: Revierte la transacción completa si ocurrió algún fallo.
-            if (con != null) con.rollback();
-            throw e;
-        } finally {
-            // Qué hace: Cierra la conexión de base de datos de forma segura.
-            if (con != null) con.close();
         }
     }
 
@@ -552,93 +463,66 @@ public class IntegranteDAO {
     // Por qué existe: Mantiene actualizados los cambios médicos del integrante, administrando la existencia opcional de medicamentos.
     // Qué problema resuelve: Evalúa transaccionalmente la existencia previa de la dosis para determinar si corresponde UPDATE, INSERT o DELETE.
     public void actualizarAfeccion(int id, AfeccionDTO dto) throws SQLException {
-        Connection con = null;
-        try {
-            // Qué hace: Abre la conexión a la base de datos.
-            con = Conexion.obtener();
-            // Qué hace: Configura auto-commit en falso para administrar la transacción de forma manual.
+        // Usamos try-with-resources para la conexión física JDBC
+        try (Connection con = Conexion.obtener()) {
+            // Habilitamos el modo transaccional
             con.setAutoCommit(false);
-            
-            // Explicación de consulta SQL:
-            // - Información buscada: Actualización de los datos de la afección.
-            // - Tablas participantes: afecciones.
-            // - Filtros aplicados: WHERE id = ?.
-            String sqlAff = "UPDATE afecciones SET tipo = ?, nombre_afeccion = ? WHERE id = ?";
-            try (PreparedStatement psAff = con.prepareStatement(sqlAff)) {
-                // Qué hace: Mapea la interfaz al ENUM esperado en la base de datos.
-                String tipoEnum = "enfermedad";
-                if (dto.getConditionTypeId() == 2) tipoEnum = "discapacidad";
-                else if (dto.getConditionTypeId() == 3) tipoEnum = "alergia";
-                
-                psAff.setString(1, tipoEnum);
-                psAff.setString(2, dto.getName());
-                psAff.setInt(3, id);
-                psAff.executeUpdate();
-            }
-            
-            // Qué hace: Verifica si la afección ya tiene un registro de medicamento asociado.
-            boolean existeMed = false;
-            // Explicación de consulta SQL:
-            // - Información buscada: ID del medicamento asociado a la afección.
-            // - Tablas participantes: medicamentos.
-            // - Filtros aplicados: afeccion_id = ?.
-            String sqlCheckMed = "SELECT id FROM medicamentos WHERE afeccion_id = ?";
-            try (PreparedStatement psCheck = con.prepareStatement(sqlCheckMed)) {
-                psCheck.setInt(1, id);
-                try (ResultSet rs = psCheck.executeQuery()) {
-                    existeMed = rs.next();
+            try {
+                String sqlAff = "UPDATE afecciones SET tipo = ?, nombre_afeccion = ? WHERE id = ?";
+                try (PreparedStatement psAff = con.prepareStatement(sqlAff)) {
+                    String tipoEnum = "enfermedad";
+                    if (dto.getConditionTypeId() == 2) tipoEnum = "discapacidad";
+                    else if (dto.getConditionTypeId() == 3) tipoEnum = "alergia";
+                    
+                    psAff.setString(1, tipoEnum);
+                    psAff.setString(2, dto.getName());
+                    psAff.setInt(3, id);
+                    psAff.executeUpdate();
                 }
-            }
-            
-            // Qué hace: Si se especificó una dosis.
-            if (dto.getDose() != null && !dto.getDose().trim().isEmpty()) {
-                if (existeMed) {
-                    // Explicación de consulta SQL:
-                    // - Información buscada: Actualizar la dosis del medicamento.
-                    // - Tablas participantes: medicamentos.
-                    // - Filtros aplicados: afeccion_id = ?.
-                    String sqlUpdMed = "UPDATE medicamentos SET dosis_diaria = ? WHERE afeccion_id = ?";
-                    try (PreparedStatement psUpd = con.prepareStatement(sqlUpdMed)) {
-                        psUpd.setString(1, dto.getDose());
-                        psUpd.setInt(2, id);
-                        psUpd.executeUpdate();
+                
+                boolean existeMed = false;
+                String sqlCheckMed = "SELECT id FROM medicamentos WHERE afeccion_id = ?";
+                try (PreparedStatement psCheck = con.prepareStatement(sqlCheckMed)) {
+                    psCheck.setInt(1, id);
+                    try (ResultSet rs = psCheck.executeQuery()) {
+                        existeMed = rs.next();
+                    }
+                }
+                
+                if (dto.getDose() != null && !dto.getDose().trim().isEmpty()) {
+                    if (existeMed) {
+                        String sqlUpdMed = "UPDATE medicamentos SET dosis_diaria = ? WHERE afeccion_id = ?";
+                        try (PreparedStatement psUpd = con.prepareStatement(sqlUpdMed)) {
+                            psUpd.setString(1, dto.getDose());
+                            psUpd.setInt(2, id);
+                            psUpd.executeUpdate();
+                        }
+                    } else {
+                        String sqlInsMed = "INSERT INTO medicamentos (nombre_droga, dosis_diaria, afeccion_id) VALUES (?, ?, ?)";
+                        try (PreparedStatement psIns = con.prepareStatement(sqlInsMed)) {
+                            psIns.setString(1, "Tratamiento");
+                            psIns.setString(2, dto.getDose());
+                            psIns.setInt(3, id);
+                            psIns.executeUpdate();
+                        }
                     }
                 } else {
-                    // Explicación de consulta SQL:
-                    // - Información buscada: Crear un nuevo registro de medicamento.
-                    // - Tablas participantes: medicamentos.
-                    String sqlInsMed = "INSERT INTO medicamentos (nombre_droga, dosis_diaria, afeccion_id) VALUES (?, ?, ?)";
-                    try (PreparedStatement psIns = con.prepareStatement(sqlInsMed)) {
-                        psIns.setString(1, "Tratamiento");
-                        psIns.setString(2, dto.getDose());
-                        psIns.setInt(3, id);
-                        psIns.executeUpdate();
+                    if (existeMed) {
+                        String sqlDelMed = "DELETE FROM medicamentos WHERE afeccion_id = ?";
+                        try (PreparedStatement psDel = con.prepareStatement(sqlDelMed)) {
+                            psDel.setInt(1, id);
+                            psDel.executeUpdate();
+                        }
                     }
                 }
-            } else {
-                // Qué hace: Si la dosis viene vacía y ya existía un medicamento, se procede a su eliminación física.
-                if (existeMed) {
-                    // Explicación de consulta SQL:
-                    // - Información buscada: Eliminar el medicamento.
-                    // - Tablas participantes: medicamentos.
-                    // - Filtros aplicados: afeccion_id = ?.
-                    String sqlDelMed = "DELETE FROM medicamentos WHERE afeccion_id = ?";
-                    try (PreparedStatement psDel = con.prepareStatement(sqlDelMed)) {
-                        psDel.setInt(1, id);
-                        psDel.executeUpdate();
-                    }
-                }
+                
+                // Confirmamos la actualización transaccional
+                con.commit();
+            } catch (SQLException e) {
+                // En caso de error, revertimos la transacción
+                con.rollback();
+                throw e;
             }
-            
-            // Qué hace: Guarda definitivamente los cambios en base de datos.
-            con.commit();
-        } catch (SQLException e) {
-            // Qué hace: Revierte la transacción entera ante cualquier excepción.
-            if (con != null) con.rollback();
-            throw e;
-        } finally {
-            // Qué hace: Cierra la conexión a la base de datos de forma segura.
-            if (con != null) con.close();
         }
     }
 
@@ -646,42 +530,32 @@ public class IntegranteDAO {
     // Por qué existe: Permite dar de baja un diagnóstico sin romper la integridad física de las tablas.
     // Qué problema resuelve: Remueve en orden los medicamentos huérfanos para evitar errores de claves ajenas.
     public void eliminarAfeccion(int id) throws SQLException {
-        Connection con = null;
-        try {
-            // Qué hace: Obtiene la conexión JDBC.
-            con = Conexion.obtener();
-            // Qué hace: Inicia transacción manual (auto-commit en false).
+        // Usamos try-with-resources para asegurar el cierre automático de la conexión
+        try (Connection con = Conexion.obtener()) {
+            // Configuramos auto-commit en falso para control transaccional manual
             con.setAutoCommit(false);
-            
-            // Explicación de consulta SQL:
-            // - Información buscada: Borrado del medicamento asociado a la afección.
-            // - Tablas participantes: medicamentos.
-            // - Filtros aplicados: afeccion_id = ?.
-            String sqlDelMeds = "DELETE FROM medicamentos WHERE afeccion_id = ?";
-            try (PreparedStatement psDelMeds = con.prepareStatement(sqlDelMeds)) {
-                psDelMeds.setInt(1, id);
-                psDelMeds.executeUpdate();
+            try {
+                // Elimina primero los medicamentos dependientes de la afección
+                String sqlDelMeds = "DELETE FROM medicamentos WHERE afeccion_id = ?";
+                try (PreparedStatement psDelMeds = con.prepareStatement(sqlDelMeds)) {
+                    psDelMeds.setInt(1, id);
+                    psDelMeds.executeUpdate();
+                }
+                
+                // Elimina finalmente la afección
+                String sqlDelAff = "DELETE FROM afecciones WHERE id = ?";
+                try (PreparedStatement psDelAff = con.prepareStatement(sqlDelAff)) {
+                    psDelAff.setInt(1, id);
+                    psDelAff.executeUpdate();
+                }
+                
+                // Confirmamos la eliminación de ambos registros
+                con.commit();
+            } catch (SQLException e) {
+                // En caso de error, revertimos la transacción
+                con.rollback();
+                throw e;
             }
-            
-            // Explicación de consulta SQL:
-            // - Información buscada: Borrado de la afección.
-            // - Tablas participantes: afecciones.
-            // - Filtros aplicados: id = ?.
-            String sqlDelAff = "DELETE FROM afecciones WHERE id = ?";
-            try (PreparedStatement psDelAff = con.prepareStatement(sqlDelAff)) {
-                psDelAff.setInt(1, id);
-                psDelAff.executeUpdate();
-            }
-            
-            // Qué hace: Confirma la transacción en base de datos.
-            con.commit();
-        } catch (SQLException e) {
-            // Qué hace: Si ocurre un error, revierte los borrados para mantener la consistencia.
-            if (con != null) con.rollback();
-            throw e;
-        } finally {
-            // Qué hace: Libera la conexión a la base de datos.
-            if (con != null) con.close();
         }
     }
 
@@ -764,5 +638,34 @@ public class IntegranteDAO {
             // Qué hace: Retorna la lista con los mapeos resultantes.
             return lista;
         }
+    }
+
+    /**
+     * Qué hace: Mapea una fila de ResultSet a un DTO de Afección médica con tipo resuelto.
+     * Por qué se hizo: Evita duplicar el bloque de mapeo y conversión del ENUM tipo en listarAfeccionesPorIntegrante y obtenerAfeccion.
+     * Qué significa: Unifica la conversión de ResultSet a AfeccionDTO.
+     */
+    private AfeccionDTO mapearAfeccion(ResultSet rs) throws SQLException {
+        AfeccionDTO dto = new AfeccionDTO();
+        dto.setId(rs.getInt("id"));
+        dto.setMemberId(rs.getInt("integrante_id"));
+        dto.setName(rs.getString("nombre_afeccion"));
+        dto.setDose(rs.getString("dosis_diaria"));
+        
+        String tipoStr = rs.getString("tipo");
+        int typeId = 1;
+        String typeName = "Enfermedad";
+        if (tipoStr != null) {
+            if (tipoStr.equals("discapacidad")) {
+                typeId = 2;
+                typeName = "Discapacidad";
+            } else if (tipoStr.equals("alergia")) {
+                typeId = 3;
+                typeName = "Alergia";
+            }
+        }
+        dto.setConditionTypeId(typeId);
+        dto.setConditionTypeName(typeName);
+        return dto;
     }
 }

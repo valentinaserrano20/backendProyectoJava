@@ -75,35 +75,8 @@ public class MascotaDAO {
             // Qué hace: Ejecuta la consulta de lectura y procesa el ResultSet.
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    // Qué hace: Instancia el DTO para mapear la fila actual.
-                    MascotaDTO dto = new MascotaDTO();
-                    dto.setId(rs.getInt("id"));
-                    dto.setName(rs.getString("nombre"));
-                    // Qué hace: Valida nulos en la columna raza.
-                    dto.setBreed(rs.getString("raza") != null ? rs.getString("raza") : "Sin raza");
-                    
-                    // Qué hace: Mapea la información de género.
-                    String gen = rs.getString("genero_nombre");
-                    dto.setAnimalGender(gen);
-                    dto.setAnimalGenderName(gen != null ? gen : "No especificado");
-                    dto.setAnimalGenderId(rs.getInt("genero_id"));
-                    
-                    // Qué hace: Calcula y formatea la edad del animal basada en su fecha de nacimiento.
-                    Date birth = rs.getDate("fecha_nacimiento");
-                    if (birth != null) {
-                        dto.setBirthDate(birth.toString());
-                        dto.setAge(Period.between(birth.toLocalDate(), LocalDate.now()).getYears());
-                    } else {
-                        dto.setBirthDate("");
-                        dto.setAge(0);
-                    }
-                    
-                    dto.setPlanId(rs.getInt("plan_id"));
-                    dto.setSpeciesId(rs.getInt("especie_id"));
-                    // Qué hace: Valida nulos en el nombre de la especie.
-                    dto.setSpeciesName(rs.getString("especie_nombre") != null ? rs.getString("especie_nombre") : "Otro");
-                    // Qué hace: Añade el DTO poblado a la lista de retorno.
-                    lista.add(dto);
+                    // Utiliza el método de mapeo centralizado para evitar duplicación
+                    lista.add(mapearMascota(rs));
                 }
             }
             // Qué hace: Retorna el listado de mascotas mapeadas.
@@ -134,32 +107,8 @@ public class MascotaDAO {
             // Qué hace: Ejecuta el SELECT en la base de datos.
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
-                    // Qué hace: Instancia el DTO y mapea cada columna del ResultSet.
-                    MascotaDTO dto = new MascotaDTO();
-                    dto.setId(rs.getInt("id"));
-                    dto.setName(rs.getString("nombre"));
-                    dto.setBreed(rs.getString("raza"));
-                    
-                    String gen = rs.getString("genero_nombre");
-                    dto.setAnimalGender(gen);
-                    dto.setAnimalGenderName(gen);
-                    dto.setAnimalGenderId(rs.getInt("genero_id"));
-                    
-                    // Qué hace: Calcula y setea la edad de la mascota de forma segura.
-                    Date birth = rs.getDate("fecha_nacimiento");
-                    if (birth != null) {
-                        dto.setBirthDate(birth.toString());
-                        dto.setAge(Period.between(birth.toLocalDate(), LocalDate.now()).getYears());
-                    } else {
-                        dto.setBirthDate("");
-                        dto.setAge(0);
-                    }
-                    
-                    dto.setPlanId(rs.getInt("plan_id"));
-                    dto.setSpeciesId(rs.getInt("especie_id"));
-                    dto.setSpeciesName(rs.getString("especie_nombre"));
-                    // Qué hace: Retorna la mascota detallada.
-                    return dto;
+                    // Utiliza el método de mapeo centralizado para evitar duplicación
+                    return mapearMascota(rs);
                 }
             }
         }
@@ -266,45 +215,31 @@ public class MascotaDAO {
     // Por qué existe: Evita violaciones de restricciones de claves foráneas de MySQL durante el borrado físico de la mascota.
     // Qué problema resuelve: Garantiza la atomicidad y la limpieza del historial sanitario evitando registros huérfanos en la base de datos.
     public void eliminarMascota(int id) throws SQLException {
-        Connection con = null;
-        try {
-            // Qué hace: Obtiene la conexión JDBC.
-            con = Conexion.obtener();
-            // Qué hace: Desactiva el auto-commit automático para controlar de manera manual la transacción.
+        // Usamos try-with-resources para la conexión de forma que se cierre automáticamente
+        try (Connection con = Conexion.obtener()) {
+            // Desactivamos el auto-commit para poder controlar de forma manual la transacción
             con.setAutoCommit(false);
-            
-            // Explicación detallada de la consulta SQL de eliminación de vacunas:
-            // - Comando DELETE FROM vacunas: Ordena la eliminación física de registros de la tabla vacunas.
-            // - Filtro WHERE mascota_id = ?: Condición que restringe el borrado únicamente a las vacunas que pertenezcan a la mascota seleccionada, limpiando registros dependientes para mantener la integridad referencial.
-            String sqlDelVacunas = "DELETE FROM vacunas WHERE mascota_id = ?";
-            try (PreparedStatement psV = con.prepareStatement(sqlDelVacunas)) {
-                // Qué hace: Vincula el ID de la mascota y ejecuta el delete.
-                psV.setInt(1, id);
-                psV.executeUpdate();
-            }
-            
-            // Explicación detallada de la consulta SQL de eliminación de la mascota:
-            // - Comando DELETE FROM mascotas: Ordena la eliminación física del registro en la tabla mascotas.
-            // - Filtro WHERE id = ?: Limita el borrado exclusivamente a la mascota cuyo identificador único coincida con el parámetro inyectado, garantizando que no se eliminen otros animales.
-            String sqlDelMascota = "DELETE FROM mascotas WHERE id = ?";
-            try (PreparedStatement psM = con.prepareStatement(sqlDelMascota)) {
-                // Qué hace: Vincula el ID de la mascota y ejecuta el delete.
-                psM.setInt(1, id);
-                psM.executeUpdate();
-            }
-            
-            // Qué hace: Confirma la transacción en base de datos de manera definitiva.
-            con.commit();
-        } catch (SQLException e) {
-            // Qué hace: Si algo falla durante el borrado, revierte la transacción para prevenir la pérdida de integridad.
-            if (con != null) {
+            try {
+                // Sentencia para eliminar las vacunas dependientes para evitar errores de clave foránea
+                String sqlDelVacunas = "DELETE FROM vacunas WHERE mascota_id = ?";
+                try (PreparedStatement psV = con.prepareStatement(sqlDelVacunas)) {
+                    psV.setInt(1, id);
+                    psV.executeUpdate();
+                }
+                
+                // Sentencia para eliminar físicamente la mascota
+                String sqlDelMascota = "DELETE FROM mascotas WHERE id = ?";
+                try (PreparedStatement psM = con.prepareStatement(sqlDelMascota)) {
+                    psM.setInt(1, id);
+                    psM.executeUpdate();
+                }
+                
+                // Confirmamos la transacción
+                con.commit();
+            } catch (SQLException e) {
+                // En caso de error de base de datos, revertimos la transacción
                 con.rollback();
-            }
-            throw e;
-        } finally {
-            // Qué hace: Cierra la conexión JDBC.
-            if (con != null) {
-                con.close();
+                throw e; // Propagamos el error
             }
         }
     }
@@ -476,43 +411,50 @@ public class MascotaDAO {
         
         // Qué hace: Abre la conexión JDBC y prepara la consulta.
         try (Connection con = Conexion.obtener();
-             PreparedStatement ps = con.prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
+             PreparedStatement ps = con.prepareStatement(sql)) {
             
             // Qué hace: Inicializa la lista dinámica para almacenar las mascotas.
             List<MascotaDTO> lista = new ArrayList<>();
-            // Qué hace: Recorre cada fila del ResultSet de la base de datos.
-            while (rs.next()) {
-                // Qué hace: Instancia el DTO de mascota para almacenar los datos de la fila actual.
-                MascotaDTO dto = new MascotaDTO();
-                dto.setId(rs.getInt("id"));
-                dto.setName(rs.getString("nombre"));
-                dto.setBreed(rs.getString("raza") != null ? rs.getString("raza") : "Sin raza");
-                
-                // Qué hace: Mapea la información de género.
-                String gen = rs.getString("genero_nombre");
-                dto.setAnimalGender(gen);
-                dto.setAnimalGenderName(gen != null ? gen : "No especificado");
-                dto.setAnimalGenderId(rs.getInt("genero_id"));
-                
-                // Qué hace: Calcula y formatea la edad del animal basada en su fecha de nacimiento.
-                Date birth = rs.getDate("fecha_nacimiento");
-                if (birth != null) {
-                    dto.setBirthDate(birth.toString());
-                    dto.setAge(Period.between(birth.toLocalDate(), LocalDate.now()).getYears());
-                } else {
-                    dto.setBirthDate("");
-                    dto.setAge(0);
+            // Qué hace: Ejecuta la consulta y procesa el ResultSet.
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    // Utiliza el método de mapeo centralizado para evitar duplicación
+                    lista.add(mapearMascota(rs));
                 }
-                
-                dto.setPlanId(rs.getInt("plan_id"));
-                dto.setSpeciesId(rs.getInt("especie_id"));
-                dto.setSpeciesName(rs.getString("especie_nombre") != null ? rs.getString("especie_nombre") : "Otro");
-                // Qué hace: Agrega el DTO a la lista de retorno.
-                lista.add(dto);
             }
             // Qué hace: Retorna la lista resultante de todas las mascotas registradas.
             return lista;
         }
+    }
+
+    /**
+     * Qué hace: Mapea una fila del ResultSet a un DTO de Mascota e inyecta la edad calculada.
+     * Por qué se hizo: Evita duplicar las 20 líneas de asignación de propiedades entre listarMascotas y obtenerTodasMascotas.
+     * Qué significa: Concentra el mapeo de base de datos a objeto MascotaDTO en una sola función reutilizable.
+     */
+    private MascotaDTO mapearMascota(ResultSet rs) throws SQLException {
+        MascotaDTO dto = new MascotaDTO();
+        dto.setId(rs.getInt("id"));
+        dto.setName(rs.getString("nombre"));
+        dto.setBreed(rs.getString("raza") != null ? rs.getString("raza") : "Sin raza");
+        
+        String gen = rs.getString("genero_nombre");
+        dto.setAnimalGender(gen);
+        dto.setAnimalGenderName(gen != null ? gen : "No especificado");
+        dto.setAnimalGenderId(rs.getInt("genero_id"));
+        
+        Date birth = rs.getDate("fecha_nacimiento");
+        if (birth != null) {
+            dto.setBirthDate(birth.toString());
+            dto.setAge(java.time.Period.between(birth.toLocalDate(), java.time.LocalDate.now()).getYears());
+        } else {
+            dto.setBirthDate("");
+            dto.setAge(0);
+        }
+        
+        dto.setPlanId(rs.getInt("plan_id"));
+        dto.setSpeciesId(rs.getInt("especie_id"));
+        dto.setSpeciesName(rs.getString("especie_nombre") != null ? rs.getString("especie_nombre") : "Otro");
+        return dto;
     }
 }

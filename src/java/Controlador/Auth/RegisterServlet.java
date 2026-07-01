@@ -1,5 +1,15 @@
 package Controlador.Auth;
 
+/*
+ * Qué hace (la acción): Importa la clase de servicio de registros, DAOs de notificaciones y usuarios, DTO de notificaciones, APIs de servlets, colecciones de Java y la utilidad JSON.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - Modelo.Servicios.Auth.RegistroServicio: Servicio de negocio que procesa el registro e inscripción de usuarios.
+ *   - Modelo.DAO.NotificacionDAO, Modelo.DAO.UsuarioDAO: Clases DAO para manipular registros de notificaciones y usuarios en la BD.
+ *   - Modelo.DTO.NotificacionDTO: Data Transfer Object para encapsular datos de alertas.
+ *   - Modelo.Utilidades.JSONUtil: Utilidad para leer el flujo JSON de la petición HTTP.
+ * Para qué se usa (el propósito): Proveer las herramientas lógicas necesarias para validar, inscribir usuarios y disparar notificaciones internas en el sistema.
+ * Por qué es importante (el impacto o problema que resuelve): Sin estas importaciones no se podría interactuar con la lógica de negocio ni enviar las alertas automáticas hacia el panel de los supervisores.
+ */
 import Modelo.Servicios.Auth.RegistroServicio;
 import Modelo.DAO.NotificacionDAO;
 import Modelo.DTO.NotificacionDTO;
@@ -16,48 +26,64 @@ import java.util.List;
 import java.util.Map;
 import org.json.JSONObject;
 
+/*
+ * Qué hace (la acción): Registra el servlet RegisterServlet mapeándolo al endpoint "/api/register".
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - @WebServlet("/api/register"): Anotación que expone este servlet en la ruta indicada ante peticiones entrantes.
+ *   - extends HttpServlet: Permite comportarse como un controlador web HTTP.
+ * Para qué se usa (el propósito): Servir como el endpoint oficial de registro de nuevos usuarios del sistema.
+ * Por qué es importante (el impacto o problema que resuelve): Permite recibir los datos de registro de la aplicación cliente y derivarlos al proceso de negocio.
+ */
 @WebServlet("/api/register")
 public class RegisterServlet extends HttpServlet {
 
-    // =========================================================================
-    // UBICACIÓN: RegisterServlet.java (Método doPost)
-    // Código real de tu proyecto con comentarios explicativos inyectados
-    // =========================================================================
+    /*
+     * Qué hace (la acción): Sobrescribe el método doPost para atender y procesar la petición POST de creación de cuenta de usuario.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - doPost: Método de HttpServlet especializado en el envío de datos estructurados de creación dentro del cuerpo de la petición.
+     * Para qué se usa (el propósito): Recoger los campos de registro, validarlos, crear la cuenta de usuario y notificar a los supervisores.
+     * Por qué es importante (el impacto o problema que resuelve): Centraliza la lógica de validación de datos iniciales del formulario del usuario antes de llamar a la base de datos.
+     */
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
-        // EXPLICACIÓN DE CONCEPTOS LÍNEA POR LÍNEA:
-        
-        // response.setContentType("application/json") le pone un sello a la cabecera de la respuesta HTTP.
-        // Sirve para avisarle al navegador del usuario que lo que le vamos a devolver al final del día
-        // no es una página web visual (HTML), sino un bloque de datos estructurado en formato JSON.
+        /*
+         * Qué hace (la acción): Configura las cabeceras HTTP de respuesta estableciendo que el tipo de datos será JSON codificado en UTF-8.
+         * Qué significa (conceptos, métodos, tipos involucrados): setContentType y setCharacterEncoding de HttpServletResponse.
+         * Para qué se usa (el propósito): Informar al cliente que los datos retornados serán estructurados en formato JSON y asegurar que caracteres como la "ñ" y acentos se muestren correctamente.
+         * Por qué es importante (el impacto o problema que resuelve): Previene corrupciones de texto y garantiza que el frontend pueda interpretar la respuesta inmediatamente.
+         */
         response.setContentType("application/json");
-        
-        // response.setCharacterEncoding("UTF-8") define el mapa de traducción binaria para las letras.
-        // Sirve para que caracteres como la "ñ", los acentos o caracteres especiales en español no se rompan 
-        // ni se transformen en símbolos extraños (como 'Ã±') durante su viaje de regreso por internet.
         response.setCharacterEncoding("UTF-8");
 
-        // PrintWriter es una clase de Java que actúa como un "escribano de red". El método response.getWriter()
-        // nos entrega un objeto conectado directamente al puerto de internet del usuario que hizo la petición.
-        // Todo lo que escribamos en la variable 'out' viajará inmediatamente de vuelta al navegador web.
+        /*
+         * Qué hace (la acción): Obtiene el PrintWriter para escribir y enviar la respuesta en texto al cliente.
+         * Qué significa (conceptos, métodos, tipos involucrados): response.getWriter() obtiene el canal de flujo de salida de red.
+         * Para qué se usa (el propósito): Transmitir el texto JSON de éxito o error al navegador web cliente.
+         * Por qué es importante (el impacto o problema que resuelve): Sin este escritor la petición se quedaría en el limbo y el usuario no sabría si su registro fue exitoso.
+         */
         PrintWriter out = response.getWriter();
 
-        // Iniciamos un bloque try-catch. Si algo falla adentro (un dato inválido, base de datos caída),
-        // el código saltará de inmediato al bloque "catch" de abajo para evitar que el servidor colapse.
         try {
-
-            // JSONUtil.leerJson(request) es una clase de utilidad de tu proyecto. Va al flujo de entrada de la red,
-            // lee todo el texto JSON plano que envió JavaScript en el Paso 2, y lo transforma en un objeto JSONObject
-            // de Java para que podamos extraer sus propiedades usando métodos como .getString().
+            /*
+             * Qué hace (la acción): Lee e interpreta el cuerpo JSON de la petición HTTP transformándolo en un objeto JSONObject.
+             * Qué significa (conceptos, métodos, tipos involucrados): JSONUtil.leerJson(request) lee el flujo del cuerpo de la solicitud y lo parsea.
+             * Para qué se usa (el propósito): Extraer de manera sencilla los campos requeridos para el registro del usuario.
+             * Por qué es importante (el impacto o problema que resuelve): Evita leer y parsear manualmente la corriente de datos del socket de red, simplificando la lógica.
+             */
             JSONObject body = JSONUtil.leerJson(request);
 
-            // VALIDACIONES DE ENTRADA: 
-            // .has("names") revisa si la propiedad existe en el JSON. .getString("names").trim().isEmpty() 
-            // extrae el texto, le borra los espacios de los lados y comprueba si el usuario lo dejó en blanco.
+            /*
+             * Qué hace (la acción): Valida que los campos requeridos estén presentes en el JSON y que no sean cadenas vacías.
+             * Qué significa (conceptos, métodos, tipos involucrados):
+             *   - body.has(clave): Verifica la presencia del atributo.
+             *   - body.getString(clave).trim().isEmpty(): Verifica que la cadena no contenga solo espacios en blanco o esté vacía.
+             *   - throw new IllegalArgumentException(mensaje): Lanza un error controlado que interrumpe la ejecución del código.
+             * Para qué se usa (el propósito): Garantizar que la solicitud cumpla con los requisitos mínimos de datos antes de intentar procesar el registro.
+             * Por qué es importante (el impacto o problema que resuelve): Evita que se inserten registros incompletos o erróneos en la base de datos.
+             */
             if (!body.has("names") || body.getString("names").trim().isEmpty()) {
-                // Si la validación falla, lanza un error controlado deteniendo el flujo del programa de inmediato.
                 throw new IllegalArgumentException("El nombre es requerido");
             }
             if (!body.has("last_names") || body.getString("last_names").trim().isEmpty()) {
@@ -88,42 +114,49 @@ public class RegisterServlet extends HttpServlet {
                 throw new IllegalArgumentException("La seccional u organización es requerida");
             }
 
-            // Una vez que sabemos que ningún campo viene vacío, extraemos los textos del objeto JSON
-            // y los guardamos dentro de variables locales estándar de Java (String).
+            /*
+             * Qué hace (la acción): Extrae los datos de tipo String del JSON limpiándolos de espacios innecesarios con trim().
+             * Qué significa (conceptos, métodos, tipos involucrados): body.getString(...) extrae los textos correspondientes.
+             * Para qué se usa (el propósito): Asignar los datos del formulario a variables locales legibles.
+             * Por qué es importante (el impacto o problema que resuelve): Prepara los datos en variables limpias antes de pasárselos a la capa de servicio.
+             */
             String nombres = body.getString("names").trim();
             String apellidos = body.getString("last_names").trim();
             String email = body.getString("email").trim();
-            String password = body.getString("password"); // Conserva la clave original para encriptarla luego
+            String password = body.getString("password");
             String numDocumento = body.getString("document_number").trim();
             String fechaNac = body.getString("birth_date").trim();
             String telefono = body.getString("phone").trim();
 
-            // Declaramos variables enteras (int) para almacenar las claves numéricas de los catálogos de la base de datos.
+            /*
+             * Qué hace (la acción): Declara variables numéricas y parsea los identificadores de tipo de documento, género y organización de String a int.
+             * Qué significa (conceptos, métodos, tipos involucrados):
+             *   - Integer.parseInt(texto): Convierte texto numérico a un entero primitivo de Java.
+             *   - NumberFormatException: Excepción lanzada si el texto contiene caracteres no numéricos.
+             * Para qué se usa (el propósito): Validar que las llaves foráneas correspondan a números de ID válidos.
+             * Por qué es importante (el impacto o problema que resuelve): Previene errores de consistencia en el backend si un cliente malicioso enviara letras en lugar de llaves numéricas para estas propiedades.
+             */
             int tipoDocumentoId;
             int generoId;
             int organizacionId;
 
-            // Usamos un try interno porque convertir texto a número puede fallar si mandan letras en lugar de números.
             try {
-                // Integer.parseInt() toma el texto del JSON (ej: "1") y lo transforma en un número entero real (1).
                 tipoDocumentoId = Integer.parseInt(body.getString("document_type_id"));
                 generoId = Integer.parseInt(body.getString("gender_id"));
                 organizacionId = Integer.parseInt(body.getString("organization_id"));
             } catch (NumberFormatException e) {
-                // Si el formato de texto no se pudo convertir a número, se lanza este error para proteger el sistema.
                 throw new IllegalArgumentException("Los IDs de tipo de documento, género y organización deben ser numéricos");
             }
 
-            // =========================================================================
-            // LÍNEA CRÍTICA DE REACCIÓN EN CADENA (Invocación al Servicio):
-            // =========================================================================
-            
-            // Creamos un objeto vivo en la memoria (Instancia) de la clase RegistroServicio usando la palabra clave 'new'.
-            // Hacemos esto porque el Servlet solo maneja la red, no sabe de reglas de negocio.
+            /*
+             * Qué hace (la acción): Instancia RegistroServicio y llama al método registrarUsuario con todos los datos recolectados.
+             * Qué significa (conceptos, métodos, tipos involucrados):
+             *   - new RegistroServicio(): Crea el objeto de negocio para el registro.
+             *   - servicio.registrarUsuario(...): Lógica de negocio que valida unicidad del correo y cédula, encripta la clave del usuario e inserta el nuevo registro en la base de datos con rol inactivo.
+             * Para qué se usa (el propósito): Delegar y resolver el registro del nuevo usuario en la base de datos.
+             * Por qué es importante (el impacto o problema que resuelve): Centraliza la lógica transaccional de registro en la capa correspondiente, evitando la mezcla de SQL y lógica criptográfica en el controlador servlet.
+             */
             RegistroServicio servicio = new RegistroServicio();
-
-            // Invocamos al método .registrarUsuario() pasándole todas nuestras variables limpias como argumentos.
-            // Esta línea exacta transfiere el flujo de ejecución del Servlet hacia el Paso 4 (La Capa de Servicio).
             servicio.registrarUsuario(
                     nombres,
                     apellidos,
@@ -137,76 +170,69 @@ public class RegisterServlet extends HttpServlet {
                     organizacionId
             );
 
-            // =========================================================================
-            // INTERACCIÓN CON COMPONENTES ADICIONALES (Uso de DTO y DAO complementario)
-            // =========================================================================
+            /*
+             * Qué hace (la acción): De forma opcional e interna, busca a todos los usuarios supervisores activos en el sistema y les crea una notificación de alerta sobre el registro del nuevo voluntario.
+             * Qué significa (conceptos, métodos, tipos involucrados):
+             *   - UsuarioDAO / NotificacionDAO: Acceso a datos de usuarios y alertas.
+             *   - list.listarVoluntariosTodos(): Devuelve la lista completa de personas registradas.
+             *   - NotificacionDTO: Contenedor temporal de atributos de la notificación.
+             *   - notificacionDAO.crear(notificacion): Registra el DTO de alerta en la base de datos SQL.
+             * Para qué se usa (el propósito): Notificar de manera proactiva al personal del nivel de supervisión para que procedan a activar la cuenta del voluntario recién registrado.
+             * Por qué es importante (el impacto o problema que resuelve): Mejora la experiencia y el flujo del sistema. El try-catch de notificaciones es defensivo: si por alguna razón falla el registro de la alerta, el registro general del usuario no se revierte (sigue siendo exitoso).
+             */
             try {
-                // Instancia el DAO de usuarios para poder consultar registros existentes de la base de datos.
                 UsuarioDAO usuarioDAO = new UsuarioDAO();
-                // Instancia el DAO de notificaciones, encargado exclusivo de guardar alertas en SQL.
                 NotificacionDAO notificacionDAO = new NotificacionDAO();
                 
-                // Llama al método del DAO para traer una lista con todos los usuarios registrados en el sistema.
                 List<Map<String, Object>> supervisores = usuarioDAO.listarVoluntariosTodos();
                 
-                // Itera (recorre) uno por uno los usuarios de la lista mediante un ciclo for
                 for (Map<String, Object> supervisor : supervisores) {
-                    // Extrae el valor de la columna 'rol_id'. Si es igual a 2, significa que este usuario es un Supervisor.
                     if ((Integer) supervisor.get("rol_id") == 2) {
-                        
-                        // USO DEL DTO: Creamos un Data Transfer Object (un contenedor vacío diseñado solo para mover datos).
                         NotificacionDTO notificacion = new NotificacionDTO();
-                        
-                        // Metemos la información dentro de la "caja" del DTO usando sus métodos setter (.set...)
-                        notificacion.setUsuarioId((Integer) supervisor.get("id")); // ID del supervisor que recibirá la alerta
+                        notificacion.setUsuarioId((Integer) supervisor.get("id"));
                         notificacion.setTitulo("Nuevo usuario registrado");
                         notificacion.setMensaje("El usuario " + nombres + " " + apellidos + " se ha registrado en el sistema y espera activación");
-                        notificacion.setTipo("nuevo_usuario"); // Clasificación interna de la alerta
-                        notificacion.setLeida(false); // Por defecto la alerta nace marcada como "No leída"
-                        notificacion.setEnlace("#/supervisor/usuarios/peticiones"); // Destino al hacer clic en el frontend
+                        notificacion.setTipo("nuevo_usuario");
+                        notificacion.setLeida(false);
+                        notificacion.setEnlace("#/supervisor/usuarios/peticiones");
                         notificacion.setEntidadId(0);
                         
-                        // REACCIÓN EN CADENA SECUNDARIA: Pasamos la caja DTO llena al método .crear() de NotificacionDAO.
-                        // Esto hace que la alerta viaje directamente hacia su propia tabla en la base de datos.
                         notificacionDAO.crear(notificacion);
                     }
                 }
             } catch (Exception e) {
-                // Si falla el envío de notificaciones (por ejemplo, la tabla de alertas no existe), imprimimos el error 
-                // en la consola del servidor, pero NO detenemos el registro del usuario. El voluntario se registra igual.
                 System.err.println("Error al crear notificación: " + e.getMessage());
             }
 
-            // RESPUESTA DE ÉXITO EN JSON:
-            // Creamos una respuesta vacía usando la clase JSONObject de la librería.
+            /*
+             * Qué hace (la acción): Instancia un JSONObject de confirmación, le añade el estado exitoso y lo imprime en el flujo de salida hacia el cliente.
+             * Qué significa (conceptos, métodos, tipos involucrados): respuesta.put() añade claves lógicas al objeto JSON que se transmite.
+             * Para qué se usa (el propósito): Comunicar al frontend que la cuenta ha sido creada exitosamente y está pendiente de activación por parte del supervisor.
+             * Por qué es importante (el impacto o problema que resuelve): Envía la respuesta de éxito de vuelta al navegador del cliente finalizando el flujo asíncrono satisfactoriamente.
+             */
             JSONObject respuesta = new JSONObject();
-            // Le insertamos una clave lógica 'success' establecida en verdadero (true).
             respuesta.put("success", true);
-            // Inyectamos el mensaje descriptivo de éxito.
             respuesta.put("message", "Cuenta creada exitosamente, espera la activación de tu cuenta");
-
-            // El escritor de red 'out' toma el objeto JSON, lo convierte en texto plano y lo empuja 
-            // a través de internet de vuelta al archivo 'registerController.js' del Paso 1.
             out.print(respuesta);
 
         } catch (Exception e) {
-            // Si algo falló arriba o el Servicio arrojó una excepción, el programa se salta todo y cae en este bloque.
-            
-            // Si el error ocurrió porque faltó un campo (IllegalArgumentException) o porque el correo/cédula ya existían:
+            /*
+             * Qué hace (la acción): Captura errores ocurridos durante el registro, establece el código de estado HTTP adecuado (400 o 500) y responde un JSON con el mensaje detallado.
+             * Qué significa (conceptos, métodos, tipos involucrados):
+             *   - e instanceof IllegalArgumentException: Verifica si el error fue por validación de campos.
+             *   - response.setStatus(código): Configura el código HTTP de respuesta.
+             * Para qué se usa (el propósito): Reportar fallos controlados (ej: email ya registrado, celular inválido) para que el frontend informe al usuario final de manera adecuada.
+             * Por qué es importante (el impacto o problema que resuelve): Previene la inestabilidad de la aplicación, oculta los detalles internos de base de datos Java (StackTrace) y ofrece retroalimentación precisa al usuario.
+             */
             if (e instanceof IllegalArgumentException || e.getMessage().contains("ya está registrado")) {
-                // Modificamos el estado de la respuesta HTTP a 400 (Bad Request), indicándole al navegador que fue un error del cliente.
                 response.setStatus(400);
             } else {
-                // Si fue un error imprevisto (ej: código Java mal escrito o conexión a base de datos muerta), ponemos estado 500 (Server Error).
                 response.setStatus(500);
             }
 
-            // Creamos un objeto JSON exclusivo para empacar los datos de la falla.
             JSONObject error = new JSONObject();
             error.put("success", false);
-            error.put("message", e.getMessage()); // Captura el mensaje exacto del error (ej: "El correo ya está registrado")
-
-            // Escribe el JSON de error en el canal de red hacia el navegador del cliente.
+            error.put("message", e.getMessage());
             out.print(error);
         }
     }

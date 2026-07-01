@@ -1,55 +1,55 @@
 package Controlador.Voluntario.TestVulnerabilidad;
 
+/*
+ * Qué hace (la acción): Importa la capa de servicios de vulnerabilidad, utilidad de respuestas web y APIs estándares de servlets de Jakarta.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - Modelo.Servicios.Voluntario.VulnerabilidadServicio: Servicio de negocio que realiza las consultas JDBC en MySQL para las preguntas y opciones del test de vulnerabilidad.
+ *   - Modelo.Utilidades.ResponseUtil: Clase de utilidad para dar formato JSON estructurado a las respuestas.
+ * Para qué se usa (el propósito): Proveer al servlet las dependencias requeridas para consultar el banco de preguntas del test.
+ * Por qué es importante (el impacto o problema que resuelve): Sin estas importaciones, no se podrían recuperar las preguntas del censo de vulnerabilidad para enviárselas al cliente.
+ */
 import Modelo.Servicios.Voluntario.VulnerabilidadServicio;
+import Modelo.Utilidades.ResponseUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
 import java.io.IOException;
-import org.json.JSONObject;
 
-// Qué hace: Servlet encargado de mapear las peticiones HTTP GET sobre el catálogo de preguntas de vulnerabilidad para calificar el test.
-// Por qué existe: Actúa como el controlador que provee el catálogo estático o dinámico de preguntas (infraestructura, ubicación, capacitación) para que el voluntario responda el test de vulnerabilidad.
-// Qué pasaría si no estuviera: No se podrían cargar ni mostrar las preguntas del test en el formulario del frontend, impidiendo calificar la vulnerabilidad general del plan.
-// @WebServlet("/api/vulnerableQuestions/*")
+/*
+ * Qué hace (la acción): Asocia el servlet PreguntasVulnerabilidadServlet con los endpoints "/api/vulnerableQuestions" y "/api/vulnerableQuestions/paginate" mediante @WebServlet.
+ * Qué significa (conceptos, métodos, tipos involucrados): Registra el servlet ante Tomcat permitiendo responder en ambos patrones de URL geográficos.
+ * Para qué se usa (el propósito): Proveer el catálogo de preguntas del test de vulnerabilidad familiar al voluntario en porciones o en masa.
+ * Por qué es importante (el impacto o problema que resuelve): Habilita al frontend para que cargue la batería de preguntas oficiales que componen el test de vulnerabilidad del hogar.
+ */
+@WebServlet(urlPatterns = {
+    "/api/vulnerableQuestions",
+    "/api/vulnerableQuestions/paginate"
+})
 public class PreguntasVulnerabilidadServlet extends HttpServlet {
-    // Qué hace: Instancia el servicio de lógica de negocios para la vulnerabilidad y sus preguntas.
-    // Por qué existe: Separa la gestión del protocolo HTTP de la consulta de base de datos de preguntas.
-    // Qué pasaría si no estuviera: El servlet debería realizar consultas directas SQL mediante JDBC.
-    // Flujo: De aquí pasamos a VulnerabilidadServicio.
+
+    /*
+     * Qué hace (la acción): Instancia de manera privada y constante la variable servicio de tipo VulnerabilidadServicio.
+     * Qué significa (conceptos, métodos, tipos involucrados): Instancia de la clase de servicios de negocio para vulnerabilidad.
+     * Para qué se usa (el propósito): Invocar las consultas de preguntas.
+     */
     private final VulnerabilidadServicio servicio = new VulnerabilidadServicio();
 
-    // Qué hace: Atiende llamadas HTTP GET para listar preguntas de vulnerabilidad, ya sea en lote completo o paginadas.
-    // Por qué existe: Proporciona las preguntas que estructuran el test de vulnerabilidad del plan de emergencia familiar en la interfaz SPA.
-    // Qué pasaría si no estuviera: No se podrían renderizar las preguntas dinámicamente en el formulario web del test.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doGet para obtener el catálogo completo de preguntas si se llama al endpoint general, o de forma paginada en el endpoint "/paginate" con el número de página suministrado.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - request.getServletPath(): Retorna la ruta mapeada que disparó el servlet (ej. "/api/vulnerableQuestions/paginate").
+     *   - servicio.obtenerPreguntasPaginadas(page, 3): Obtiene bloques de 3 preguntas para alivianar el peso del formulario.
+     * Para qué se usa (el propósito): Renderizar las preguntas del censo en el cuestionario de vulnerabilidad del voluntario.
+     * Por qué es importante (el impacto o problema que resuelve): Permite que el cuestionario se cargue de forma modular (por ejemplo, de 3 en 3), reduciendo los tiempos de carga en dispositivos con conectividad limitada.
+     */
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
         
-        // Qué hace: Verifica que exista una sesión de servidor activa para el usuario.
-        // Por qué existe: Impide que usuarios anónimos o no autorizados descarguen el listado de preguntas del test.
-        // Qué pasaría si no estuviera: Cualquiera podría acceder al catálogo de preguntas de auditoría sin identificarse.
-        HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("usuarioId") == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write(new JSONObject()
-                .put("success", false)
-                .put("message", "Acceso denegado. Inicie sesión.")
-                .toString());
-            return;
-        }
-        
-        String pathInfo = request.getPathInfo();
-        if (pathInfo == null || pathInfo.equals("/")) {
-            // Qué hace: Obtiene la totalidad de preguntas de vulnerabilidad disponibles en la base de datos.
-            // y luego de esto pasamos a VulnerabilidadServicio.obtenerPreguntas, que realiza un SELECT * de las preguntas.
-            String json = servicio.obtenerPreguntas();
-            response.getWriter().write(json);
-        } else if (pathInfo.equals("/paginate")) {
+        String path = request.getServletPath();
+        if (path.endsWith("/paginate")) {
             int page = 1;
             String pageStr = request.getParameter("page");
             if (pageStr != null) {
@@ -59,16 +59,14 @@ public class PreguntasVulnerabilidadServlet extends HttpServlet {
                     page = 1;
                 }
             }
-            // Qué hace: Obtiene las preguntas de vulnerabilidad de forma paginada para realizar la carga dosificada en el frontend.
-            // y luego de esto pasamos a VulnerabilidadServicio.obtenerPreguntasPaginadas, que consulta con cláusulas LIMIT y OFFSET.
             String json = servicio.obtenerPreguntasPaginadas(page, 3);
+            response.getWriter().write(json);
+        } else if (path.equals("/api/vulnerableQuestions")) {
+            String json = servicio.obtenerPreguntas();
             response.getWriter().write(json);
         } else {
             response.setStatus(HttpServletResponse.SC_NOT_FOUND);
-            response.getWriter().write(new JSONObject()
-                .put("success", false)
-                .put("message", "Recurso no encontrado.")
-                .toString());
+            response.getWriter().write(ResponseUtil.error("Recurso no encontrado."));
         }
     }
 }

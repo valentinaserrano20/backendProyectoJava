@@ -1,55 +1,57 @@
 package Controlador.Voluntario.Integrantes;
 
+/*
+ * Qué hace (la acción): Importa la clase DTO de integrantes, la capa de servicio de integrantes, utilidades de JSON, respuestas web y APIs estándares de servlets de Jakarta.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - Modelo.DTO.IntegranteDTO: Clase de transferencia que encapsula los datos personales de un familiar (nombre, nacimiento, documento, EPS, teléfono, grupo sanguíneo, etc.).
+ *   - Modelo.Servicios.Voluntario.IntegranteServicio: Servicio de negocio que procesa las reglas del censo familiar en la base de datos SQL.
+ * Para qué se usa (el propósito): Proveer al servlet de las herramientas lógicas necesarias para procesar peticiones CRUD sobre el grupo familiar del voluntario.
+ * Por qué es importante (el impacto o problema que resuelve): Sin estas importaciones, no se podrían registrar las personas que viven en la vivienda del plan de emergencia familiar.
+ */
 import Modelo.DTO.IntegranteDTO;
 import Modelo.Servicios.Voluntario.IntegranteServicio;
+import Modelo.Utilidades.JSONUtil;
+import Modelo.Utilidades.ResponseUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
-import java.io.BufferedReader;
 import java.io.IOException;
 import org.json.JSONObject;
 
-/**
- * Qué hace: Servlet encargado de mapear las peticiones HTTP CRUD (GET, POST, PUT, DELETE) sobre la entidad integrantes (miembros de la familia).
- * Por qué existe: Actúa como el controlador de entrada para gestionar el flujo de datos de los integrantes de un plan de emergencia.
- * Qué pasaría si no estuviera: Los voluntarios no tendrían un enrutador para ingresar, ver, actualizar o dar de baja a los miembros de los núcleos familiares censados.
+/*
+ * Qué hace (la acción): Asocia el servlet IntegranteServlet con el endpoint "/api/members/*" utilizando la anotación @WebServlet.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - @WebServlet: Anotación de Jakarta para registrar dinámicamente el enrutador en Tomcat.
+ * Para qué se usa (el propósito): Servir como el endpoint de red CRUD para gestionar la lista de personas del censo de evacuación familiar.
+ * Por qué es importante (el impacto o problema que resuelve): Mapea las llamadas RESTful para que el voluntario registre, edite o dé de baja a integrantes del hogar de forma asíncrona.
  */
 @WebServlet("/api/members/*")
 public class IntegranteServlet extends HttpServlet {
 
-    // Qué hace: Instancia el servicio de lógica de negocios para el control de integrantes de la vivienda.
-    // Por qué existe: Separa el enrutamiento de red de la lógica JDBC y de negocio de censados.
-    // Qué pasaría si no estuviera: Deberíamos programar accesos de base de datos directos e inserciones complejas dentro de este servlet de presentación.
-    // Flujo: De aquí pasamos a IntegranteServicio.
+    /*
+     * Qué hace (la acción): Instancia de manera privada y constante la variable servicio de tipo IntegranteServicio.
+     * Qué significa (conceptos, métodos, tipos involucrados): Instancia de la clase de servicios de negocio para los integrantes.
+     * Para qué se usa (el propósito): Invocar los procesos de creación, lectura, actualización y eliminación.
+     */
     private final IntegranteServicio servicio = new IntegranteServicio();
 
-    // Qué hace: Atiende peticiones GET para listar integrantes de un plan (bajo /familyPlan/{planId}) o consultar los detalles de un integrante individual (bajo /{id}).
-    // Por qué existe: Permite a las pantallas del voluntario y del supervisor visualizar y precargar los datos de los miembros familiares en el navegador.
-    // Qué pasaría si no estuviera: No podríamos desplegar las tablas de integrantes familiares en la SPA.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doGet para listar los integrantes de un plan familiar en la subruta "/familyPlan/{planId}" de manera paginada, o en "/familyPlan/select/{planId}" de manera plana sin paginar para rellenar controles select (ej. para asignar un coordinador), o consultar un integrante unitario.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - select: Sub-segmento que indica la recuperación de la lista simplificada de integrantes para los dropdowns.
+     *   - pageParam: Parámetro de paginación que indica la página actual de la tabla en el frontend.
+     * Para qué se usa (el propósito): Alimentar la tabla de integrantes de la familia y los dropdowns de selección de responsables en el Plan de Acción familiar.
+     * Por qué es importante (el impacto o problema que resuelve): Permite que la UI del voluntario renderice dinámicamente a los integrantes de su hogar aplicando paginación para agilizar la navegación de red.
+     */
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-        
-        // Qué hace: Valida la sesión activa del voluntario.
-        // Por qué existe: Salvaguarda los datos de identificación, celular, parentesco e historial de los integrantes familiares frente a accesos malintencionados.
-        // Qué pasaría si no estuviera: Cualquier persona podría descargar listados de personas del censo (incluyendo menores de edad) sin estar autenticado.
-        HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("usuarioId") == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Inicie sesión.").toString());
-            return;
-        }
-        
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || pathInfo.equals("/")) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Recurso no especificado.").toString());
+            response.getWriter().write(ResponseUtil.error("Recurso no especificado."));
             return;
         }
         
@@ -59,16 +61,13 @@ public class IntegranteServlet extends HttpServlet {
             if (parts[1].equals("familyPlan")) {
                 if (parts.length < 3) {
                     response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                    response.getWriter().write(new JSONObject().put("success", false).put("message", "ID de plan familiar no provisto.").toString());
+                    response.getWriter().write(ResponseUtil.error("ID de plan familiar no provisto."));
                     return;
                 }
                 
                 // Caso A: members/familyPlan/select/{planId} (Para combos de coordinadores)
                 if (parts.length > 3 && parts[2].equals("select")) {
                     int planId = Integer.parseInt(parts[3]);
-                    
-                    // Qué hace: Recupera un listado simplificado para selects de formulario.
-                    // y luego de esto pasamos a IntegranteServicio.obtenerIntegrantesSeleccion, que lee de forma directa los nombres.
                     String resJson = servicio.obtenerIntegrantesSeleccion(planId);
                     response.getWriter().write(resJson);
                 } 
@@ -81,49 +80,38 @@ public class IntegranteServlet extends HttpServlet {
                         page = Integer.parseInt(pageParam);
                     }
                     
-                    // Qué hace: Obtiene la lista paginada de integrantes familiares.
-                    // y luego de esto pasamos a IntegranteServicio.listarIntegrantes, el cual realiza el SELECT correspondiente en la BD.
                     String resJson = servicio.listarIntegrantes(planId, page);
                     response.getWriter().write(resJson);
                 }
             } else {
                 int id = Integer.parseInt(parts[1]);
-                
-                // Qué hace: Consulta un integrante familiar por su ID único.
-                // y luego de esto pasamos a IntegranteServicio.obtenerIntegrante, que hace SELECT filtrando por ID.
                 String resJson = servicio.obtenerIntegrante(id);
                 response.getWriter().write(resJson);
             }
         } catch (NumberFormatException e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "El identificador debe ser numérico.").toString());
+            response.getWriter().write(ResponseUtil.error("El identificador debe ser numérico."));
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Error del servidor: " + e.getMessage()).toString());
+            response.getWriter().write(ResponseUtil.error("Error del servidor: " + e.getMessage()));
         }
     }
 
-    // Qué hace: Atiende peticiones POST para registrar un nuevo integrante familiar atado a un plan (bajo /{planId}).
-    // Por qué existe: Permite persistir en la base de datos un nuevo miembro de la familia ingresado en el formulario.
-    // Qué pasaría si no estuviera: Sería imposible registrar nuevos familiares dentro del censo familiar.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doPost para recibir el JSON de un nuevo integrante (nombres, apellidos, nacimiento, tipo de documento, EPS, teléfono, grupo sanguíneo, nacionalidad y género) y guardarlo en la base de datos SQL atado a su plan familiar.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - JSONUtil.leerJson(request): Parsea la petición asíncrona a un objeto JSON.
+     *   - dto.setPlanId(planId): Vincula al integrante con la clave foránea del plan de emergencia familiar.
+     * Para qué se usa (el propósito): Insertar un nuevo miembro del hogar en el censo familiar de emergencia de la vivienda.
+     * Por qué es importante (el impacto o problema que resuelve): Previene el registro de integrantes con datos nulos o inconsistentes en MySQL validando el cuerpo JSON antes de ejecutar la inserción en base de datos.
+     */
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-        
-        HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("usuarioId") == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Inicie sesión.").toString());
-            return;
-        }
-        
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || pathInfo.equals("/")) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "ID de plan familiar no provisto.").toString());
+            response.getWriter().write(ResponseUtil.error("ID de plan familiar no provisto."));
             return;
         }
         
@@ -131,16 +119,7 @@ public class IntegranteServlet extends HttpServlet {
         
         try {
             int planId = Integer.parseInt(parts[1]);
-            
-            StringBuilder buffer = new StringBuilder();
-            String line;
-            try (BufferedReader reader = request.getReader()) {
-                while ((line = reader.readLine()) != null) {
-                    buffer.append(line);
-                }
-            }
-            
-            JSONObject json = new JSONObject(buffer.toString());
+            JSONObject json = JSONUtil.leerJson(request);
             IntegranteDTO dto = new IntegranteDTO();
             dto.setPlanId(planId);
             dto.setNames(json.getString("names"));
@@ -156,41 +135,34 @@ public class IntegranteServlet extends HttpServlet {
             dto.setNationalityId(json.optInt("nationality_id", 0));
             dto.setGenderId(json.optInt("gender_id", 0));
             
-            // Qué hace: Llama al servicio para guardar el integrante.
-            // y luego de esto pasamos a IntegranteServicio.crearIntegrante, que valida e inserta el integrante en MySQL.
             String resJson = servicio.crearIntegrante(dto);
             response.getWriter().write(resJson);
-            
         } catch (NumberFormatException e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "ID de plan familiar debe ser numérico.").toString());
+            response.getWriter().write(ResponseUtil.error("ID de plan familiar debe ser numérico."));
+        } catch (IllegalArgumentException e) {
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            response.getWriter().write(ResponseUtil.error("JSON mal formado: " + e.getMessage()));
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Error al registrar integrante: " + e.getMessage()).toString());
+            response.getWriter().write(ResponseUtil.error("Error al registrar integrante: " + e.getMessage()));
         }
     }
 
-    // Qué hace: Atiende peticiones HTTP PUT para actualizar de forma integral los datos de un integrante específico (bajo /{id}).
-    // Por qué existe: Permite modificar la información demográfica o de contacto del integrante y guardarla de forma permanente.
-    // Qué pasaría si no estuviera: No podríamos corregir nombres, teléfonos o datos demográficos ingresados incorrectamente.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doPut para actualizar de manera parcial todos los datos personales o de contacto de un integrante familiar existente por su ID.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - doPut: Procesador de modificaciones completas de recursos.
+     *   - servicio.actualizarIntegrante(id, dto): Actualiza en base de datos el integrante seleccionado.
+     * Para qué se usa (el propósito): Modificar datos personales del miembro familiar sin tener que eliminarlo y volverlo a crear.
+     */
     @Override
     protected void doPut(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-        
-        HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("usuarioId") == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Inicie sesión.").toString());
-            return;
-        }
-        
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || pathInfo.equals("/")) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "ID de integrante no provisto.").toString());
+            response.getWriter().write(ResponseUtil.error("ID de integrante no provisto."));
             return;
         }
         
@@ -198,16 +170,7 @@ public class IntegranteServlet extends HttpServlet {
         
         try {
             int id = Integer.parseInt(parts[1]);
-            
-            StringBuilder buffer = new StringBuilder();
-            String line;
-            try (BufferedReader reader = request.getReader()) {
-                while ((line = reader.readLine()) != null) {
-                    buffer.append(line);
-                }
-            }
-            
-            JSONObject json = new JSONObject(buffer.toString());
+            JSONObject json = JSONUtil.leerJson(request);
             IntegranteDTO dto = new IntegranteDTO();
             dto.setNames(json.getString("names"));
             dto.setLastNames(json.getString("last_names"));
@@ -222,41 +185,33 @@ public class IntegranteServlet extends HttpServlet {
             dto.setNationalityId(json.optInt("nationality_id", 0));
             dto.setGenderId(json.optInt("gender_id", 0));
             
-            // Qué hace: Llama al servicio para actualizar los datos.
-            // y luego de esto pasamos a IntegranteServicio.actualizarIntegrante, que ejecuta el UPDATE SQL en base de datos.
             String resJson = servicio.actualizarIntegrante(id, dto);
             response.getWriter().write(resJson);
-            
         } catch (NumberFormatException e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "ID de integrante debe ser numérico.").toString());
+            response.getWriter().write(ResponseUtil.error("ID de integrante debe ser numérico."));
+        } catch (IllegalArgumentException e) {
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            response.getWriter().write(ResponseUtil.error("JSON mal formado: " + e.getMessage()));
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Error al actualizar integrante: " + e.getMessage()).toString());
+            response.getWriter().write(ResponseUtil.error("Error al actualizar integrante: " + e.getMessage()));
         }
     }
 
-    // Qué hace: Atiende peticiones HTTP DELETE para eliminar de la base de datos un integrante familiar por su ID único (bajo /{id}).
-    // Por qué existe: Permite dar de baja o quitar integrantes de la familia cuando el voluntario lo solicita desde la interfaz.
-    // Qué pasaría si no estuviera: No podríamos retirar del censo familiar a personas registradas por equivocación.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doDelete para dar de baja física y eliminar un integrante familiar por su ID en la base de datos SQL.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - servicio.eliminarIntegrante(id): Remueve la fila correspondiente en base de datos.
+     * Para qué se usa (el propósito): Eliminar del censo familiar a un integrante del hogar de forma definitiva.
+     */
     @Override
     protected void doDelete(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-        
-        HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("usuarioId") == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Inicie sesión.").toString());
-            return;
-        }
-        
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || pathInfo.equals("/")) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "ID de integrante no provisto.").toString());
+            response.getWriter().write(ResponseUtil.error("ID de integrante no provisto."));
             return;
         }
         
@@ -264,18 +219,14 @@ public class IntegranteServlet extends HttpServlet {
         
         try {
             int id = Integer.parseInt(parts[1]);
-            
-            // Qué hace: Elimina físicamente el integrante llamando al servicio.
-            // y luego de esto pasamos a IntegranteServicio.eliminarIntegrante, que borra la fila en la BD.
             String resJson = servicio.eliminarIntegrante(id);
             response.getWriter().write(resJson);
-            
         } catch (NumberFormatException e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "ID de integrante debe ser numérico.").toString());
+            response.getWriter().write(ResponseUtil.error("ID de integrante debe ser numérico."));
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Error al eliminar integrante: " + e.getMessage()).toString());
+            response.getWriter().write(ResponseUtil.error("Error al eliminar integrante: " + e.getMessage()));
         }
     }
 }

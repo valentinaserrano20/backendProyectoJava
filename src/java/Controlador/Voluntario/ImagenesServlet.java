@@ -1,22 +1,34 @@
 package Controlador.Voluntario;
 
+/*
+ * Qué hace (la acción): Importa la clase del servicio de imágenes, utilidades de JSON y respuestas web, APIs de servlets de Jakarta y la clase Part para procesar archivos multipart.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - Modelo.Servicios.Voluntario.ImagenServicio: Servicio de negocio que realiza validaciones físicas de archivos, subidas al disco, reemplazo y borrado de croquis.
+ *   - jakarta.servlet.http.Part: Interfaz que representa una parte de datos o archivo recibido en una petición multipart/form-data.
+ * Para qué se usa (el propósito): Proveer al servlet las dependencias requeridas para procesar y almacenar imágenes en el servidor.
+ * Por qué es importante (el impacto o problema que resuelve): Sin estas importaciones, no se podrían recuperar los bytes del croquis de vivienda ni enrutar la lógica de almacenamiento en el sistema de archivos del servidor.
+ */
 import Modelo.Servicios.Voluntario.ImagenServicio;
+import Modelo.Utilidades.JSONUtil;
+import Modelo.Utilidades.ResponseUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.MultipartConfig;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
 import jakarta.servlet.http.Part;
-import java.io.BufferedReader;
 import java.io.IOException;
 import org.json.JSONObject;
 
-/**
- * Qué hace: Servlet controlador mapeado a /api/imagenes/* que procesa todas las solicitudes HTTP del CRUD de Imágenes y croquis.
- * Por qué existe: Actúa como punto de entrada de la API para las operaciones de carga y visualización de imágenes del plan familiar en la SPA.
- * Qué pasaría si no estuviera: Los voluntarios no tendrían un endpoint para cargar mapas, croquis de evacuación o fotografías del estado de las viviendas.
+/*
+ * Qué hace (la acción): Mapea el servlet a "/api/imagenes/*" y configura los límites de carga de archivos binarios mediante las anotaciones @WebServlet y @MultipartConfig.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - @MultipartConfig: Anotación obligatoria para indicar que el servlet espera recibir formularios de tipo multipart (archivos adjuntos).
+ *   - maxFileSize: Límite máximo de tamaño para un archivo individual (ej. 2 MB).
+ *   - maxRequestSize: Límite máximo del cuerpo completo de la petición (ej. 4 MB).
+ * Para qué se usa (el propósito): Controlar la subida y almacenamiento seguro de imágenes de la vivienda, croquis de entorno y puntos de georreferenciación.
+ * Por qué es importante (el impacto o problema que resuelve): Permite que el contenedor Tomcat procese los flujos binarios de imágenes previniendo la inyección de archivos gigantescos que puedan desbordar o saturar el disco del servidor.
  */
 @WebServlet("/api/imagenes/*")
 @MultipartConfig(
@@ -26,15 +38,18 @@ import org.json.JSONObject;
 )
 public class ImagenesServlet extends HttpServlet {
 
-    // Qué hace: Instancia el servicio de lógica de negocios para el control de archivos y gráficos.
-    // Por qué existe: Permite desacoplar el almacenamiento de imágenes del flujo directo de peticiones HTTP.
-    // Qué pasaría si no estuviera: El controlador tendría que encargarse de escribir streams de bytes en el disco duro y consultar la BD.
-    // Flujo: De aquí pasamos a ImagenServicio.
+    /*
+     * Qué hace (la acción): Instancia de manera privada y constante la variable servicio de tipo ImagenServicio.
+     * Qué significa (conceptos, métodos, tipos involucrados): Instancia de la clase de servicios de negocio para croquis e imágenes.
+     * Para qué se usa (el propósito): Invocar los procesos de subida, obtención y eliminación física de croquis.
+     */
     private final ImagenServicio servicio = new ImagenServicio();
 
-    // Qué hace: Captura las peticiones HTTP e intercepta las de tipo PATCH para redirigirlas al método doPatch no nativo.
-    // Por qué existe: Servlets nativos de Java no soportan doPatch por defecto de forma automática en la herencia de HttpServlet.
-    // Qué pasaría si no estuviera: Las peticiones tipo PATCH del frontend fallarían con código 405 (Method Not Allowed).
+    /*
+     * Qué hace (la acción): Sobrescribe el método service para desviar las peticiones que utilizan el verbo HTTP PATCH hacia el método doPatch.
+     * Qué significa (conceptos, métodos, tipos involucrados): Redirección manual de peticiones PATCH en servlets de Jakarta.
+     * Para qué se usa (el propósito): Habilitar la edición parcial de la descripción de las imágenes de vivienda.
+     */
     @Override
     protected void service(HttpServletRequest req, HttpServletResponse resp) 
             throws ServletException, IOException {
@@ -46,29 +61,22 @@ public class ImagenesServlet extends HttpServlet {
         }
     }
 
-    // Qué hace: Atiende peticiones HTTP GET para obtener las imágenes de vivienda, entorno o georreferenciación.
-    // Por qué existe: Permite consultar y renderizar la información de los gráficos en las respectivas pantallas del voluntario y supervisor.
-    // Qué pasaría si no estuviera: La SPA no podría cargar ni mostrar los croquis cargados previamente en el sistema.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doGet para procesar consultas de imágenes, permitiendo listar los croquis de vivienda de un plan familiar, obtener los detalles de una imagen de vivienda en específico o recuperar los croquis únicos de entorno y georreferenciación.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - parts[1].equals("vivienda") && parts[2].equals("planFamiliar"): Identifica la solicitud para listar las imágenes de vivienda adjuntas a un plan familiar.
+     *   - parts[1].equals("entorno") / parts[1].equals("georeferenciacion"): Recupera las imágenes únicas del plan según la categoría de croquis de la familia.
+     * Para qué se usa (el propósito): Cargar y renderizar los croquis y mapas en las tarjetas informativas del panel del voluntario o supervisor.
+     * Por qué es importante (el impacto o problema que resuelve): Permite que el frontend cargue dinámicamente las rutas físicas de los croquis adjuntos al plan de emergencia familiar en tiempo real.
+     */
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) 
             throws ServletException, IOException {
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-
-        // Qué hace: Valida la sesión activa del voluntario.
-        // Por qué existe: Bloquea accesos no autorizados a archivos geográficos y croquis internos de viviendas privadas.
-        // Qué pasaría si no estuviera: Cualquiera en internet podría consultar y descargar mapas e imágenes de viviendas sin credenciales.
-        HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("usuarioId") == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Inicie sesión.").toString());
-            return;
-        }
 
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || pathInfo.equals("/")) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Ruta no especificada.").toString());
+            response.getWriter().write(ResponseUtil.error("Ruta no especificada."));
             return;
         }
 
@@ -81,71 +89,57 @@ public class ImagenesServlet extends HttpServlet {
                 String pageParam = request.getParameter("page");
                 int page = (pageParam != null) ? Integer.parseInt(pageParam) : 1;
                 
-                // Qué hace: Obtiene la lista paginada de imágenes de la vivienda.
-                // y luego de esto pasamos a ImagenServicio.listarImagenesVivienda, el cual lee la tabla de la BD.
                 String jsonRes = servicio.listarImagenesVivienda(planId, page);
                 response.getWriter().write(jsonRes);
             } 
             // Caso 2: imagenes/vivienda/{id}
             else if (parts[1].equals("vivienda") && parts.length == 3) {
                 int id = Integer.parseInt(parts[2]);
-                
-                // Qué hace: Recupera una imagen de vivienda individual por su ID.
-                // y luego de esto pasamos a ImagenServicio.obtenerImagen, el cual realiza el SELECT por clave primaria.
                 String jsonRes = servicio.obtenerImagen(id);
                 response.getWriter().write(jsonRes);
             }
             // Caso 3: imagenes/entorno/planFamiliar/{planId}
             else if (parts[1].equals("entorno") && parts.length > 2 && parts[2].equals("planFamiliar")) {
                 int planId = Integer.parseInt(parts[3]);
-                
-                // Qué hace: Recupera la imagen única del croquis de entorno del plan.
-                // y luego de esto pasamos a ImagenServicio.obtenerImagenPorPlanYTipo, el cual consulta la BD.
                 String jsonRes = servicio.obtenerImagenPorPlanYTipo(planId, "entorno");
                 response.getWriter().write(jsonRes);
             }
             // Caso 4: imagenes/georeferenciacion/planFamiliar/{planId}
             else if (parts[1].equals("georeferenciacion") && parts.length > 2 && parts[2].equals("planFamiliar")) {
                 int planId = Integer.parseInt(parts[3]);
-                
-                // Qué hace: Recupera la imagen del croquis de georreferenciación.
-                // y luego de esto pasamos a ImagenServicio.obtenerImagenPorPlanYTipo, el cual consulta la BD.
                 String jsonRes = servicio.obtenerImagenPorPlanYTipo(planId, "georeferenciacion");
                 response.getWriter().write(jsonRes);
             }
             else {
                 response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                response.getWriter().write(new JSONObject().put("success", false).put("message", "Ruta de consulta no válida.").toString());
+                response.getWriter().write(ResponseUtil.error("Ruta de consulta no válida."));
             }
         } catch (NumberFormatException e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "El identificador de ruta debe ser numérico.").toString());
+            response.getWriter().write(ResponseUtil.error("El identificador de ruta debe ser numérico."));
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Error al procesar la consulta: " + e.getMessage()).toString());
+            response.getWriter().write(ResponseUtil.error("Error al procesar la consulta: " + e.getMessage()));
         }
     }
 
-    // Qué hace: Recibe peticiones HTTP POST para procesar y almacenar archivos de imágenes multipart.
-    // Por qué existe: Permite agregar nuevos croquis de vivienda o subir/sobrescribir imágenes de entorno y mapa.
-    // Qué pasaría si no estuviera: Sería imposible recibir archivos de imagen cargados desde los formularios de la UI.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doPost para recibir el stream multipart de un croquis (vivienda, entorno o georreferenciación) y guardarlo en el disco físico del servidor vinculándolo en base de datos.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - request.getPart("path"): Recupera el fragmento binario de la petición que contiene el archivo de imagen.
+     *   - request.getServletContext().getRealPath("/"): Obtiene la ruta física absoluta de la carpeta raíz de despliegue del servidor para escribir el archivo en disco.
+     *   - subirOReemplazarImagenUnica(...): Lógica del servicio que comprueba si ya existía una imagen de entorno/georreferenciación previa, la borra físicamente y guarda la nueva para no duplicar espacio.
+     * Para qué se usa (el propósito): Almacenar y catalogar en el backend los mapas de rutas de evacuación o fotos de riesgos del hogar que sube el voluntario.
+     * Por qué es importante (el impacto o problema que resuelve): Resuelve la subida y descarte seguro de archivos físicos previniendo fugas de archivos huérfanos sin asociar en el servidor.
+     */
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) 
             throws ServletException, IOException {
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-
-        HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("usuarioId") == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Inicie sesión.").toString());
-            return;
-        }
 
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || pathInfo.equals("/")) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Ruta de envío no especificada.").toString());
+            response.getWriter().write(ResponseUtil.error("Ruta de envío no especificada."));
             return;
         }
 
@@ -156,60 +150,47 @@ public class ImagenesServlet extends HttpServlet {
             String planIdStr = request.getParameter("family_plan_id");
             if (planIdStr == null || planIdStr.isEmpty()) {
                 response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                response.getWriter().write(new JSONObject().put("success", false).put("message", "El ID del plan familiar es obligatorio.").toString());
+                response.getWriter().write(ResponseUtil.error("El ID del plan familiar es obligatorio."));
                 return;
             }
             int planId = Integer.parseInt(planIdStr);
             
-            // Qué hace: Extrae el archivo binario del request multipart mapeado al campo "path".
             Part filePart = request.getPart("path"); 
-            // Qué hace: Resuelve la ruta absoluta del contexto web en el servidor Tomcat.
             String contextPath = request.getServletContext().getRealPath("/");
 
             String jsonRes;
             if (tipo.equals("vivienda")) {
                 String descripcion = request.getParameter("description");
-                
-                // Qué hace: Llama al servicio para procesar y almacenar la imagen de croquis de vivienda.
-                // y luego de esto pasamos a ImagenServicio.subirImagenVivienda, el cual escribe el archivo en el disco y guarda la fila en la BD.
                 jsonRes = servicio.subirImagenVivienda(planId, descripcion, filePart, contextPath);
             } else if (tipo.equals("entorno") || tipo.equals("georeferenciacion")) {
-                
-                // Qué hace: Sube o sobrescribe la imagen única de entorno/mapa en el servidor.
-                // y luego de esto pasamos a ImagenServicio.subirOReemplazarImagenUnica, el cual elimina la imagen anterior si existe y guarda la nueva.
                 jsonRes = servicio.subirOReemplazarImagenUnica(planId, tipo, filePart, contextPath);
             } else {
                 response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                response.getWriter().write(new JSONObject().put("success", false).put("message", "Tipo de gráfico no admitido.").toString());
+                response.getWriter().write(ResponseUtil.error("Tipo de gráfico no admitido."));
                 return;
             }
 
             response.getWriter().write(jsonRes);
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Error al registrar la imagen: " + e.getMessage()).toString());
+            response.getWriter().write(ResponseUtil.error("Error al registrar la imagen: " + e.getMessage()));
         }
     }
 
-    // Qué hace: Procesa solicitudes HTTP PATCH para actualizar la descripción de un gráfico de vivienda existente por su ID.
-    // Por qué existe: Atiende la edición de la descripción del croquis.
-    // Qué pasaría si no estuviera: No podríamos corregir o modificar la descripción o título asignado a un croquis de evacuación ya cargado.
+    /*
+     * Qué hace (la acción): Define la lógica doPatch para actualizar la descripción explicativa de un gráfico de vivienda existente por su ID.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - parts[3].equals("description"): Valida que el endpointPATCH apunte a la edición de descripción del croquis.
+     *   - servicio.actualizarDescripcion(id, descripcion): Actualiza el campo descripción en la base de datos SQL.
+     * Para qué se usa (el propósito): Cambiar el texto descriptivo del gráfico (ej. "Croquis de la habitación principal").
+     */
     protected void doPatch(HttpServletRequest request, HttpServletResponse response) 
             throws ServletException, IOException {
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-
-        HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("usuarioId") == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Inicie sesión.").toString());
-            return;
-        }
 
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || pathInfo.equals("/")) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Ruta no válida.").toString());
+            response.getWriter().write(ResponseUtil.error("Ruta no válida."));
             return;
         }
 
@@ -219,55 +200,42 @@ public class ImagenesServlet extends HttpServlet {
             // Espera: /vivienda/{id}/description
             if (parts[1].equals("vivienda") && parts.length > 3 && parts[3].equals("description")) {
                 int id = Integer.parseInt(parts[2]);
-                
-                StringBuilder buffer = new StringBuilder();
-                String line;
-                try (BufferedReader reader = request.getReader()) {
-                    while ((line = reader.readLine()) != null) {
-                        buffer.append(line);
-                    }
-                }
-
-                JSONObject json = new JSONObject(buffer.toString());
+                JSONObject json = JSONUtil.leerJson(request);
                 String descripcion = json.optString("description", "");
 
-                // Qué hace: Modifica la descripción asociada a la imagen.
-                // y luego de esto pasamos a ImagenServicio.actualizarDescripcion, el cual ejecuta el UPDATE SQL por ID.
                 String jsonRes = servicio.actualizarDescripcion(id, descripcion);
                 response.getWriter().write(jsonRes);
             } else {
                 response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                response.getWriter().write(new JSONObject().put("success", false).put("message", "Operación PATCH no permitida en esta ruta.").toString());
+                response.getWriter().write(ResponseUtil.error("Operación PATCH no permitida en esta ruta."));
             }
         } catch (NumberFormatException e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "El ID de la imagen debe ser numérico.").toString());
+            response.getWriter().write(ResponseUtil.error("El ID de la imagen debe ser numérico."));
+        } catch (IllegalArgumentException e) {
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            response.getWriter().write(ResponseUtil.error("JSON mal formado: " + e.getMessage()));
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Error al actualizar descripción de imagen: " + e.getMessage()).toString());
+            response.getWriter().write(ResponseUtil.error("Error al actualizar descripción de imagen: " + e.getMessage()));
         }
     }
 
-    // Qué hace: Procesa solicitudes HTTP DELETE para dar de baja un croquis de vivienda por su ID.
-    // Por qué existe: Habilita el botón de eliminar del listado de fotos de la vivienda.
-    // Qué pasaría si no estuviera: Las fotos y croquis obsoletos o erróneos seguirían almacenados permanentemente en el servidor, llenando el disco.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doDelete para dar de baja y eliminar de manera física el archivo de croquis del disco del servidor y borrar su registro de base de datos.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - servicio.eliminarImagen(id, contextPath): Borra la fila de base de datos, localiza la ruta física del archivo subido en el disco del servidor Tomcat y lo borra usando java.io.File.delete().
+     * Para qué se usa (el propósito): Permitir al voluntario borrar un croquis de vivienda obsoleto.
+     * Por qué es importante (el impacto o problema que resuelve): Previene la acumulación de archivos inútiles o basura en el disco del servidor cuando el usuario descarta o rehace las imágenes de su vivienda.
+     */
     @Override
     protected void doDelete(HttpServletRequest request, HttpServletResponse response) 
             throws ServletException, IOException {
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-
-        HttpSession session = request.getSession(false);
-        if (session == null || session.getAttribute("usuarioId") == null) {
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Acceso denegado. Inicie sesión.").toString());
-            return;
-        }
 
         String pathInfo = request.getPathInfo();
         if (pathInfo == null || pathInfo.equals("/")) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Ruta de eliminación no válida.").toString());
+            response.getWriter().write(ResponseUtil.error("Ruta de eliminación no válida."));
             return;
         }
 
@@ -279,20 +247,18 @@ public class ImagenesServlet extends HttpServlet {
                 int id = Integer.parseInt(parts[2]);
                 String contextPath = request.getServletContext().getRealPath("/");
                 
-                // Qué hace: Llama a la remoción lógica y física del croquis.
-                // y luego de esto pasamos a ImagenServicio.eliminarImagen, que borra el archivo del disco y elimina la fila de la BD.
                 String jsonRes = servicio.eliminarImagen(id, contextPath);
                 response.getWriter().write(jsonRes);
             } else {
                 response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                response.getWriter().write(new JSONObject().put("success", false).put("message", "Operación DELETE no permitida en esta ruta.").toString());
+                response.getWriter().write(ResponseUtil.error("Operación DELETE no permitida en esta ruta."));
             }
         } catch (NumberFormatException e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "El ID de la imagen debe ser numérico.").toString());
+            response.getWriter().write(ResponseUtil.error("El ID de la imagen debe ser numérico."));
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            response.getWriter().write(new JSONObject().put("success", false).put("message", "Error al eliminar gráfico: " + e.getMessage()).toString());
+            response.getWriter().write(ResponseUtil.error("Error al eliminar gráfico: " + e.getMessage()));
         }
     }
 }

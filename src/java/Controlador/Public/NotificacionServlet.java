@@ -1,8 +1,20 @@
 package Controlador.Public;
 
+/*
+ * Qué hace (la acción): Importa la capa DAO para persistir notificaciones, la clase DTO que representa las alertas, las utilidades de JSON, sesión y respuestas HTTP, y las clases del servlet de Jakarta.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - Modelo.DAO.NotificacionDAO: Capa de persistencia que interactúa con la base de datos SQL para guardar y actualizar alertas.
+ *   - Modelo.DTO.NotificacionDTO: Clase contenedor que contiene los datos de la notificación.
+ *   - Modelo.Utilidades.SessionUtil: Clase de utilidad para extraer el ID de usuario de forma segura desde la sesión HTTP.
+ *   - org.json.JSONArray / JSONObject: Estructuras de la librería JSON para mapear arreglos y objetos.
+ * Para qué se usa (el propósito): Proveer las dependencias requeridas para consultar, crear, marcar como leídas y eliminar notificaciones asociadas al usuario autenticado.
+ * Por qué es importante (el impacto o problema que resuelve): Sin estas importaciones no se podría procesar las alertas del usuario ni mapearlas dinámicamente al formato de intercambio JSON.
+ */
 import Modelo.DAO.NotificacionDAO;
 import Modelo.DTO.NotificacionDTO;
 import Modelo.Utilidades.JSONUtil;
+import Modelo.Utilidades.ResponseUtil;
+import Modelo.Utilidades.SessionUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -14,70 +26,63 @@ import java.io.PrintWriter;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-// Qué hace: Servlet encargado de administrar la recepción, conteo, lectura y eliminación de notificaciones en tiempo real para los usuarios autenticados.
-// Por qué existe: Habilita los endpoints REST en '/api/notificaciones/*' que permiten notificar a los usuarios sobre cambios de estado en sus planes de emergencia u otras alertas del sistema.
-// Qué pasaría si no estuviera: Los usuarios no recibirían avisos visuales ni sabrían si su plan familiar fue aprobado o rechazado sin consultar manualmente el censo.
+/*
+ * Qué hace (la acción): Asocia el servlet NotificacionServlet con los endpoints de red "/api/notificaciones" y "/api/notificaciones/*" utilizando la anotación @WebServlet.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - @WebServlet: Registra de manera declarativa este servlet en el servidor web.
+ *   - extends HttpServlet: Permite sobreescribir los métodos de procesamiento web (doGet, doPost, doPut, doDelete).
+ * Para qué se usa (el propósito): Administrar de forma integral y centralizada el ciclo de vida de las alertas de los usuarios en la base de datos.
+ * Por qué es importante (el impacto o problema que resuelve): Concentra toda la funcionalidad REST de alertas en un solo lugar, permitiendo operaciones CRUD rápidas (Leer, Crear, Actualizar y Eliminar) sobre la tabla de notificaciones.
+ */
 @WebServlet(urlPatterns = {"/api/notificaciones", "/api/notificaciones/*"})
 public class NotificacionServlet extends HttpServlet {
 
-    // Qué hace: Instancia el objeto de acceso a datos para las notificaciones.
-    // Por qué existe: Facilita la persistencia y lectura de las alertas en la base de datos MySQL.
-    // Qué pasaría si no estuviera: No podríamos consultar ni guardar el estado de lectura de ninguna alerta.
-    // Flujo: De aquí pasamos a NotificacionDAO.
+    /*
+     * Qué hace (la acción): Instancia de manera privada y constante la variable notificacionDAO.
+     * Qué significa (conceptos, métodos, tipos involucrados): Creación del objeto de acceso a datos para notificaciones.
+     * Para qué se usa (el propósito): Ejecutar las sentencias SQL en base de datos.
+     */
     private final NotificacionDAO notificacionDAO = new NotificacionDAO();
 
-    // Qué hace: Atiende peticiones GET para obtener la lista de alertas del usuario o el conteo de notificaciones no leídas.
-    // Por qué existe: Popula la campanita de notificaciones y la barra superior de la interfaz web en la SPA.
-    // Qué pasaría si no estuviera: La SPA no mostraría el globo indicador con el total de alertas pendientes del usuario.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doGet para obtener el listado completo de alertas del usuario o el conteo de notificaciones no leídas si se llama al sub-recurso "/count".
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - SessionUtil.getUsuarioId(session): Recupera de forma segura el ID numérico del usuario logueado en la sesión.
+     *   - notificacionDAO.contarNoLeidas(userId): Consulta a la base de datos la cantidad de alertas con estado de lectura falso.
+     *   - notificacionDAO.obtenerPorUsuario(userId): Consulta en base de datos y retorna la lista de DTOs de alertas.
+     * Para qué se usa (el propósito): Entregar en formato JSON las alertas no leídas y la lista de mensajes acumulados al usuario logueado en el frontend.
+     * Por qué es importante (el impacto o problema que resuelve): Permite que el panel de control del usuario muestre un globo indicador del total de mensajes pendientes (ej. "3 alertas nuevas") y alimente la bandeja de notificaciones.
+     */
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response) 
             throws ServletException, IOException {
         
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
         PrintWriter out = response.getWriter();
         String pathInfo = request.getPathInfo();
 
         try {
-            // Qué hace: Recupera la sesión HTTP actual sin forzar la creación de una nueva.
-            // Por qué existe: Valida la identidad del usuario a través de la variable de sesión 'user_id'.
-            // Qué pasaría si no estuviera: Cualquier persona anónima podría consultar o espiar las notificaciones de otros usuarios del sistema.
             HttpSession session = request.getSession(false);
-            if (session == null || session.getAttribute("user_id") == null) {
+            Integer userId = SessionUtil.getUsuarioId(session);
+            if (userId == null) {
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                out.print(new JSONObject().put("success", false).put("message", "No autenticado").toString());
+                out.print(ResponseUtil.error("Acceso denegado. Sesión inválida."));
                 return;
             }
 
-            int userId = (int) session.getAttribute("user_id");
-
             // Obtener conteo de notificaciones no leídas
             // Ruta: /api/notificaciones/count
-            // Qué hace: Retorna la cantidad numérica de alertas sin leer para el usuario actual.
-            // Por qué existe: Permite dibujar el indicador con el número sobre la campanita.
             if ("/count".equals(pathInfo)) {
-                // Qué hace: Ejecuta la consulta COUNT en la base de datos.
-                // y luego de esto pasamos a NotificacionDAO.contarNoLeidas.
                 int count = notificacionDAO.contarNoLeidas(userId);
                 JSONObject datos = new JSONObject();
                 datos.put("count", count);
                 
-                JSONObject respuesta = new JSONObject();
-                respuesta.put("success", true);
-                respuesta.put("message", "");
-                respuesta.put("data", datos);
-                
                 response.setStatus(HttpServletResponse.SC_OK);
-                out.print(respuesta.toString());
+                out.print(ResponseUtil.success(datos));
                 return;
             }
 
             // Obtener todas las notificaciones del usuario
             // Ruta: /api/notificaciones
-            // Qué hace: Recupera el historial completo de notificaciones del usuario.
-            // Por qué existe: Alimenta la bandeja de entrada o modal detallado de notificaciones.
-            // Qué hace: Llama al DAO para obtener la lista de DTOs.
-            // y luego de esto pasamos a NotificacionDAO.obtenerPorUsuario.
             var notificaciones = notificacionDAO.obtenerPorUsuario(userId);
             JSONArray notificacionesArray = new JSONArray();
             
@@ -94,40 +99,31 @@ public class NotificacionServlet extends HttpServlet {
                 notificacionesArray.put(notifJson);
             }
 
-            JSONObject respuesta = new JSONObject();
-            respuesta.put("success", true);
-            respuesta.put("data", notificacionesArray);
             response.setStatus(HttpServletResponse.SC_OK);
-            out.print(respuesta.toString());
+            out.print(ResponseUtil.success(notificacionesArray));
 
         } catch (Exception e) {
-            // Qué hace: Captura errores inesperados, cambia el estado HTTP a 500 y retorna el error en JSON.
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-            out.print(new JSONObject().put("success", false).put("message", e.getMessage()).toString());
+            out.print(ResponseUtil.error(e.getMessage()));
         }
     }
 
-    // Qué hace: Procesa peticiones POST para crear una notificación dirigida a un usuario específico.
-    // Por qué existe: Permite a los supervisores u otros módulos del sistema emitir avisos (ej. cuando se rechaza un plan).
-    // Qué pasaría si no estuviera: No se podrían registrar nuevas alertas desde el backend hacia los usuarios.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doPost para recibir un JSON con la estructura de una nueva notificación y guardarla en la base de datos.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - JSONUtil.leerJson(request): Parsea la petición asíncrona a JSONObject.
+     *   - notificacion.setLeida(false): Configura que una notificación nueva inicie por defecto marcada como no leída.
+     *   - body.optString / optInt: Obtiene valores opcionales del JSON asignando un fallback (nulo o cero) si no estuvieran presentes.
+     * Para qué se usa (el propósito): Crear y programar alertas dinámicas en el sistema (ej. cuando se evalúa un plan familiar, se envía una notificación al voluntario creador).
+     * Por qué es importante (el impacto o problema que resuelve): Posibilita la creación de alertas entre usuarios (como la comunicación del Supervisor al Voluntario) de forma asíncrona.
+     */
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) 
             throws ServletException, IOException {
         
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
         PrintWriter out = response.getWriter();
 
         try {
-            HttpSession session = request.getSession(false);
-            if (session == null || session.getAttribute("user_id") == null) {
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                out.print(new JSONObject().put("success", false).put("message", "No autenticado").toString());
-                return;
-            }
-
-            // Qué hace: Lee el cuerpo de la petición en JSON y construye el DTO de Notificación.
-            // Por qué existe: Convierte el payload en una entidad utilizable por Java.
             JSONObject body = JSONUtil.leerJson(request);
             
             NotificacionDTO notificacion = new NotificacionDTO();
@@ -139,55 +135,51 @@ public class NotificacionServlet extends HttpServlet {
             notificacion.setEnlace(body.optString("enlace", null));
             notificacion.setEntidadId(body.optInt("entidad_id", 0));
 
-            // Qué hace: Inserta el registro en la base de datos.
-            // y luego de esto pasamos a NotificacionDAO.crear.
             notificacionDAO.crear(notificacion);
 
-            JSONObject respuesta = new JSONObject();
-            respuesta.put("success", true);
-            respuesta.put("message", "Notificación creada exitosamente");
             response.setStatus(HttpServletResponse.SC_CREATED);
-            out.print(respuesta.toString());
+            out.print(ResponseUtil.success("Notificación creada exitosamente"));
 
+        } catch (IllegalArgumentException e) {
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            out.print(ResponseUtil.error("JSON mal formado: " + e.getMessage()));
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            out.print(new JSONObject().put("success", false).put("message", e.getMessage()).toString());
+            out.print(ResponseUtil.error(e.getMessage()));
         }
     }
 
-    // Qué hace: Procesa peticiones PUT para marcar notificaciones individuales o todas juntas como leídas.
-    // Por qué existe: Permite actualizar el estado de lectura de las alertas para vaciar la campanita.
-    // Qué pasaría si no estuviera: El contador de notificaciones no leídas nunca bajaría, molestando al usuario.
+    /*
+     * Qué hace (la hace): Sobrescribe el método doPut para marcar una alerta en particular o todas las alertas del usuario como leídas.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - pathInfo.equals("/marcar-leidas"): Determina si la llamada pide una actualización en masa de todas las notificaciones del usuario.
+     *   - notificacionDAO.marcarTodasComoLeidas(userId): Ejecuta la actualización de base de datos de todos los registros del usuario a leída = true.
+     *   - notificacionDAO.marcarComoLeida(notificacionId): Actualiza una sola fila en la base de datos por ID.
+     * Para qué se usa (el propósito): Cambiar el estado de lectura de las alertas cuando el usuario abre la bandeja en la interfaz.
+     * Por qué es importante (el impacto o problema que resuelve): Permite actualizar y borrar el indicador de globos de alertas en el frontend a medida que el usuario visualiza los mensajes.
+     */
     @Override
     protected void doPut(HttpServletRequest request, HttpServletResponse response) 
             throws ServletException, IOException {
         
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
         PrintWriter out = response.getWriter();
         String pathInfo = request.getPathInfo();
 
         try {
             HttpSession session = request.getSession(false);
-            if (session == null || session.getAttribute("user_id") == null) {
+            Integer userId = SessionUtil.getUsuarioId(session);
+            if (userId == null) {
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                out.print(new JSONObject().put("success", false).put("message", "No autenticado").toString());
+                out.print(ResponseUtil.error("Acceso denegado. Sesión inválida."));
                 return;
             }
-
-            int userId = (int) session.getAttribute("user_id");
 
             // Marcar todas como leídas
             // Ruta: /api/notificaciones/marcar-leidas
             if ("/marcar-leidas".equals(pathInfo)) {
-                // Qué hace: Actualiza la columna 'leida = 1' en lote para el usuario.
-                // y luego de esto pasamos a NotificacionDAO.marcarTodasComoLeidas.
                 notificacionDAO.marcarTodasComoLeidas(userId);
-                JSONObject respuesta = new JSONObject();
-                respuesta.put("success", true);
-                respuesta.put("message", "Todas las notificaciones marcadas como leídas");
                 response.setStatus(HttpServletResponse.SC_OK);
-                out.print(respuesta.toString());
+                out.print(ResponseUtil.success("Todas las notificaciones marcadas como leídas"));
                 return;
             }
 
@@ -196,57 +188,48 @@ public class NotificacionServlet extends HttpServlet {
             JSONObject body = JSONUtil.leerJson(request);
             int notificacionId = body.getInt("id");
             
-            // Qué hace: Actualiza una única fila en MySQL cambiando su estado de lectura.
-            // y luego de esto pasamos a NotificacionDAO.marcarComoLeida.
             notificacionDAO.marcarComoLeida(notificacionId);
 
-            JSONObject respuesta = new JSONObject();
-            respuesta.put("success", true);
-            respuesta.put("message", "Notificación marcada como leída");
             response.setStatus(HttpServletResponse.SC_OK);
-            out.print(respuesta.toString());
+            out.print(ResponseUtil.success("Notificación marcada como leída"));
 
+        } catch (IllegalArgumentException e) {
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            out.print(ResponseUtil.error("JSON mal formado: " + e.getMessage()));
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            out.print(new JSONObject().put("success", false).put("message", e.getMessage()).toString());
+            out.print(ResponseUtil.error(e.getMessage()));
         }
     }
 
-    // Qué hace: Procesa peticiones DELETE para eliminar físicamente una notificación.
-    // Por qué existe: Permite a los usuarios limpiar notificaciones viejas o no deseadas de su lista.
-    // Qué pasaría si no estuviera: El historial de notificaciones crecería indefinidamente sin control de limpieza.
+    /*
+     * Qué hace (la acción): Sobrescribe el método doDelete para eliminar físicamente una alerta de la base de datos a partir de su ID.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - notificacionDAO.eliminar(notificacionId): Remueve el registro de la tabla en base de datos.
+     * Para qué se usa (el propósito): Permitir que el usuario elimine u oculte alertas antiguas de su panel.
+     * Por qué es importante (el impacto o problema que resuelve): Limpia y optimiza la tabla de base de datos de notificaciones inservibles o descartadas por el usuario.
+     */
     @Override
     protected void doDelete(HttpServletRequest request, HttpServletResponse response) 
             throws ServletException, IOException {
         
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
         PrintWriter out = response.getWriter();
 
         try {
-            HttpSession session = request.getSession(false);
-            if (session == null || session.getAttribute("user_id") == null) {
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                out.print(new JSONObject().put("success", false).put("message", "No autenticado").toString());
-                return;
-            }
-
             JSONObject body = JSONUtil.leerJson(request);
             int notificacionId = body.getInt("id");
             
-            // Qué hace: Borra el registro de la notificación de la BD.
-            // y luego de esto pasamos a NotificacionDAO.eliminar.
             notificacionDAO.eliminar(notificacionId);
 
-            JSONObject respuesta = new JSONObject();
-            respuesta.put("success", true);
-            respuesta.put("message", "Notificación eliminada");
             response.setStatus(HttpServletResponse.SC_OK);
-            out.print(respuesta.toString());
+            out.print(ResponseUtil.success("Notificación eliminada"));
 
+        } catch (IllegalArgumentException e) {
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            out.print(ResponseUtil.error("JSON mal formado: " + e.getMessage()));
         } catch (Exception e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-            out.print(new JSONObject().put("success", false).put("message", e.getMessage()).toString());
+            out.print(ResponseUtil.error(e.getMessage()));
         }
     }
 }

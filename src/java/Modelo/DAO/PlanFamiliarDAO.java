@@ -22,74 +22,48 @@ public class PlanFamiliarDAO {
                 + "(nombre_familia, apellidos_familia, direccion, barrio_comuna_localidad, consentimiento_datos, plan_id, tipo_zona_id) "
                 + "VALUES (?, ?, ?, ?, ?, ?, ?)";
         
-        Connection con = null;
-        PreparedStatement psPlan = null;
-        PreparedStatement psIdent = null;
-        ResultSet rsKeys = null;
-        int idPlanGenerado = -1;
-
-        try {
-            // Qué hace: Obtiene la conexión física al motor de base de datos MySQL.
-            con = Conexion.obtener();
-            // Qué hace: Desactiva el auto-commit manual para iniciar una transacción controlada (ACID).
-            // Por qué existe: Asegura que si falla la creación de la identificación familiar, la cabecera tampoco se persista (consistencia).
+        // Usamos try-with-resources para que la conexión se cierre de forma automática al finalizar
+        try (Connection con = Conexion.obtener()) {
+            // Desactivamos el auto-commit automático para iniciar una transacción manual controlada (ACID)
             con.setAutoCommit(false); 
+            try {
+                int idPlanGenerado = -1;
 
-            // Qué hace: Prepara el statement para la cabecera y configura recuperar las llaves primarias autogeneradas.
-            psPlan = con.prepareStatement(sqlPlan, Statement.RETURN_GENERATED_KEYS);
-            
-            // Sirve para: Enlazar el valor de voluntario_id en la consulta preparada.
-            // Qué hace: Pasa el ID del usuario como primer parámetro.
-            // Por qué es importante: Relaciona el plan familiar con el voluntario que lo está creando.
-            psPlan.setInt(1, dto.getUserId());
-            
-            // Sirve para: Enlazar el valor de estado_id en la consulta preparada.
-            // Qué hace: Pasa el valor 2 (Pendiente) como segundo parámetro.
-            // Por qué es importante: Asigna el estado inicial 'Pendiente' (borrador) al plan de emergencia familiar recién creado.
-            psPlan.setInt(2, 2); 
-            // Qué hace: Ejecuta la inserción de la cabecera en la base de datos.
-            psPlan.executeUpdate();
+                // Prepara el statement para el plan y recupera la llave autogenerada
+                try (PreparedStatement psPlan = con.prepareStatement(sqlPlan, Statement.RETURN_GENERATED_KEYS)) {
+                    psPlan.setInt(1, dto.getUserId());
+                    psPlan.setInt(2, 2); // Estado 2 (Pendiente) al crear el plan
+                    psPlan.executeUpdate();
 
-            // Qué hace: Obtiene las llaves primarias autogeneradas de la base de datos.
-            rsKeys = psPlan.getGeneratedKeys();
-            if (rsKeys.next()) {
-                // Qué hace: Recupera el ID numérico asignado de forma automática por la base de datos.
-                idPlanGenerado = rsKeys.getInt(1);
-            } else {
-                throw new SQLException("Incapaz de recuperar el ID generado para planes_familiares.");
+                    try (ResultSet rsKeys = psPlan.getGeneratedKeys()) {
+                        if (rsKeys.next()) {
+                            idPlanGenerado = rsKeys.getInt(1);
+                        } else {
+                            throw new SQLException("Incapaz de recuperar el ID generado para planes_familiares.");
+                        }
+                    }
+                }
+
+                // Prepara el statement para insertar la identificación inicial de la familia
+                try (PreparedStatement psIdent = con.prepareStatement(sqlIdentificacion)) {
+                    psIdent.setString(1, "Familia " + dto.getLastNames());
+                    psIdent.setString(2, dto.getLastNames());
+                    psIdent.setString(3, "Por definir"); // Evita restricciones NOT NULL
+                    psIdent.setString(4, "Por definir"); 
+                    psIdent.setBoolean(5, true);         
+                    psIdent.setInt(6, idPlanGenerado);
+                    psIdent.setInt(7, dto.getZoneId());
+                    psIdent.executeUpdate();
+                }
+
+                // Consolida y confirma los cambios de manera definitiva en la base de datos
+                con.commit(); 
+                return idPlanGenerado;
+            } catch (SQLException e) {
+                // Si ocurre un error, cancelamos la transacción (rollback) para mantener la consistencia
+                con.rollback();
+                throw e;
             }
-
-            // Qué hace: Prepara el statement para la inserción en identificacion_familiar.
-            psIdent = con.prepareStatement(sqlIdentificacion);
-            // Qué hace: Enlaza los campos de nombres familiares temporales, el consentimiento de tratamiento de datos personales, el ID del plan generado y la zona.
-            psIdent.setString(1, "Familia " + dto.getLastNames());
-            psIdent.setString(2, dto.getLastNames());
-            psIdent.setString(3, "Por definir"); // Asigna un valor predeterminado para evitar restricciones NOT NULL
-            psIdent.setString(4, "Por definir"); 
-            psIdent.setBoolean(5, true);         
-            psIdent.setInt(6, idPlanGenerado);
-            psIdent.setInt(7, dto.getZoneId());
-            // Qué hace: Ejecuta la inserción del registro relacional de identificación.
-            psIdent.executeUpdate();
-
-            // Qué hace: Confirma y consolida todos los cambios de la transacción de forma definitiva en la base de datos.
-            con.commit(); 
-            // Qué hace: Retorna el identificador del plan familiar generado.
-            return idPlanGenerado;
-
-        } catch (SQLException e) {
-            // Qué hace: Si ocurre un error, cancela los cambios realizados en la transacción.
-            // Por qué existe: Restaura la base de datos a su estado anterior en caso de excepciones (rollback).
-            if (con != null) {
-                try { con.rollback(); } catch (SQLException ex) { System.err.println(ex.getMessage()); }
-            }
-            throw e;
-        } finally {
-            // Qué hace: Cierra de forma explícita todos los recursos abiertos para liberar memoria y conexiones.
-            if (rsKeys != null) rsKeys.close();
-            if (psPlan != null) psPlan.close();
-            if (psIdent != null) psIdent.close();
-            if (con != null) con.close();
         }
     }
 
@@ -352,18 +326,7 @@ public class PlanFamiliarDAO {
             // Qué hace: Ejecuta la consulta y lee el ResultSet.
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    // Qué hace: Mapea los resultados para retornar una lista flexible de mapas.
-                    java.util.Map<String, Object> map = new java.util.HashMap<>();
-                    map.put("id", rs.getInt("id"));
-                    map.put("last_names", rs.getString("last_names"));
-                    map.put("status_id", rs.getInt("status_id"));
-                    map.put("status", rs.getString("status"));
-                    map.put("family_type_id", rs.getInt("family_type_id"));
-                    map.put("family_type", rs.getString("family_type"));
-                    map.put("department", rs.getString("department"));
-                    map.put("city", rs.getString("city"));
-                    map.put("date_create", rs.getString("date_create"));
-                    planes.add(map);
+                    planes.add(mapearFilaPlan(rs, false));
                 }
             }
         }
@@ -472,31 +435,8 @@ public class PlanFamiliarDAO {
             // Por qué existe: Provee acceso secuencial a las filas coincidentes en la base de datos de planes familiares.
             // Qué problema resuelve: Facilita la iteración de los registros devueltos por el motor MySQL.
             try (ResultSet rs = ps.executeQuery()) {
-                // Qué hace: Itera sobre cada fila del conjunto de resultados del ResultSet.
-                // Por qué existe: Permite leer y procesar uno a uno los registros de planes cargados.
-                // Qué problema resuelve: Convierte filas tabulares relacionales en objetos HashMap de java.
                 while (rs.next()) {
-                    // Qué hace: Crea un mapa de tipo clave-valor para representar el plan familiar.
-                    // Por qué existe: Permite una estructura flexible para serialización posterior a formato JSON.
-                    // Qué problema resuelve: Desvincula la estructura de la base de datos de la lógica de negocio final.
-                    java.util.Map<String, Object> map = new java.util.HashMap<>();
-                    // Qué hace: Almacena cada columna del ResultSet dentro del mapa correspondiente.
-                    // Por qué existe: Hace accesible la información de ID, apellidos, estados, geografía y responsable.
-                    // Qué problema resuelve: Rellena los datos de la tarjeta que el frontend supervisor espera procesar.
-                    map.put("id", rs.getInt("id"));
-                    map.put("last_names", rs.getString("last_names"));
-                    map.put("status_id", rs.getInt("status_id"));
-                    map.put("status", rs.getString("status"));
-                    map.put("family_type_id", rs.getInt("family_type_id"));
-                    map.put("family_type", rs.getString("family_type"));
-                    map.put("department", rs.getString("department"));
-                    map.put("city", rs.getString("city"));
-                    map.put("responsable", rs.getString("responsable"));
-                    map.put("date_create", rs.getString("date_create"));
-                    // Qué hace: Añade el mapa recién creado a la lista general de planes.
-                    // Por qué existe: Permite consolidar todos los registros de la página actual para el retorno.
-                    // Qué problema resuelve: Mantiene el orden y paginación en la entrega de resultados.
-                    planes.add(map);
+                    planes.add(mapearFilaPlan(rs, true));
                 }
             }
         }
@@ -504,5 +444,24 @@ public class PlanFamiliarDAO {
         // Por qué existe: Completa el contrato del método retornando la colección al servicio solicitante.
         // Qué problema resuelve: Transfiere la información limpia y filtrada a las capas superiores.
         return planes;
+    }
+
+    // Qué hace: Mapea una fila del ResultSet a un mapa asociativo de propiedades del plan de emergencia.
+    // Por qué existe: Centraliza y elimina la duplicación del mapeo de datos SQL entre listados de voluntario y supervisor.
+    private java.util.Map<String, Object> mapearFilaPlan(ResultSet rs, boolean incluirResponsable) throws SQLException {
+        java.util.Map<String, Object> map = new java.util.HashMap<>();
+        map.put("id", rs.getInt("id"));
+        map.put("last_names", rs.getString("last_names"));
+        map.put("status_id", rs.getInt("status_id"));
+        map.put("status", rs.getString("status"));
+        map.put("family_type_id", rs.getInt("family_type_id"));
+        map.put("family_type", rs.getString("family_type"));
+        map.put("department", rs.getString("department"));
+        map.put("city", rs.getString("city"));
+        if (incluirResponsable) {
+            map.put("responsable", rs.getString("responsable"));
+        }
+        map.put("date_create", rs.getString("date_create"));
+        return map;
     }
 }

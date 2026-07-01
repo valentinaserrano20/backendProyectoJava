@@ -1,8 +1,15 @@
 package Controlador.Auth;
 
-// =========================================================
-// IMPORTACIONES OBLIGATORIAS
-// =========================================================
+/*
+ * Qué hace (la acción): Importa la capa de servicios de autenticación, utilidades JSON, servlets de Jakarta y la clase JSONObject de la librería JSON.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - Modelo.Servicios.Auth.AuthServicio: Servicio de negocio que procesa y valida lógica de usuarios.
+ *   - Modelo.Utilidades.JSONUtil: Utilidad personalizada para la lectura de peticiones JSON.
+ *   - jakarta.servlet.*: Clases del motor de ejecución web (Servlet).
+ *   - org.json.JSONObject: Librería externa para modelar información estructurada en pares clave-valor (JSON).
+ * Para qué se usa (el propósito): Proveer al servlet de las APIs y dependencias indispensables para procesar las solicitudes web de recuperación de contraseñas.
+ * Por qué es importante (el impacto o problema que resuelve): Sin estas importaciones, el código lanzaría errores de compilación y no podría interactuar con la base de datos ni con las solicitudes web del frontend.
+ */
 import Modelo.Servicios.Auth.AuthServicio;
 import Modelo.Utilidades.JSONUtil;
 import jakarta.servlet.ServletException;
@@ -14,171 +21,189 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import org.json.JSONObject;
 
-/**
- * Qué hace: Define e inicializa el Servlet para la recuperación de contraseñas mapeado a múltiples endpoints.
- * Por qué existe: Centraliza el flujo de olvido de contraseña, verificación de token y cambio final en un único controlador.
- * Qué pasaría si no estuviera: Los usuarios que olviden su contraseña no tendrían forma de recuperarla ni restablecerla desde la SPA.
+/*
+ * Qué hace (la acción): Registra e inicializa el servlet ForgotPasswordServlet en el contenedor de aplicaciones para responder a múltiples endpoints relacionados con el olvido de contraseña.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - @WebServlet(urlPatterns = {...}): Anotación que mapea el servlet a tres rutas específicas de la API.
+ *   - extends HttpServlet: Indica que esta clase hereda los comportamientos de un servlet HTTP, pudiendo responder a llamadas doPost, doGet, etc.
+ * Para qué se usa (el propósito): Servir como el único controlador web centralizado para las operaciones de olvido de clave, verificación del código y cambio de la contraseña.
+ * Por qué es importante (el impacto o problema que resuelve): Centraliza en una sola clase todo el flujo lógico de seguridad de restablecimiento, evitando crear múltiples archivos servlets y facilitando el mantenimiento.
  */
 @WebServlet(urlPatterns = {"/api/forgotPassword", "/api/verifyCode", "/api/changePassword"})
 public class ForgotPasswordServlet extends HttpServlet {
 
-    // Qué hace: Crea una instancia del servicio de autenticación.
-    // Por qué existe: Delega la lógica de negocio (generar tokens, enviar correos, hashing) a la capa correspondiente.
-    // Qué pasaría si no estuviera: Tendríamos que escribir lógica de negocio y consultas directas en el controlador, rompiendo la arquitectura limpia.
-    // Flujo: De aquí pasaremos a AuthServicio para ejecutar procesos de validación de tokens y actualización.
+    /*
+     * Qué hace (la acción): Declara e inicializa de manera privada y constante la variable authServicio.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - private: Restringe el acceso a este miembro solo dentro de esta clase.
+     *   - final: Evita la reasignación de esta variable a otro objeto después de su inicialización.
+     *   - new AuthServicio(): Instancia la clase de servicios de negocio de autenticación.
+     * Para qué se usa (el propósito): Invocar las operaciones lógicas de negocio como generación de códigos de seguridad, envío de correos y actualización de registros en la base de datos.
+     * Por qué es importante (el impacto o problema que resuelve): Separa la capa de presentación (el servlet) de la capa de negocio (el servicio), manteniendo un diseño de software limpio y estructurado.
+     */
     private final AuthServicio authServicio = new AuthServicio();
 
-    /**
-     * SOPORTE PARA CORS PRE-FLIGHT (MÉTODO OPTIONS)
-     * El navegador web envía de forma invisible una petición OPTIONS antes del POST
-     * para verificar si el servidor Java acepta llamadas desde el puerto de Vite (5173).
+    /*
+     * Qué hace (la acción): Sobrescribe el método doPost para interceptar y gestionar todas las peticiones POST enviadas a las rutas mapeadas del servlet.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - @Override: Anotación que indica que se está redefiniendo el método de la clase padre HttpServlet.
+     *   - HttpServletRequest request: Contiene la solicitud de red proveniente del cliente.
+     *   - HttpServletResponse response: Permite configurar y enviar la respuesta al cliente.
+     *   - ServletException, IOException: Excepciones obligatorias que puede lanzar el motor en caso de fallos del servlet o de entrada/salida.
+     * Para qué se usa (el propósito): Atender de forma segura el envío de datos delicados (como correos, tokens y nuevas contraseñas) dentro del cuerpo de la solicitud HTTP.
+     * Por qué es importante (el impacto o problema que resuelve): Si no se implementara, cualquier petición POST a estas rutas fallaría con un error HTTP 405 (Method Not Allowed).
      */
-    // doOptions() ya no es necesario aquí porque el CorsFilter (@WebFilter("/*"))
-    // intercepta TODAS las rutas, incluyendo las preflight OPTIONS, antes de llegar al servlet.
-    // Mantenerlo causaría headers CORS duplicados que el navegador rechaza.
-
-    // Qué hace: Sobrescribe doPost para atender peticiones POST HTTP en las rutas configuradas.
-    // Por qué existe: Los datos sensibles (emails, códigos de verificación, contraseñas nuevas) deben transmitirse en el cuerpo de la petición.
-    // Qué pasaría si no estuviera: El servidor respondería con error 405 (Method Not Allowed) al intentar hacer POST en estas rutas.
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response) 
             throws ServletException, IOException {
         
-        // CORS ya fue configurado globalmente por CorsFilter antes de llegar aquí.
-        // Qué hace: Establece el tipo de contenido como JSON para que el cliente lo reciba correctamente estructurado.
-        // Por qué existe: Le informa al cliente (fetch/axios) que la respuesta es un JSON parseable.
-        // Qué pasaría si no estuviera: El frontend recibiría texto plano y no podría interpretar la estructura JSON de respuesta.
+        /*
+         * Qué hace (la acción): Establece que el tipo de datos de retorno al cliente será JSON codificado en formato UTF-8.
+         * Qué significa (conceptos, métodos, tipos involucrados):
+         *   - setContentType("application/json"): Modifica la cabecera Content-Type de la respuesta HTTP.
+         *   - setCharacterEncoding("UTF-8"): Fuerza la codificación UTF-8 para admitir caracteres como acentos y la letra ñ.
+         * Para qué se usa (el propósito): Asegurar que el navegador o cliente (fetch, axios) interprete el mensaje como un objeto JSON estructurado sin corromper los caracteres en español.
+         * Por qué es importante (el impacto o problema que resuelve): Si no estuviera, el frontend recibiría texto plano y no podría mapear las respuestas de éxito o error automáticamente.
+         */
         response.setContentType("application/json");
-        
-        // Qué hace: Define la codificación de caracteres a UTF-8.
-        // Por qué existe: Asegura que caracteres especiales (como acentos y la ñ) se transmitan sin corromperse en los mensajes.
-        // Qué pasaría si no estuviera: Mensajes con acentos (como "Código verificado") llegarían deformados al cliente.
         response.setCharacterEncoding("UTF-8");
         
-        // Qué hace: Obtiene el PrintWriter para escribir la respuesta en el cuerpo del mensaje HTTP.
-        // Por qué existe: Canal necesario para enviar datos de retorno en formato de texto al frontend.
-        // Qué pasaría si no estuviera: No podríamos escribir la respuesta en el canal de salida y el cliente se quedaría esperando.
+        /*
+         * Qué hace (la acción): Obtiene el escritor de caracteres PrintWriter conectado al flujo de respuesta del cliente.
+         * Qué significa (conceptos, métodos, tipos involucrados):
+         *   - response.getWriter(): Método que retorna un flujo de salida de texto hacia el cliente HTTP.
+         * Para qué se usa (el propósito): Escribir y enviar el texto JSON final que representará la respuesta del servidor.
+         * Por qué es importante (el impacto o problema que resuelve): Sin este canal no habría forma física de enviar texto al navegador del usuario, dejando la petición colgada.
+         */
         PrintWriter out = response.getWriter();
         
-        // Qué hace: Obtiene la ruta del endpoint solicitada en la petición actual.
-        // Por qué existe: Permite identificar cuál de las tres rutas mapeadas se está intentando consumir para derivar al switch correspondiente.
-        // Qué pasaría si no estuviera: No podríamos bifurcar el flujo y procesar solicitudes diferenciadas de olvido, verificación o cambio.
+        /*
+         * Qué hace (la acción): Obtiene la subruta exacta del servlet que el cliente ha invocado.
+         * Qué significa (conceptos, métodos, tipos involucrados):
+         *   - request.getServletPath(): Método de HttpServletRequest que devuelve el endpoint específico que ejecutó la solicitud (ej: "/api/verifyCode").
+         * Para qué se usa (el propósito): Identificar qué acción en particular (solicitar código, validar código o cambiar clave) ha solicitado el usuario para enrutar el flujo en el switch.
+         * Por qué es importante (el impacto o problema que resuelve): Permite bifurcar el flujo lógico dentro de un mismo servlet de manera dinámica.
+         */
         String path = request.getServletPath();
 
         try {
-            // Qué hace: Parsea el cuerpo del request HTTP en un objeto JSON manipulable.
-            // Por qué existe: Facilita la extracción de las variables enviadas por el frontend en formato JSON.
-            // Qué pasaría si no estuviera: Tendríamos que leer manualmente el InputStream del request y parsearlo, lo cual es redundante y propenso a errores.
+            /*
+             * Qué hace (la acción): Parsea el stream de datos de entrada de la solicitud HTTP convirtiéndolo en un objeto de tipo JSONObject.
+             * Qué significa (conceptos, métodos, tipos involucrados):
+             *   - JSONUtil.leerJson(request): Método auxiliar que lee el flujo de datos (InputStream) del cuerpo de la petición y lo parsea a un objeto JSONObject estructurado.
+             * Para qué se usa (el propósito): Recuperar de forma sencilla los parámetros enviados por el frontend (como email, token o contraseñas).
+             * Por qué es importante (el impacto o problema que resuelve): Evita tener que leer y parsear manualmente el stream de caracteres de la petición en cada endpoint, previniendo errores de sintaxis y reduciendo código duplicado.
+             */
             JSONObject body = JSONUtil.leerJson(request);
             
-            // Qué hace: Inicializa un objeto JSON de respuesta.
-            // Por qué existe: Servirá para empaquetar los campos "success", "message" y cualquier dato de retorno.
-            // Qué pasaría si no estuviera: Tendríamos que concatenar strings JSON de forma manual, lo que es peligroso por la sintaxis JSON.
+            /*
+             * Qué hace (la acción): Instancia un nuevo objeto JSONObject para armar la respuesta que se devolverá al cliente.
+             * Qué significa (conceptos, métodos, tipos involucrados):
+             *   - new JSONObject(): Creación de un objeto de mapeo clave-valor para formato JSON.
+             * Para qué se usa (el propósito): Almacenar datos lógicos como el estado de la operación (success) y los mensajes descriptivos.
+             * Por qué es importante (el impacto o problema que resuelve): Provee una interfaz limpia y estructurada para generar la respuesta final de la API sin concatenar texto manualmente.
+             */
             JSONObject respuestaJson = new JSONObject();
 
-            // Qué hace: Bifurca el flujo según el endpoint consumido.
-            // Por qué existe: Permite reutilizar este servlet para todo el subflujo de recuperación de contraseñas.
-            // Qué pasaría si no estuviera: Necesitaríamos tres Servlets diferentes, lo que incrementaría la cantidad de archivos y complejidad.
+            /*
+             * Qué hace (la acción): Ejecuta un bloque de decisiones tipo switch basado en la ruta (path) del endpoint de la petición.
+             * Qué significa (conceptos, métodos, tipos involucrados): Estructura de control condicional sobre cadenas de texto.
+             * Para qué se usa (el propósito): Separar los flujos lógicos de "/api/forgotPassword", "/api/verifyCode" y "/api/changePassword".
+             * Por qué es importante (el impacto o problema que resuelve): Permite que una sola clase maneje múltiples operaciones secuenciales de seguridad, reduciendo la cantidad de servlets en el proyecto.
+             */
             switch (path) {
                 case "/api/forgotPassword":
-                    // Qué hace: Obtiene el correo electrónico enviado en la petición.
-                    // Por qué existe: Identifica a qué cuenta de usuario se le desea generar el código de recuperación.
-                    // Qué pasaría si no estuviera: No sabríamos de qué usuario buscar el perfil en el sistema.
+                    /*
+                     * Qué hace (la acción): Obtiene la cadena 'email' del cuerpo de la petición, llama al servicio para generar el código y responde un estado exitoso.
+                     * Qué significa (conceptos, métodos, tipos involucrados):
+                     *   - body.getString("email"): Obtiene el valor asociado a la clave email en el JSON del request.
+                     *   - authServicio.procesarSolicitudRecuperacion(email): Lógica de negocio que busca al usuario en la BD, genera un código temporal y lo envía al correo.
+                     * Para qué se usa (el propósito): Iniciar el flujo de recuperación de la cuenta del usuario.
+                     * Por qué es importante (el impacto o problema que resuelve): Si el correo existe, se le envía el código al usuario. Si falla, el catch capturará el error.
+                     */
                     String email = body.getString("email");
-                    
-                    // Qué hace: Llama a la lógica de negocio para generar el token y enviar el correo.
-                    // y luego de esto pasamos a AuthServicio.procesarSolicitudRecuperacion, el cual busca al usuario en la BD, genera un código y envía el email.
                     authServicio.procesarSolicitudRecuperacion(email);
                     
-                    // Qué hace: Configura el JSON de respuesta exitosa.
-                    // Por qué existe: Indica al frontend que el proceso de inicio de recuperación fue exitoso.
-                    // Qué pasaría si no estuviera: El frontend no sabría si debe avanzar al paso de verificación de código o mostrar un error.
                     respuestaJson.put("success", true);
                     respuestaJson.put("message", "Código de recuperación enviado. Por favor revise su bandeja de correo.");
-                    
-                    // Qué hace: Establece el estado HTTP a 200 (OK).
-                    // Por qué existe: Indica una ejecución exitosa de la petición.
-                    // Qué pasaría si no estuviera: Por defecto se usaría 200, pero explicitarlo garantiza claridad en la semántica del API REST.
                     response.setStatus(HttpServletResponse.SC_OK); 
                     break;
 
                 case "/api/verifyCode":
-                    // Qué hace: Recupera el token/código ingresado por el usuario en el formulario.
-                    // Por qué existe: Necesario para contrastar el código de 6 dígitos que el usuario recibió por email.
-                    // Qué pasaría si no estuviera: No podríamos validar si el usuario realmente tiene acceso a la cuenta de correo.
+                    /*
+                     * Qué hace (la acción): Obtiene el código ingresado ('token') y lo valida a través del servicio, respondiendo 200 OK si es válido o 400 Bad Request si es incorrecto.
+                     * Qué significa (conceptos, métodos, tipos involucrados):
+                     *   - body.getString("token"): Extrae el token enviado por el frontend.
+                     *   - authServicio.verificarTokenValido(token): Lógica de negocio que busca el código en la base de datos y valida que no haya vencido.
+                     * Para qué se usa (el propósito): Confirmar si el código de 6 dígitos que el usuario recibió por correo electrónico es correcto antes de permitirle cambiar la contraseña.
+                     * Por qué es importante (el impacto o problema que resuelve): Impide que un atacante intente cambiar la contraseña de otro usuario sin haber demostrado poseer el código enviado a su email.
+                     */
                     String token = body.getString("token"); 
-                    
-                    // Qué hace: Llama a la validación del código contra la base de datos y la fecha de expiración.
-                    // y luego de esto pasamos a AuthServicio.verificarTokenValido, que verifica si el token existe en la BD y no ha vencido.
                     boolean valido = authServicio.verificarTokenValido(token);
                     
                     if (valido) {
-                        // Qué hace: Almacena éxito y mensaje correspondiente en la respuesta.
                         respuestaJson.put("success", true);
                         respuestaJson.put("message", "Código verificado con éxito.");
-                        
-                        // Qué hace: Responde con HTTP 200 OK.
-                        // Por qué existe: Indica que la credencial temporal de token es válida y puede proceder a cambiar la clave.
-                        // Qué pasaría si no estuviera: El frontend podría asumir que el código fue incorrecto si no recibe la confirmación.
                         response.setStatus(HttpServletResponse.SC_OK); 
                     } else {
-                        // Qué hace: Almacena fallo y mensaje descriptivo en la respuesta.
                         respuestaJson.put("success", false);
                         respuestaJson.put("message", "El código ingresado es incorrecto o ya expiró.");
-                        
-                        // Qué hace: Setea HTTP 400 Bad Request.
-                        // Por qué existe: Indica al frontend que la petición es inválida debido a credenciales temporales incorrectas.
-                        // Qué pasaría si no estuviera: El cliente podría interpretar que todo salió bien a nivel de negocio si respondemos con código 200.
                         response.setStatus(HttpServletResponse.SC_BAD_REQUEST); 
                     }
                     break;
 
                 case "/api/changePassword":
-                    // Qué hace: Extrae el código de seguridad (token) y la nueva contraseña elegida.
-                    // Por qué existe: Parámetros requeridos para hacer el cambio final de la clave de forma segura.
-                    // Qué pasaría si no estuviera: No sabríamos de qué solicitud de cambio se trata ni qué clave colocar.
+                    /*
+                     * Qué hace (la acción): Extrae el código ('token') y la nueva contraseña ('password'), ejecuta la actualización mediante el servicio y retorna éxito.
+                     * Qué significa (conceptos, métodos, tipos involucrados):
+                     *   - body.getString("password"): Obtiene la clave en texto plano.
+                     *   - authServicio.restablecerContrasenaFinal(tokenFinal, nuevaClave): Cifra la clave y la actualiza en la tabla de usuarios de la base de datos.
+                     * Para qué se usa (el propósito): Realizar la fase final de asignación de la nueva clave de usuario de forma segura.
+                     * Por qué es importante (el impacto o problema que resuelve): Completa el ciclo de recuperación de la cuenta, permitiendo al usuario volver a loguearse tras haber olvidado su clave original.
+                     */
                     String tokenFinal = body.getString("token");
                     String nuevaClave = body.getString("password");
-                    
-                    // Qué hace: Ejecuta la actualización de contraseña en la base de datos.
-                    // y luego de esto pasamos a AuthServicio.restablecerContrasenaFinal, que encripta la nueva clave y actualiza el registro del usuario.
                     authServicio.restablecerContrasenaFinal(tokenFinal, nuevaClave);
                     
-                    // Qué hace: Estructura la respuesta exitosa final del flujo.
                     respuestaJson.put("success", true);
                     respuestaJson.put("message", "Su contraseña ha sido actualizada con éxito. Ya puede iniciar sesión.");
-                    
-                    // Qué hace: Setea HTTP 200 OK.
                     response.setStatus(HttpServletResponse.SC_OK); 
                     break;
 
                 default:
-                    // Qué hace: Maneja cualquier acceso a una ruta que no esté explícitamente soportada en el switch.
-                    // Por qué existe: Evita comportamientos indefinidos si el mapeo del servlet recibe una ruta no controlada.
-                    // Qué pasaría si no estuviera: Se podría retornar un éxito vacío al cliente en lugar de un error semántico apropiado.
-                    response.setStatus(HttpServletResponse.SC_NOT_FOUND); // 404 Not Found
+                    /*
+                     * Qué hace (la acción): Controla accesos no definidos dentro del switch de rutas asignando un estado 404 (Not Found).
+                     * Qué significa (conceptos, métodos, tipos involucrados): SC_NOT_FOUND representa el código de estado HTTP 404.
+                     * Para qué se usa (el propósito): Evitar que peticiones dirigidas a endpoints erróneos devuelvan respuestas vacías o éxitos accidentales.
+                     * Por qué es importante (el impacto o problema que resuelve): Mantiene la consistencia semántica del API REST frente a rutas inválidas.
+                     */
+                    response.setStatus(HttpServletResponse.SC_NOT_FOUND);
                     respuestaJson.put("success", false).put("message", "Ruta de recuperación inexistente.");
                     break;
             }
 
-            // Qué hace: Transmite el JSON construido al flujo de salida del cliente.
-            // Por qué existe: Completa el ciclo de solicitud-respuesta enviando los resultados al frontend.
-            // Qué pasaría si no estuviera: El cliente (navegador) se quedaría en estado de espera permanente hasta dar timeout.
+            /*
+             * Qué hace (la acción): Convierte el JSONObject de respuesta en una cadena de caracteres y la imprime en la salida hacia el cliente.
+             * Qué significa (conceptos, métodos, tipos involucrados): respuestaJson.toString() convierte el mapeo del JSON en texto plano JSON estándar.
+             * Para qué se usa (el propósito): Enviar los resultados finales del procesamiento hacia el navegador del usuario.
+             * Por qué es importante (el impacto o problema que resuelve): Sin esta impresión final, el frontend jamás se enteraría del resultado de la petición, quedando a la espera de forma indefinida.
+             */
             out.print(respuestaJson.toString());
 
         } catch (Exception e) {
-            // Qué hace: Captura errores imprevistos o excepciones de lógica de negocio (ej. usuario no encontrado).
-            // Por qué existe: Previene la caída del servlet y garantiza que el frontend reciba un mensaje amigable con el error.
-            // Qué pasaría si no estuviera: El servidor Java arrojaría un StackTrace HTML por defecto, revelando detalles internos y rompiendo el parseo JSON.
-            response.setStatus(HttpServletResponse.SC_BAD_REQUEST); // 400 Bad Request
+            /*
+             * Qué hace (la acción): Captura cualquier error o fallo imprevisto, configura un código HTTP 400 (Bad Request) y escribe un JSON que describe el mensaje del error.
+             * Qué significa (conceptos, métodos, tipos involucrados):
+             *   - e.getMessage(): Obtiene el texto descriptivo de la excepción ocurrida.
+             *   - SC_BAD_REQUEST: Código HTTP 400.
+             * Para qué se usa (el propósito): Evitar la caída del servidor y proveer al cliente de un mensaje explicativo y legible en formato JSON.
+             * Por qué es importante (el impacto o problema que resuelve): Previene que el servidor exponga información confidencial de la pila de llamadas (StackTrace) de Java en formato HTML y mantiene la consistencia del API en formato JSON frente a errores.
+             */
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
             out.print(new JSONObject()
                     .put("success", false)
                     .put("message", e.getMessage())
                     .toString());
         }
     }
-
-    // ELIMINADO: configurarCabecerasCORS() fue removido porque duplicaba la lógica del CorsFilter.
-    // El filtro global en Controlador.Filter.CorsFilter maneja CORS de forma centralizada
-    // para toda la aplicación, evitando headers duplicados que el navegador rechaza.
 }
