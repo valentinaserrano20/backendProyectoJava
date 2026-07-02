@@ -79,11 +79,18 @@ public class AuditsServlet extends HttpServlet {
      * Por qué es importante (el impacto o problema que resuelve): Permite al supervisor tener un conteo general e inmediato del trabajo realizado por los voluntarios sin necesidad de listar y contar manualmente todos los planes en el frontend.
      */
     private void obtenerDashBoardSupervisor(HttpServletResponse response, PrintWriter out) {
-        String sql = "SELECT "
+        String sql
+                = // Inicia la construcción de la consulta SQL selectiva para contar los registros por estado
+                "SELECT "
+                // Suma 1 por cada registro cuyo estado_id sea igual a 1 y renombra la columna como 'pending'
                 + "  SUM(CASE WHEN estado_id = 1 THEN 1 ELSE 0 END) as pending, "
+                // Suma 1 por cada registro cuyo estado_id sea igual a 5 y renombra la columna como 'in_review'
                 + "  SUM(CASE WHEN estado_id = 5 THEN 1 ELSE 0 END) as in_review, "
+                // Suma 1 por cada registro cuyo estado_id sea igual a 7 y renombra la columna como 'approved'
                 + "  SUM(CASE WHEN estado_id = 7 THEN 1 ELSE 0 END) as approved, "
+                // Suma 1 si el estado_id se encuentra en el listado (4 o 6) y renombra la columna como 'rejected'
                 + "  SUM(CASE WHEN estado_id IN (4, 6) THEN 1 ELSE 0 END) as rejected "
+                // Especifica la tabla 'planes_familiares' desde la cual se extraerán y agruparán los datos numéricos
                 + "FROM planes_familiares";
 
         try (Connection con = Conexion.obtener();
