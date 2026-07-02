@@ -144,12 +144,27 @@ public class BCrypt {
         43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, -1, -1, -1, -1, -1
     };
 
+    // Qué hace: Declaración de los arreglos dinámicos P y S (subclaves y cajas S) que se usarán durante el cifrado Blowfish.
+    // Qué significa: P representa el arreglo de subclaves (P-array) y S0-S3 representan las cuatro cajas de sustitución (S-boxes) mutables.
+    // Para qué se usa: Permite almacenar el estado interno de la clave expandida específica para cada operación de hashing.
+    // Por qué es importante: El algoritmo Eksblowfish requiere expandir y modificar estos valores de manera única según el password y el salt.
     private int[] P;
     private int[] S0;
     private int[] S1;
     private int[] S2;
     private int[] S3;
 
+    /**
+     * Qué hace: Codifica un arreglo de bytes en formato Radix64 específico de BCrypt y lo añade a un StringBuilder.
+     * Qué significa: Mapea grupos de bits de entrada a los caracteres definidos en bf_crypt_ciphertext.
+     * Para qué se usa: Convierte la representación binaria de la sal y el hash en texto legible para su almacenamiento.
+     * Por qué es importante: Permite que el hash y la sal resultantes puedan ser guardados como texto ASCII estándar en la base de datos sin problemas de encoding.
+     * 
+     * @param d El arreglo de bytes a codificar.
+     * @param ofs El desplazamiento o posición inicial dentro del arreglo.
+     * @param len La longitud de bytes a codificar.
+     * @param sb El StringBuilder donde se acumula la cadena de texto codificada.
+     */
     private static void encodep(byte[] d, int ofs, int len, StringBuilder sb) {
         int i = ofs;
         int c1, c2;
@@ -176,11 +191,30 @@ public class BCrypt {
         }
     }
 
+    /**
+     * Qué hace: Obtiene el valor decimal de un carácter codificado en Radix64 buscando en la tabla index_64.
+     * Qué significa: Traduce un carácter ASCII de BCrypt a su correspondiente valor numérico de 6 bits (0-63).
+     * Para qué se usa: Sirve de método auxiliar para decodificar cadenas de texto sal/hash a binario.
+     * Por qué es importante: Si el carácter no es un símbolo válido de la paleta Radix64, previene la decodificación incorrecta retornando -1.
+     * 
+     * @param x El carácter a buscar en la tabla.
+     * @return El byte decimal correspondiente, o -1 si el carácter es inválido.
+     */
     private static byte char64(char x) {
         if (x < 0 || x >= index_64.length) return -1;
         return index_64[x];
     }
 
+    /**
+     * Qué hace: Decodifica una cadena de texto codificada en formato Radix64 de BCrypt y retorna sus bytes correspondientes.
+     * Qué significa: Realiza el mapeo inverso de caracteres ASCII de 6 bits a un arreglo de bytes estándar de 8 bits.
+     * Para qué se usa: Permite deserializar la sal y las firmas del hash de texto guardadas en base de datos hacia bytes legibles por Blowfish.
+     * Por qué es importante: El motor de cifrado requiere bytes binarios reales para procesar la criptografía; no puede operar con caracteres formateados directamente.
+     * 
+     * @param s La cadena Radix64 a decodificar.
+     * @param max_ofs El número máximo de bytes a decodificar.
+     * @return El arreglo de bytes decodificado, o null si la cadena posee caracteres inválidos.
+     */
     private static byte[] decodep(String s, int max_ofs) {
         int len = s.length();
         byte[] d = new byte[max_ofs];
@@ -203,6 +237,16 @@ public class BCrypt {
         return d;
     }
 
+    /**
+     * Qué hace: Extrae una palabra de 32 bits (double word) de un flujo de bytes circular utilizando un offset mutable.
+     * Qué significa: Lee 4 bytes consecutivos y los une mediante desplazamientos de bits (bitwise operations) en un único int.
+     * Para qué se usa: Sirve de insumo para alimentar la clave Blowfish de forma continua repitiendo los bytes si la clave es corta.
+     * Por qué es importante: Blowfish procesa datos en bloques de 32 y 64 bits, requiriendo este empaquetamiento de bytes individuales.
+     * 
+     * @param bytes El arreglo de bytes de entrada (sal o clave).
+     * @param offset Un arreglo contenedor del índice actual para poder mutar el offset de lectura por referencia.
+     * @return La palabra de 32 bits (int) decodificada del stream.
+     */
     private static int streamtodw(byte[] bytes, int[] offset) {
         int dw = 0;
         int off = offset[0];
@@ -223,6 +267,15 @@ public class BCrypt {
         return dw;
     }
 
+    /**
+     * Qué hace: Realiza el cifrado o descifrado de un bloque de 64 bits (partido en dos ints de 32 bits) usando Blowfish.
+     * Qué significa: Ejecuta las 16 rondas de Feistel mezclando los bits con las subclaves P y la función de sustitución F.
+     * Para qué se usa: Es la rutina central de cifrado simétrico que encripta los bloques de datos.
+     * Por qué es importante: Provee la confusión y difusión de bits necesarias para la seguridad criptográfica del hash.
+     * 
+     * @param lr Arreglo de tamaño 2 que contiene el bloque izquierdo [0] y derecho [1] de 32 bits cada uno.
+     * @param direction Dirección del cifrado (1 para encriptar, otro valor para desencriptar).
+     */
     private void cipher(int[] lr, int direction) {
         int l = lr[0], r = lr[1];
         if (direction == 1) {
@@ -247,6 +300,15 @@ public class BCrypt {
         lr[0] = l; lr[1] = r;
     }
 
+    /**
+     * Qué hace: Función de sustitución F de Blowfish que procesa un entero de 32 bits y retorna otro entero mezclado.
+     * Qué significa: Divide el entero en 4 bytes de 8 bits y los usa como índices en las cajas S (S0-S3) combinándolos aritméticamente.
+     * Para qué se usa: Mezcla de forma no lineal los bits en cada ronda de Feistel del cifrado.
+     * Por qué es importante: Introduce la propiedad de no linealidad al cifrado, dificultando el criptoanálisis lineal y diferencial.
+     * 
+     * @param x El valor entero de 32 bits a transformar.
+     * @return El entero resultante tras las sustituciones y sumas.
+     */
     private int F(int x) {
         short a = (short)((x >>> 24) & 0xff);
         short b = (short)((x >>> 16) & 0xff);
@@ -258,6 +320,12 @@ public class BCrypt {
         return y;
     }
 
+    /**
+     * Qué hace: Inicializa las cajas S y subclaves P clonando los valores iniciales por defecto.
+     * Qué significa: Carga el estado base de constantes de Pi decimal en la estructura mutable del cifrador.
+     * Para qué se usa: Restablece el cifrador antes de iniciar el proceso de expansión de una nueva clave.
+     * Por qué es importante: Evita la contaminación de subclaves entre diferentes operaciones de hasheo en un mismo hilo.
+     */
     private void initkey() {
         P = P_init.clone();
         S0 = S_init_0.clone();
@@ -266,6 +334,15 @@ public class BCrypt {
         S3 = S_init_0.clone();
     }
 
+    /**
+     * Qué hace: Ejecuta la expansión de clave Eksblowfish (key setup) alternando el password y la sal en la inicialización.
+     * Qué significa: Mezcla la sal y la clave ingresadas por el usuario aplicando cifrados sucesivos sobre el P-array y las cajas S.
+     * Para qué se usa: Establece un estado interno único para el cifrador antes de realizar las rondas pesadas de hashing.
+     * Por qué es importante: Garantiza que ligeras variaciones en la contraseña o en la sal modifiquen por completo las cajas S iniciales, evitando ataques de diccionario precalculados (rainbow tables).
+     * 
+     * @param data Los bytes correspondientes a la sal.
+     * @param key Los bytes correspondientes a la clave del usuario.
+     */
     private void ekskey(byte[] data, byte[] key) {
         initkey();
         int[] koff = {0}, doff = {0};
@@ -321,6 +398,17 @@ public class BCrypt {
         }
     }
 
+    /**
+     * Qué hace: Ejecuta el núcleo del cifrado Eksblowfish iterando el proceso de expansión un número de veces exponencial a log_rounds.
+     * Qué significa: Hashea repetidamente combinando clave y sal, y luego cifra un texto fijo de prueba ("OrpheanBeholderScryDoubt") 64 veces.
+     * Para qué se usa: Genera la representación cruda en bytes del hash final de contraseña.
+     * Por qué es importante: El bucle de rondas ralentiza a propósito el proceso de hashing de forma costosa para el procesador (Key Stretching), mitigando ataques de fuerza bruta.
+     * 
+     * @param password Contraseña de usuario convertida a bytes.
+     * @param salt Sal aleatoria convertida a bytes.
+     * @param log_rounds El exponente base 2 del número de iteraciones de encriptado (cost factor).
+     * @return El arreglo resultante de 24 bytes del hash crudo.
+     */
     private byte[] crypt_raw(byte[] password, byte[] salt, int log_rounds) {
         int rounds = 1 << log_rounds;
         byte[] key = new byte[password.length + 1];
@@ -354,6 +442,16 @@ public class BCrypt {
         return ret;
     }
 
+    /**
+     * Qué hace: Genera el hash BCrypt formateado completo a partir de una contraseña y una cadena de sal.
+     * Qué significa: Parsea la versión y rondas de la sal, invoca crypt_raw para encriptar, y concatena los prefijos y la sal codificada en Radix64.
+     * Para qué se usa: Es la función pública que consumen los servicios para registrar o cambiar contraseñas de perfiles.
+     * Por qué es importante: Consolida en una sola cadena de texto auto-contenida la versión, las rondas de trabajo, la sal aleatoria y el hash encriptado.
+     * 
+     * @param password Contraseña a encriptar.
+     * @param salt Sal formateada en BCrypt.
+     * @return El string final del hash formateado con prefijos de seguridad.
+     */
     public static String hashpw(String password, String salt) {
         BCrypt B = new BCrypt();
         int real_rounds;
@@ -381,6 +479,15 @@ public class BCrypt {
         return sb.toString();
     }
 
+    /**
+     * Qué hace: Genera una sal de BCrypt aleatoria formateada utilizando SecureRandom y un costo especificado.
+     * Qué significa: Produce 16 bytes aleatorios de sal de alta entropía y los concatena con los prefijos correspondientes de versión y costo.
+     * Para qué se usa: Sirve de insumo único para alimentar hashpw al crear un nuevo hash.
+     * Por qué es importante: El uso de sal aleatoria garantiza que el mismo password tenga hashes distintos en cada usuario del sistema, protegiendo las credenciales.
+     * 
+     * @param log_rounds El exponente base 2 de rondas de trabajo (costo).
+     * @return La sal codificada en Radix64 con metadatos del algoritmo.
+     */
     public static String gensalt(int log_rounds) {
         StringBuilder sb = new StringBuilder();
         SecureRandom sr = new SecureRandom();
@@ -394,10 +501,28 @@ public class BCrypt {
         return sb.toString();
     }
 
+    /**
+     * Qué hace: Sobrecarga que genera una sal de BCrypt aleatoria con un factor de costo por defecto de 10.
+     * Qué significa: Llama a gensalt(10) para aplicar el costo estándar recomendado de procesamiento.
+     * Para qué se usa: Proporciona una forma simplificada de crear sales sin requerir configurar factores de costo manualmente.
+     * Por qué es importante: Estandariza un costo de procesamiento balanceado entre velocidad del servidor y seguridad criptográfica.
+     * 
+     * @return La sal codificada con costo por defecto 10.
+     */
     public static String gensalt() {
         return gensalt(10);
     }
 
+    /**
+     * Qué hace: Verifica si la contraseña en texto plano coincide con el hash previamente guardado mediante una comparación constante y segura.
+     * Qué significa: Mapea la versión del hash, computa el nuevo hash con la misma sal, y los compara byte por byte.
+     * Para qué se usa: Valida las credenciales de inicio de sesión o confirmación de acciones críticas en el perfil del usuario.
+     * Por qué es importante: Protege la autenticación de perfiles controlando prefijos raros y mitigando ataques de fuerza bruta o temporización.
+     * 
+     * @param plaintext Contraseña ingresada en texto plano.
+     * @param hashed Hash de contraseña almacenado en base de datos.
+     * @return true si coinciden, false de lo contrario.
+     */
     public static boolean checkpw(String plaintext, String hashed) {
         byte[] pass_bytes;
         try {
@@ -449,6 +574,16 @@ public class BCrypt {
         }
     }
 
+    /**
+     * Qué hace: Realiza una comparación de igualdad entre dos cadenas de texto de forma constante (en tiempo de ejecución).
+     * Qué significa: Itera sobre todos los caracteres comparando bits individuales en lugar de romper el ciclo al primer carácter desigual.
+     * Para qué se usa: Evita fugas de información a través del tiempo de respuesta del servidor (timing attack).
+     * Por qué es importante: En algoritmos estándar como String.equals(), si el primer carácter es desigual, retorna inmediatamente. Un atacante puede deducir la clave midiendo diferencias de milisegundos en el servidor.
+     * 
+     * @param a Primera cadena.
+     * @param b Segunda cadena.
+     * @return true si son idénticas, false si difieren.
+     */
     private static boolean slowEquals(String a, String b) {
         byte[] aBytes = a.getBytes();
         byte[] bBytes = b.getBytes();

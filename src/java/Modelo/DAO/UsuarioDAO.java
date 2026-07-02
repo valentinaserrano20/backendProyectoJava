@@ -1,5 +1,14 @@
 package Modelo.DAO;
 
+/*
+ * Qué hace (la acción): Importa la clase de conexión a la base de datos MySQL, la entidad Usuario para mapeo de datos y las clases de acceso JDBC estándar.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - Modelo.Config.Conexion: Módulo de conexión a MySQL.
+ *   - Modelo.Entidades.Usuario: Clase entidad que modela las propiedades de una cuenta de usuario (voluntario o supervisor).
+ *   - java.sql.*: APIs estándar de interacción relacional (PreparedStatement, Connection, ResultSet, SQLException).
+ * Para qué se usa (el propósito): Proveer las dependencias requeridas por el DAO para consultar, crear y modificar cuentas de usuario.
+ * Por qué es importante (el impacto o problema que resuelve): Permite al sistema verificar identidades, gestionar perfiles de usuarios y auditar accesos en base de datos.
+ */
 import Modelo.Config.Conexion;
 import Modelo.Entidades.Usuario;
 import java.sql.Connection;
@@ -7,6 +16,13 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
+/*
+ * Qué hace (la acción): Define la clase UsuarioDAO encargada de realizar operaciones CRUD y consultas relacionales en la base de datos MySQL sobre la tabla 'usuarios'.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - DAO (Data Access Object): Centraliza las operaciones SQL de la entidad Usuario.
+ * Para qué se usa (el propósito): Administrar los inicios de sesión, restablecimientos de contraseña, perfiles de usuario y asignación de roles.
+ * Por qué es importante (el impacto o problema que resuelve): Aísla por completo el código de base de datos relacional de la gestión de usuarios, previniendo inyección SQL e implementando lógica de auditoría interna.
+ */
 public class UsuarioDAO {
 
     // Sirve para: Obtener la información completa de un usuario buscando por su dirección de correo electrónico.

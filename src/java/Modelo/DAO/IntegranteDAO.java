@@ -7,14 +7,21 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
-// Qué hace: Clase DAO encargada de encapsular el acceso y la persistencia de datos para las entidades de Integrantes, Afecciones y Medicamentos.
-// Por qué existe: Provee una capa limpia de persistencia utilizando consultas SQL parametrizadas directas mediante JDBC.
-// Qué problema resuelve: Separa la lógica de acceso a base de datos de la lógica de negocio y presentación, evitando acoplamientos y previniendo la inyección SQL.
+/*
+ * Qué hace (la acción): Define la clase IntegranteDAO que implementa operaciones CRUD sobre las tablas 'integrantes', 'afecciones' y 'medicamentos' en MySQL.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - DAO (Data Access Object): Centraliza las operaciones de acceso físico a datos correspondientes a familiares.
+ * Para qué se usa (el propósito): Gestionar la información de los integrantes del hogar, sus parentescos, tipos de sangre, afecciones y dosificaciones médicas.
+ * Por qué es importante (el impacto o problema que resuelve): Aísla por completo las consultas relacionales del dominio de familiares y coordina de manera transaccional el borrado o registro en cascada de medicamentos y afecciones.
+ */
 public class IntegranteDAO {
 
-    // Qué hace: Consulta y retorna la cantidad total de integrantes registrados para un plan familiar específico.
-    // Por qué existe: Es requerido para calcular los metadatos de paginación infinita/clásica expuestos en la UI.
-    // Qué problema resuelve: Evita transferir todas las filas en memoria solo para contar los registros, optimizando el rendimiento del servidor.
+    /*
+     * Qué hace (la acción): Consulta la cantidad total de integrantes que pertenecen a un plan familiar en MySQL.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - SELECT COUNT(*): Cuenta registros de integrantes filtrando por plan_id.
+     * Para qué se usa (el propósito): Suministrar al paginador de la interfaz web la cantidad exacta de registros del plan.
+     */
     public int obtenerTotalIntegrantes(int planId) throws SQLException {
         // Explicación de consulta SQL:
         // - Información buscada: El conteo total de filas (COUNT(*)) asociadas a un plan.
@@ -41,9 +48,14 @@ public class IntegranteDAO {
         return 0;
     }
 
-    // Qué hace: Verifica si un plan familiar ya cuenta con un Jefe de hogar (parentesco_id = 1) registrado.
-    // Por qué existe: Garantiza la regla de negocio que restringe a un único Jefe de hogar por familia.
-    // Qué problema resuelve: Impide la existencia de duplicidades de cabeza de hogar dentro de la base de datos para un mismo plan.
+    /*
+     * Qué hace (la acción): Verifica si un plan familiar ya tiene un Jefe de hogar (parentesco_id = 1) asignado.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - parentesco_id = 1: Llave foránea del catálogo de parentescos que representa al Jefe de hogar.
+     *   - excluirIntegranteId: ID del integrante que se está editando actualmente para no contar su propio registro en la verificación de duplicados.
+     * Para qué se usa (el propósito): Validar la regla de negocio que permite como máximo un solo jefe de hogar por cada familia.
+     * Por qué es importante (el impacto o problema que resuelve): Evita inconsistencias de datos e impide que el usuario asigne a múltiples jefes de hogar en una misma vivienda.
+     */
     public boolean tieneJefeHogar(int planId, int excluirIntegranteId) throws SQLException {
         // Explicación de consulta SQL:
         // - Información buscada: Cantidad de integrantes que tengan parentesco_id = 1 (Jefe de hogar).
@@ -70,9 +82,14 @@ public class IntegranteDAO {
         return false;
     }
 
-    // Qué hace: Consulta un listado paginado de integrantes asociados a un plan, uniendo parentescos y grupos sanguíneos.
-    // Por qué existe: Permite renderizar las tarjetas visuales de integrantes en el frontend de forma dosificada.
-    // Qué problema resuelve: Limita y dosifica el número de registros cargados en una sola petición, reduciendo el consumo de red y memoria.
+    /*
+     * Qué hace (la acción): Recupera la lista paginada de integrantes familiares asociados a un plan.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - LEFT JOIN: Une la tabla integrantes con parentescos, grupos sanguíneos y planes familiares para traer denominaciones legibles.
+     *   - LIMIT ? OFFSET ?: Cláusulas JDBC para recuperar un segmento de la tabla.
+     * Para qué se usa (el propósito): Cargar el listado estructurado de familiares en la interfaz de usuario en porciones controladas.
+     * Por qué es importante (el impacto o problema que resuelve): Evita la sobrecarga de red al transferir información pesada, garantizando velocidad de carga en dispositivos con conectividad lenta.
+     */
     public List<IntegranteDTO> listarIntegrantes(int planId, int limit, int offset) throws SQLException {
         // Explicación de consulta SQL:
         // - Información buscada: Columnas de integrantes (id, nombre, apellido, documento, nacimiento, celular), parentesco (kinship), grupo sanguíneo (blood_group) y estado del plan familiar (status_id).
@@ -124,9 +141,11 @@ public class IntegranteDAO {
         }
     }
 
-    // Qué hace: Obtiene la información detallada completa de un integrante familiar, incluyendo tipo de documento, género, parentesco, sangre y nacionalidad.
-    // Por qué existe: Se utiliza para alimentar el modal de visualización de detalles completos ("Ver más") y la pantalla de edición de integrantes.
-    // Qué problema resuelve: Permite recuperar todos los datos relacionales de un integrante de forma atómica en una sola consulta de unión (JOIN).
+    /*
+     * Qué hace (la acción): Obtiene la ficha de datos detallada de un integrante a partir de su ID.
+     * Qué significa (conceptos, métodos, tipos involucrados): Mapea todos los IDs foráneos (documento, género, nacionalidad, parentesco, sangre) y sus descripciones legibles.
+     * Para qué se usa (el propósito): Suministrar al frontend la ficha del integrante para su visualización o precarga de datos al editar.
+     */
     public IntegranteDTO obtenerIntegrante(int id) throws SQLException {
         // Explicación de consulta SQL:
         // - Información buscada: Atributos detallados del integrante e información legible asociada (siglas del documento, parentesco, etc.).
@@ -187,9 +206,13 @@ public class IntegranteDAO {
         return null;
     }
 
-    // Qué hace: Inserta un nuevo integrante en la base de datos y retorna el ID autogenerado, verificando si es el jefe de hogar.
-    // Por qué existe: Permite agregar nuevos miembros a la familia dentro del flujo del plan familiar.
-    // Qué problema resuelve: Registra al integrante con todas sus relaciones externas correspondientes, manejando nulos de forma correcta.
+    /*
+     * Qué hace (la acción): Inserta un nuevo familiar en la tabla 'integrantes' de MySQL y devuelve su ID asignado.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - Statement.RETURN_GENERATED_KEYS: Permite capturar la clave primaria autogenerada.
+     *   - setNullableInt: Helper que maneja valores enteros opcionales insertando NULL de SQL en su lugar si su valor es menor o igual a cero.
+     * Para qué se usa (el propósito): Registrar un nuevo miembro del hogar dentro del plan familiar de evacuación.
+     */
     public int crearIntegrante(IntegranteDTO dto) throws SQLException {
         // Explicación de consulta SQL:
         // - Información buscada: Inserción de campos de integrante en integrantes.
@@ -239,9 +262,12 @@ public class IntegranteDAO {
         throw new SQLException("Error al recuperar el ID generado para el integrante.");
     }
 
-    // Qué hace: Modifica los datos personales y médicos generales de un integrante en la base de datos.
-    // Por qué existe: Permite persistir los cambios hechos por el voluntario en el formulario de edición de integrante.
-    // Qué problema resuelve: Actualiza los campos opcionales y obligatorios controlando la consistencia del jefe de hogar.
+    /*
+     * Qué hace (la acción): Modifica la información del integrante familiar en base de datos.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - UPDATE: Modifica los campos relacionales del familiar por su ID.
+     * Para qué se usa (el propósito): Persistir los cambios del integrante editado desde el frontend.
+     */
     public void actualizarIntegrante(int id, IntegranteDTO dto) throws SQLException {
         // Explicación de consulta SQL:
         // - Información buscada: Actualización de columnas del integrante.
@@ -284,9 +310,15 @@ public class IntegranteDAO {
         }
     }
 
-    // Qué hace: Elimina transaccionalmente un integrante familiar, eliminando primero sus medicamentos y afecciones en cadena.
-    // Por qué existe: Previene la violación de restricciones de llave foránea (Foreign Key Constraints) de MySQL durante la baja física de un miembro.
-    // Qué problema resuelve: Ejecuta todo el flujo de borrado bajo rollback manual, manteniendo la integridad referencial en caso de error.
+    /*
+     * Qué hace (la acción): Elimina transaccionalmente un integrante de la base de datos, barriendo previamente sus medicamentos y afecciones registradas.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - con.setAutoCommit(false): Desactiva la confirmación automática para realizar una transacción ACID segura.
+     *   - DELETE FROM medicamentos: Borra medicamentos huérfanos asociados a las afecciones del integrante.
+     *   - DELETE FROM afecciones: Borra los diagnósticos médicos del familiar.
+     * Para qué se usa (el propósito): Dar de baja a un integrante sin romper las restricciones físicas de llaves foráneas de MySQL.
+     * Por qué es importante (el impacto o problema que resuelve): Previene excepciones críticas y caídas de base de datos al asegurar un borrado limpio en cadena de la información médica.
+     */
     public void eliminarIntegrante(int id) throws SQLException {
         // Usamos try-with-resources para cerrar automáticamente la conexión al salir del bloque
         try (Connection con = Conexion.obtener()) {
@@ -340,9 +372,12 @@ public class IntegranteDAO {
         }
     }
 
-    // Qué hace: Recupera las afecciones médicas sufridas por un integrante familiar, uniendo los datos de dosificación de medicamentos.
-    // Por qué existe: Es invocado por la UI para desplegar el listado de padecimientos médicos en la pestaña de gestión del integrante.
-    // Qué problema resuelve: Combina registros médicos de afecciones y medicamentos de forma atómica en un único resultado unificado.
+    /*
+     * Qué hace (la acción): Obtiene la lista de afecciones médicas que padece un integrante familiar.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - LEFT JOIN medicamentos: Vincula la afección con la dosificación diaria de su tratamiento asociado.
+     * Para qué se usa (el propósito): Alimentar la tabla de padecimientos médicos de la ficha familiar en la interfaz SPA.
+     */
     public List<AfeccionDTO> listarAfeccionesPorIntegrante(int memberId) throws SQLException {
         // Explicación de consulta SQL:
         // - Información buscada: Columnas de afecciones (id, tipo, nombre_afeccion, integrante_id) y la dosis de su respectivo medicamento.
@@ -374,9 +409,11 @@ public class IntegranteDAO {
         }
     }
 
-    // Qué hace: Obtiene la información estructurada de una afección en particular y su dosis relacionada.
-    // Por qué existe: Se utiliza para precargar la información médica en el modal de SweetAlert de edición de afección.
-    // Qué problema resuelve: Permite recuperar la dosis de medicamento asociada al diagnóstico específico de manera directa.
+    /*
+     * Qué hace (la acción): Consulta la información detallada de una afección en particular y su dosis relacionada.
+     * Qué significa (conceptos, métodos, tipos involucrados): Mapea las columnas de la fila actual de afecciones y medicamentos a un DTO.
+     * Para qué se usa (el propósito): Recuperar los datos de una enfermedad o alergia para precargarla en el formulario de edición.
+     */
     public AfeccionDTO obtenerAfeccion(int id) throws SQLException {
         // Explicación de consulta SQL:
         // - Información buscada: Columnas de la afección y dosis de su medicamento asociado.
@@ -406,8 +443,13 @@ public class IntegranteDAO {
         return null;
     }
 
-    // Qué hace: Registra transaccionalmente una afección y, en caso de incluir dosis, inserta automáticamente un medicamento satélite.
-    // Por qué existe: Habilita el registro de una afección médica en la base de datos.
+    /*
+     * Qué hace (la acción): Inserta transaccionalmente una afección y su respectivo medicamento dosis si se incluye.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - con.setAutoCommit(false): Habilita modo transaccional.
+     *   - Statement.RETURN_GENERATED_KEYS: Obtiene la clave generada del diagnóstico para enlazar el medicamento relacional.
+     * Para qué se usa (el propósito): Guardar el diagnóstico de salud y dosificación médica del integrante.
+     */
     public int crearAfeccion(AfeccionDTO dto) throws SQLException {
         // Usamos try-with-resources para la conexión física JDBC
         try (Connection con = Conexion.obtener()) {
@@ -459,9 +501,12 @@ public class IntegranteDAO {
         }
     }
 
-    // Qué hace: Modifica una afección y actualiza, inserta o remueve su dosificación correspondiente en la tabla medicamentos.
-    // Por qué existe: Mantiene actualizados los cambios médicos del integrante, administrando la existencia opcional de medicamentos.
-    // Qué problema resuelve: Evalúa transaccionalmente la existencia previa de la dosis para determinar si corresponde UPDATE, INSERT o DELETE.
+    /*
+     * Qué hace (la acción): Modifica una afección y actualiza, inserta o elimina el medicamento asociado en la misma transacción.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - con.rollback(): Deshace la transacción en caso de errores JDBC.
+     * Para qué se usa (el propósito): Salvar los cambios de la ficha médica de un familiar de forma consistente.
+     */
     public void actualizarAfeccion(int id, AfeccionDTO dto) throws SQLException {
         // Usamos try-with-resources para la conexión física JDBC
         try (Connection con = Conexion.obtener()) {
@@ -526,9 +571,12 @@ public class IntegranteDAO {
         }
     }
 
-    // Qué hace: Elimina una afección y su respectivo medicamento de forma transaccional.
-    // Por qué existe: Permite dar de baja un diagnóstico sin romper la integridad física de las tablas.
-    // Qué problema resuelve: Remueve en orden los medicamentos huérfanos para evitar errores de claves ajenas.
+    /*
+     * Qué hace (la acción): Elimina físicamente una afección y su respectivo medicamento de manera transaccional.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - DELETE FROM medicamentos WHERE afeccion_id = ?: Limpia los tratamientos huérfanos.
+     * Para qué se usa (el propósito): Dar de baja un diagnóstico de salud del integrante familiar.
+     */
     public void eliminarAfeccion(int id) throws SQLException {
         // Usamos try-with-resources para asegurar el cierre automático de la conexión
         try (Connection con = Conexion.obtener()) {
@@ -559,9 +607,11 @@ public class IntegranteDAO {
         }
     }
 
-    // Qué hace: Obtiene la lista completa de integrantes asociados a un plan familiar, sin límites de paginación.
-    // Por qué existe: Requerido para rellenar el listado desplegable de selección de miembros en otros módulos como Plan de Acción.
-    // Qué problema resuelve: Provee acceso rápido a todos los familiares registrados de forma estructurada.
+    /*
+     * Qué hace (la acción): Obtiene a todos los integrantes asociados a un plan familiar de emergencia, sin límite de paginación.
+     * Qué significa (conceptos, métodos, tipos involucrados): SELECT con filtro WHERE plan_id = ? y LEFT JOIN con la tabla parentescos.
+     * Para qué se usa (el propósito): Cargar el selector de responsables o coordinadores familiares en el resto de los módulos.
+     */
     public List<IntegranteDTO> listarTodosIntegrantes(int planId) throws SQLException {
         // Explicación de consulta SQL:
         // - Información buscada: ID, nombre, apellido, documento e parentesco.
@@ -599,9 +649,12 @@ public class IntegranteDAO {
         }
     }
 
-    // Qué hace: Helper privado para asignar de manera condicional un número entero o el tipo SQL NULL en una sentencia JDBC.
-    // Por qué existe: Evita errores al intentar escribir un valor cero (0) o no válido en columnas relacionales de tipo entero en MySQL.
-    // Qué problema resuelve: Mapea la ausencia de selección del frontend a un valor NULL real en la base de datos.
+    /*
+     * Qué hace (la acción): Helper privado para enlazar un número entero al PreparedStatement o almacenar un valor NULL de SQL en su lugar.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - ps.setNull(index, Types.INTEGER): Almacena un NULL en MySQL si el ID suministrado es inválido (menor o igual a cero).
+     * Para qué se usa (el propósito): Manejar llaves foráneas opcionales del familiar (EPS, tipo de sangre, etc.) sin arrojar excepciones JDBC.
+     */
     private void setNullableInt(PreparedStatement ps, int index, int value) throws SQLException {
         // Qué hace: Si el valor es mayor a cero (ID válido), lo vincula como entero normal.
         if (value > 0) {
@@ -612,9 +665,11 @@ public class IntegranteDAO {
         }
     }
 
-    // Qué hace: Obtiene la lista de todos los integrantes familiares registrados de manera compacta (ID de integrante y ID de plan).
-    // Por qué existe: Soporta el filtrado en el panel del supervisor sobre los miembros de un plan familiar específico.
-    // Qué problema resuelve: Permite recuperar la correspondencia de integrantes y sus planes asociados de forma eficiente y rápida.
+    /*
+     * Qué hace (la acción): Obtiene la lista completa de todos los familiares de la base de datos de manera ligera (ID de integrante y ID de plan).
+     * Qué significa (conceptos, métodos, tipos involucrados): SELECT id AS member_id, plan_id AS family_plan_id FROM integrantes.
+     * Para qué se usa (el propósito): Permitir que el supervisor realice búsquedas o filtrados rápidos de planes familiares en base a los integrantes en memoria.
+     */
     public List<java.util.Map<String, Object>> obtenerTodosFamilyMembers() throws SQLException {
         // Explicación de consulta SQL:
         // - Información buscada: Relación de identificadores de integrante (member_id) y plan familiar (family_plan_id).
@@ -640,10 +695,10 @@ public class IntegranteDAO {
         }
     }
 
-    /**
-     * Qué hace: Mapea una fila de ResultSet a un DTO de Afección médica con tipo resuelto.
-     * Por qué se hizo: Evita duplicar el bloque de mapeo y conversión del ENUM tipo en listarAfeccionesPorIntegrante y obtenerAfeccion.
-     * Qué significa: Unifica la conversión de ResultSet a AfeccionDTO.
+    /*
+     * Qué hace (la acción): Helper que mapea las columnas del ResultSet a un DTO de Afección, resolviendo el nombre y el ID del tipo de condición.
+     * Qué significa (conceptos, métodos, tipos involucrados): Traduce el ENUM de base de datos ("enfermedad", "discapacidad", "alergia") a IDs numéricos del frontend.
+     * Para qué se usa (el propósito): Reutilizar la lógica de mapeo de afecciones en múltiples métodos de consulta del DAO.
      */
     private AfeccionDTO mapearAfeccion(ResultSet rs) throws SQLException {
         AfeccionDTO dto = new AfeccionDTO();

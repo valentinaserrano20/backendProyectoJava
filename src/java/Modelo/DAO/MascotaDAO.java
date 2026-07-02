@@ -1,5 +1,14 @@
 package Modelo.DAO;
 
+/*
+ * Qué hace (la acción): Importa el administrador de conexiones de base de datos relacionales, los DTOs de Mascotas y Vacunas, utilidades JDBC y APIs de fechas estándar de Java.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - Modelo.Config.Conexion: Establece conexiones de base de datos MySQL.
+ *   - Modelo.DTO.*: Objetos de transferencia (DTO) que empaquetan la información descriptiva y de inmunizaciones sanitarias del animal.
+ *   - java.time.*: APIs modernas de Java (LocalDate, Period) usadas para calcular de manera precisa la edad de la mascota en años a partir de su fecha de nacimiento.
+ * Para qué se usa (el propósito): Proveer las herramientas de conectividad y cálculo necesarias para gestionar el inventario de animales domésticos en los hogares.
+ * Por qué es importante (el impacto o problema que resuelve): Permite registrar a los animales domésticos en el censo del hogar para incluirlos en el protocolo de evacuación de emergencias de la familia.
+ */
 import Modelo.Config.Conexion;
 import Modelo.DTO.MascotaDTO;
 import Modelo.DTO.VacunaMascotaDTO;
@@ -9,14 +18,21 @@ import java.time.Period;
 import java.util.ArrayList;
 import java.util.List;
 
-// Qué hace: Data Access Object (DAO) que encapsula el acceso físico y la persistencia de datos para las entidades de Mascotas y Vacunas de Mascotas.
-// Por qué existe: Concentra la ejecución de sentencias JDBC y consultas SQL parametrizadas directas, independizando la base de datos de la lógica empresarial.
-// Qué problema resuelve: Separa la gestión directa de tablas MySQL de las capas superiores del backend, evitando SQL injection y facilitando transacciones seguras.
+/*
+ * Qué hace (la acción): Define la clase MascotaDAO encargada de realizar operaciones CRUD y consultas relacionales en la base de datos MySQL sobre las tablas 'mascotas' y 'vacunas'.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - DAO (Data Access Object): Capa encargada del acceso y persistencia física de datos aislada de la lógica de negocio.
+ * Para qué se usa (el propósito): Gestionar la información del animal doméstico (nombre, raza, género, especie) y su calendario de vacunaciones.
+ * Por qué es importante (el impacto o problema que resuelve): Centraliza y administra de forma transaccional el borrado físico de la mascota junto a sus dosis vacunales, previniendo errores de llave foránea.
+ */
 public class MascotaDAO {
 
-    // Qué hace: Obtiene la cantidad total de mascotas registradas asociadas a un plan familiar específico.
-    // Por qué existe: Es requerido para los cálculos y lógica de paginación infinita en las vistas del voluntario.
-    // Qué problema resuelve: Permite contar rápidamente las mascotas de la base de datos sin necesidad de transferir todas las filas en memoria.
+    /*
+     * Qué hace (la acción): Cuenta cuántas mascotas tiene asignadas un plan familiar.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - SELECT COUNT(*): Cuenta registros de mascotas en MySQL.
+     * Para qué se usa (el propósito): Proveer al paginador del frontend la cantidad exacta de registros del plan.
+     */
     public int obtenerTotalMascotas(int planId) throws SQLException {
         // Explicación detallada de la consulta SQL:
         // - Comando SELECT COUNT(*) AS total: Cuenta la cantidad total de registros (filas) que cumplen la condición y le asigna el alias "total" a la columna resultante para recuperarla fácilmente en Java.
@@ -42,9 +58,13 @@ public class MascotaDAO {
         return 0;
     }
 
-    // Qué hace: Consulta una lista paginada de mascotas asociadas a un plan familiar, uniendo con su respectiva especie.
-    // Por qué existe: Alimenta el renderizado de la cuadrícula de mascotas de la familia de forma dosificada en el cliente.
-    // Qué problema resuelve: Evita la sobrecarga de memoria del servidor al recuperar grupos delimitados de registros utilizando LIMIT y OFFSET.
+    /*
+     * Qué hace (la acción): Obtiene una lista paginada de las mascotas registradas para un plan familiar.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - LEFT JOIN: Une la tabla mascotas con especies_mascota y generos_mascota para traer sus nombres legibles.
+     *   - LIMIT ? OFFSET ?: Cláusulas de MySQL que limitan el número de filas e indican el desplazamiento inicial de lectura.
+     * Para qué se usa (el propósito): Mostrar las mascotas de la familia por segmentos dosificados en la UI.
+     */
     public List<MascotaDTO> listarMascotas(int planId, int limit, int offset) throws SQLException {
         // Explicación detallada de la consulta SQL:
         // - Columnas consultadas (m.id, m.nombre, etc.): Selecciona campos clave de la mascota (m), el nombre descriptivo de su género (g.nombre) y su especie (e.nombre) para mapear el DTO completo.
@@ -84,9 +104,11 @@ public class MascotaDAO {
         }
     }
 
-    // Qué hace: Obtiene la información detallada de una mascota singular y su relación con especies_mascota.
-    // Por qué existe: Permite precargar la información de la mascota en el formulario de edición y ventanas de detalles.
-    // Qué problema resuelve: Facilita la recuperación atómica y limpia de los atributos de un animal individual por su ID único.
+    /*
+     * Qué hace (la acción): Obtiene la información estructurada de una mascota a partir de su ID.
+     * Qué significa (conceptos, métodos, tipos involucrados): Mapea todas las columnas relacionales del animal (nombre, especie, sexo, edad).
+     * Para qué se usa (el propósito): Recuperar los datos de una mascota para precargarlos en los formularios de edición de la SPA.
+     */
     public MascotaDTO obtenerMascota(int id) throws SQLException {
         // Explicación detallada de la consulta SQL:
         // - Columnas consultadas (m.id, m.nombre, etc.): Selecciona todos los campos de información atómica del animal.
@@ -116,9 +138,12 @@ public class MascotaDAO {
         return null;
     }
 
-    // Qué hace: Inserta una nueva mascota en la base de datos de MySQL y retorna el ID autogenerado asignado.
-    // Por qué existe: Soporta la creación física de mascotas asociadas a un núcleo familiar voluntario evaluado.
-    // Qué problema resuelve: Garantiza el almacenamiento consistente de los tipos de datos (como fecha y llaves foráneas) controlando nulos en columnas opcionales.
+    /*
+     * Qué hace (la acción): Inserta un nuevo animal doméstico en la tabla 'mascotas' y retorna el ID autogenerado asignado.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - Statement.RETURN_GENERATED_KEYS: Habilita el retorno del ID autoincremental de la base de datos MySQL.
+     * Para qué se usa (el propósito): Registrar un animal dentro del plan familiar de evacuación.
+     */
     public int crearMascota(MascotaDTO dto) throws SQLException {
         // Definición de la sentencia SQL parametrizada
         String sql = "INSERT INTO mascotas (nombre, raza, genero_id, fecha_nacimiento, plan_id, especie_id) VALUES (?, ?, ?, ?, ?, ?)";
@@ -169,9 +194,12 @@ public class MascotaDAO {
         throw new SQLException("Error al recuperar el ID autogenerado de la mascota registrada.");
     }
 
-    // Qué hace: Modifica los atributos base de una mascota existente en la base de datos.
-    // Por qué existe: Posibilita que el voluntario guarde correcciones del nombre, raza, género o edad de la mascota.
-    // Qué problema resuelve: Actualiza los campos específicos de la mascota sin alterar su relación estructurada con el plan familiar.
+    /*
+     * Qué hace (la acción): Modifica la información descriptiva de una mascota en la base de datos.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - UPDATE: Modifica los campos relacionales del animal por su ID.
+     * Para qué se usa (el propósito): Salvar los cambios de la mascota editada en el frontend.
+     */
     public void actualizarMascota(int id, MascotaDTO dto) throws SQLException {
         // Explicación detallada de la consulta SQL:
         // - Comando UPDATE mascotas: Ordena al motor MySQL modificar los valores de registros existentes en la tabla mascotas.
@@ -211,9 +239,15 @@ public class MascotaDAO {
         }
     }
 
-    // Qué hace: Elimina una mascota de forma transaccional, borrando primero todas sus vacunas asociadas.
-    // Por qué existe: Evita violaciones de restricciones de claves foráneas de MySQL durante el borrado físico de la mascota.
-    // Qué problema resuelve: Garantiza la atomicidad y la limpieza del historial sanitario evitando registros huérfanos en la base de datos.
+    /*
+     * Qué hace (la acción): Elimina de forma transaccional una mascota, borrando previamente todo su historial sanitario de vacunas.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - con.setAutoCommit(false): Inicia una transacción explícita de MySQL.
+     *   - DELETE FROM vacunas WHERE mascota_id = ?: Borra las vacunas asignadas al animal.
+     *   - DELETE FROM mascotas WHERE id = ?: Borra al animal doméstico.
+     * Para qué se usa (el propósito): Dar de baja a una mascota sin romper la integridad relacional de base de datos.
+     * Por qué es importante (el impacto o problema que resuelve): Previene violaciones de llaves foráneas y borra limpiamente los datos satélites de salud de la mascota en cascada.
+     */
     public void eliminarMascota(int id) throws SQLException {
         // Usamos try-with-resources para la conexión de forma que se cierre automáticamente
         try (Connection con = Conexion.obtener()) {
@@ -248,9 +282,11 @@ public class MascotaDAO {
     // SUB-MÓDULO DE VACUNAS
     // =========================================================================
 
-    // Qué hace: Obtiene la lista completa de vacunas registradas para una mascota en particular.
-    // Por qué existe: Permite listar el historial de vacunas en el perfil sanitario de la mascota de la UI.
-    // Qué problema resuelve: Recupera del backend de forma consolidada todos los registros de inmunización del animal.
+    /*
+     * Qué hace (la acción): Recupera el historial completo de vacunas aplicadas a una mascota.
+     * Qué significa (conceptos, métodos, tipos involucrados): SELECT con filtro WHERE mascota_id = ? ordenado por fecha de aplicación cronológicamente inverso (DESC).
+     * Para qué se usa (el propósito): Alimentar la tabla sanitaria de vacunas del animal en la UI.
+     */
     public List<VacunaMascotaDTO> listarVacunasMascota(int mascotaId) throws SQLException {
         // Explicación detallada de la consulta SQL:
         // - Comando SELECT id, nombre_vacuna, fecha_aplicacion, mascota_id: Recupera los datos necesarios del historial de inmunizaciones.
@@ -288,9 +324,11 @@ public class MascotaDAO {
         }
     }
 
-    // Qué hace: Obtiene los detalles de una vacuna singular registrada por su ID.
-    // Por qué existe: Se utiliza para alimentar el modal flotante de edición de vacuna específica.
-    // Qué problema resuelve: Recupera de forma limpia y exacta la información e historial de una vacuna particular.
+    /*
+     * Qué hace (la acción): Obtiene una vacuna de mascota en particular por su ID.
+     * Qué significa (conceptos, métodos, tipos involucrados): Mapea las columnas id, nombre_vacuna, fecha_aplicacion y mascota_id a un DTO.
+     * Para qué se usa (el propósito): Recuperar los campos de la vacuna para precargar la ventana de edición.
+     */
     public VacunaMascotaDTO obtenerVacuna(int id) throws SQLException {
         // Explicación detallada de la consulta SQL:
         // - Comando SELECT: Recupera las columnas descriptivas de una sola dosis vacunal.
@@ -323,9 +361,11 @@ public class MascotaDAO {
         return null;
     }
 
-    // Qué hace: Inserta un registro de vacuna en la base de datos y retorna el ID autogenerado.
-    // Por qué existe: Habilita el registro de una nueva inmunización al animal dentro del flujo del voluntario.
-    // Qué problema resuelve: Asegura la correcta escritura e integridad de la fecha y de la clave foránea a la mascota.
+    /*
+     * Qué hace (la acción): Registra una dosis vacunal en la base de datos relacional y retorna el ID autogenerado.
+     * Qué significa (conceptos, métodos, tipos involucrados): INSERT parametrizado con retorno de llaves autogeneradas.
+     * Para qué se usa (el propósito): Registrar inmunizaciones en la ficha sanitaria del animal.
+     */
     public int crearVacuna(VacunaMascotaDTO dto) throws SQLException {
         // Explicación detallada de la consulta SQL:
         // - Comando INSERT INTO vacunas: Ordena al motor MySQL crear un nuevo registro físico en la tabla vacunas.
@@ -355,9 +395,12 @@ public class MascotaDAO {
         throw new SQLException("Error al recuperar el ID autogenerado de la vacuna registrada.");
     }
 
-    // Qué hace: Actualiza el nombre o la fecha de aplicación de una vacuna específica.
-    // Por qué existe: Permite al voluntario editar la dosis o corregir la fecha de inmunización del animal.
-    // Qué problema resuelve: Realiza modificaciones sobre el registro particular de vacunas sin afectar las relaciones del animal.
+    /*
+     * Qué hace (la acción): Modifica el nombre de la vacuna o la fecha de aplicación por su ID.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - UPDATE vacunas: Modifica los atributos de la dosis vacunal.
+     * Para qué se usa (el propósito): Corregir errores en la fecha o denominación de la inmunización.
+     */
     public void actualizarVacuna(int id, VacunaMascotaDTO dto) throws SQLException {
         // Explicación detallada de la consulta SQL:
         // - Comando UPDATE vacunas: Modifica valores de un registro de vacuna existente en MySQL.
@@ -378,9 +421,11 @@ public class MascotaDAO {
         }
     }
 
-    // Qué hace: Elimina una vacuna específica de la base de datos por su ID único.
-    // Por qué existe: Permite dar de baja o quitar vacunas registradas incorrectamente.
-    // Qué problema resuelve: Ejecuta la remoción directa del registro de vacunas sin afectar al registro padre de la mascota.
+    /*
+     * Qué hace (la acción): Elimina físicamente el registro de la vacuna de la base de datos.
+     * Qué significa (conceptos, métodos, tipos involucrados): DELETE físico filtrando por clave primaria única 'id'.
+     * Para qué se usa (el propósito): Quitar vacunas cargadas por error.
+     */
     public void eliminarVacuna(int id) throws SQLException {
         // Explicación detallada de la consulta SQL:
         // - Comando DELETE FROM vacunas: Elimina de forma permanente el registro físico de la dosis de la base de datos.
@@ -395,9 +440,11 @@ public class MascotaDAO {
         }
     }
 
-    // Qué hace: Obtiene la lista completa de todas las mascotas registradas en el sistema.
-    // Por qué existe: Soporta el filtrado de mascotas del supervisor en el panel de revisión de planes familiares.
-    // Qué problema resuelve: Recupera de forma masiva y estructurada todas las mascotas para que el supervisor filtre localmente.
+    /*
+     * Qué hace (la acción): Obtiene la lista completa de todas las mascotas registradas en el sistema de manera global.
+     * Qué significa (conceptos, métodos, tipos involucrados): SELECT sin filtros de paginación que une los catálogos de especie y sexo.
+     * Para qué se usa (el propósito): Permitir al supervisor realizar búsquedas, estadísticas y auditoría general de los animales domésticos censados.
+     */
     public List<MascotaDTO> obtenerTodasMascotas() throws SQLException {
         // Explicación detallada de la consulta SQL:
         // - Columnas consultadas (m.id, m.nombre, etc.): Selecciona la información clave de todas las mascotas guardadas en el sistema.
@@ -427,10 +474,11 @@ public class MascotaDAO {
         }
     }
 
-    /**
-     * Qué hace: Mapea una fila del ResultSet a un DTO de Mascota e inyecta la edad calculada.
-     * Por qué se hizo: Evita duplicar las 20 líneas de asignación de propiedades entre listarMascotas y obtenerTodasMascotas.
-     * Qué significa: Concentra el mapeo de base de datos a objeto MascotaDTO en una sola función reutilizable.
+    /*
+     * Qué hace (la acción): Mapea una fila de ResultSet a un DTO de Mascota, calculando en tiempo de ejecución su edad aproximada en años.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - Period.between(birth, LocalDate.now()): Calcula el intervalo de tiempo entre la fecha de nacimiento y la fecha del día de hoy.
+     * Para qué se usa (el propósito): Reutilizar la lógica de mapeo e inyección de edad del animal en múltiples métodos de consulta del DAO.
      */
     private MascotaDTO mapearMascota(ResultSet rs) throws SQLException {
         MascotaDTO dto = new MascotaDTO();

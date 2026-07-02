@@ -1,28 +1,42 @@
 package Modelo.DAO;
 
+/*
+ * Qué hace (la acción): Importa la clase de configuración de la conexión a la base de datos, el DTO de acciones del plan, las clases de acceso JDBC (java.sql.*) y colecciones estándar de Java.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - Modelo.Config.Conexion: Administrador centralizado de la conexión física a la base de datos MySQL.
+ *   - Modelo.DTO.ActionPlanActionDTO: Objeto de transferencia de datos que representa una tarea individual en un momento específico del plan.
+ *   - java.sql.*: APIs estándar de Java (Connection, PreparedStatement, ResultSet, SQLException) para interactuar con bases de datos relacionales.
+ * Para qué se usa (el propósito): Proveer las herramientas necesarias para la ejecución y mapeo de sentencias SQL en la base de datos.
+ * Por qué es importante (el impacto o problema que resuelve): Permite que la clase DAO interactúe con el motor de base de datos MySQL y estructure las respuestas en listas o DTOs.
+ */
 import Modelo.Config.Conexion;
 import Modelo.DTO.ActionPlanActionDTO;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
-// Qué hace: DAO encargado de realizar operaciones CRUD sobre la tabla plan_accion para micro-acciones específicas de las fases (antes, durante, después).
-// Por qué existe: Provee acceso parametrizado a MySQL para registrar, modificar, listar y borrar tareas individuales por momento.
-// Qué problema resuelve: Encapsula el acceso JDBC directo, previniendo inyección SQL y resolviendo dinámicamente claves foráneas como el riesgo_id.
+/*
+ * Qué hace (la acción): Define la clase ActionPlanActionDAO encargada de realizar operaciones de acceso a datos (CRUD) sobre la tabla 'plan_accion'.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - DAO (Data Access Object): Patrón de diseño que aísla la lógica de negocio de los detalles de la base de datos.
+ * Para qué se usa (el propósito): Administrar las micro-acciones (tareas antes, durante y después) de los planes familiares de emergencia.
+ * Por qué es importante (el impacto o problema que resuelve): Centraliza toda la lógica SQL correspondiente a las acciones individuales del plan de emergencia, facilitando su mantenimiento.
+ */
 public class ActionPlanActionDAO {
 
-    // Qué hace: Obtiene el riesgo_id actualmente configurado para un plan familiar en la tabla plan_accion.
-    // Por qué existe: Al agregar una nueva acción individual, el frontend no envía el riesgo_id; se debe consultar desde la configuración existente.
-    // Qué problema resuelve: Asegura la consistencia referencial con la tabla de factores de riesgo sin requerir que la vista exponga o envíe datos redundantes.
+    /*
+     * Qué hace (la acción): Obtiene el ID del factor de riesgo asociado a un plan de emergencia familiar específico.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - sql: Consulta SELECT que recupera el riesgo_id de la tabla plan_accion filtrando por plan_id.
+     *   - ps.setInt(1, planId): Asigna el identificador del plan al primer marcador '?'.
+     * Para qué se usa (el propósito): Recuperar la referencia del riesgo que el plan ya tiene asociado antes de registrar una nueva tarea.
+     * Por qué es importante (el impacto o problema que resuelve): Garantiza la coherencia relacional de la base de datos al heredar el mismo factor de riesgo para las nuevas tareas del plan sin que el frontend lo tenga que enviar.
+     */
     public int obtenerRiesgoIdPorPlan(int planId) throws SQLException {
-        // SELECT recupera la columna riesgo_id de la tabla plan_accion.
-        // WHERE plan_id = ? filtra por el ID del plan de emergencia familiar.
-        // LIMIT 1 limita el resultado a una única fila (optimización).
         String sql = "SELECT riesgo_id FROM plan_accion WHERE plan_id = ? LIMIT 1";
         
-        // try-with-resources: Inicializa y administra de forma segura la conexión y el statement.
-        try (Connection con = Conexion.obtener(); // Abre la conexión física con MySQL.
-             PreparedStatement ps = con.prepareStatement(sql)) { // Prepara la consulta parametrizada.
+        try (Connection con = Conexion.obtener();
+             PreparedStatement ps = con.prepareStatement(sql)) {
              
             // Vincula el ID del plan familiar al primer marcador de posición '?'.
             ps.setInt(1, planId);
@@ -40,12 +54,15 @@ public class ActionPlanActionDAO {
         return 0;
     }
 
-    // Qué hace: Obtiene la lista de todas las acciones/tareas específicas registradas para un plan familiar, uniendo los nombres de los responsables.
-    // Por qué existe: Alimenta las tarjetas visuales de las tres pestañas en la pantalla del voluntario.
-    // Qué problema resuelve: Realiza una unión (JOIN) con la tabla integrantes para retornar los nombres concatenados en una sola petición.
+    /*
+     * Qué hace (la acción): Obtiene la lista de todas las acciones/tareas detalladas asociadas a un plan familiar, incluyendo datos del integrante coordinador.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - LEFT JOIN: Unión que permite traer las tareas del plan de acción incluso si aún no se les ha asignado ningún integrante coordinador.
+     *   - rs.getString("momento"): Recupera el momento de la base de datos ("antes", "durante", "despues") para traducirlo a IDs numéricos de tipo de acción.
+     * Para qué se usa (el propósito): Mostrar en la interfaz de usuario la lista organizada de micro-acciones que los integrantes deben realizar en una emergencia.
+     * Por qué es importante (el impacto o problema que resuelve): Permite al voluntario o supervisor visualizar en una sola vista quién es responsable de qué tarea y en qué etapa se ejecuta.
+     */
     public List<ActionPlanActionDTO> listarPorPlan(int planId) throws SQLException {
-        // SELECT recupera los atributos de la sub-tarea de plan_accion (pa) y los nombres del integrante (i).
-        // LEFT JOIN se utiliza porque un plan de acción puede no tener un coordinador familiar asignado (el campo coordinador_id es nulo).
         // Si usáramos INNER JOIN, perderíamos las tareas que aún no tengan responsable asignado.
         // WHERE pa.plan_id = ? filtra las tareas del plan específico.
         String sql = "SELECT pa.id, pa.momento, pa.descripcion_tarea, pa.plan_id, pa.riesgo_id, pa.coordinador_id, "
@@ -78,11 +95,11 @@ public class ActionPlanActionDAO {
                     
                     // Traduce la cadena de momento ("antes", "durante", "despues") al respectivo ID de tipo de acción en la UI.
                     String momentoStr = rs.getString("momento");
-                    int actionTypeId = 1; // Default a 1 ("antes")
+                    int actionTypeId = 1; // 1 = Antes
                     if ("durante".equals(momentoStr)) {
-                        actionTypeId = 2; // Tipo 2 ("durante")
+                        actionTypeId = 2; // 2 = Durante
                     } else if ("despues".equals(momentoStr)) {
-                        actionTypeId = 3; // Tipo 3 ("despues")
+                        actionTypeId = 3; // 3 = Después
                     }
                     dto.setActionTypeId(actionTypeId); // Asigna el tipo de acción.
                     
@@ -111,9 +128,13 @@ public class ActionPlanActionDAO {
         return lista;
     }
 
-    // Qué hace: Obtiene los detalles completos de una micro-acción específica por su ID.
-    // Por qué existe: Es consumido al abrir el modal "Ver/Editar/Eliminar" en la SPA.
-    // Qué problema resuelve: Mapea los campos de una sola fila de base de datos junto con el responsable en un DTO.
+    /*
+     * Qué hace (la acción): Obtiene una única micro-acción detallada a partir de su ID único de base de datos.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - ResultSet rs: Objeto de lectura secuencial que representa la fila de datos extraída por la consulta de MySQL.
+     * Para qué se usa (el propósito): Recuperar la información específica de una tarea para su edición o visualización en la interfaz SPA.
+     * Por qué es importante (el impacto o problema que resuelve): Evita consultar listas enteras cuando solo se requiere interactuar o modificar una tarea específica.
+     */
     public ActionPlanActionDTO obtenerPorId(int id) throws SQLException {
         // SELECT recupera las columnas de la tarea y de su integrante responsable.
         // LEFT JOIN se utiliza para permitir que tareas sin responsable sigan siendo legibles.
@@ -175,9 +196,14 @@ public class ActionPlanActionDAO {
         return null;
     }
 
-    // Qué hace: Inserta una nueva micro-acción en la tabla plan_accion.
-    // Por qué existe: Permite agregar tareas personalizadas en cualquiera de los tres momentos del plan.
-    // Qué problema resuelve: Resuelve y asocia de forma atómica el riesgo_id y maneja la asignación de nulos si no hay miembro id.
+    /*
+     * Qué hace (la acción): Inserta un nuevo registro de micro-acción (tarea) en la base de datos.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - ps.setNull(5, Types.INTEGER): Almacena un nulo de base de datos cuando no hay integrante asignado a la tarea.
+     *   - ps.executeUpdate(): Envía la instrucción de inserción para que sea guardada de forma persistente en MySQL.
+     * Para qué se usa (el propósito): Crear y registrar nuevas tareas de mitigación para un plan de emergencia.
+     * Por qué es importante (el impacto o problema que resuelve): Permite expandir de forma dinámica la planificación familiar ante emergencias, añadiendo tareas específicas en el momento adecuado.
+     */
     public void crear(ActionPlanActionDTO dto) throws SQLException {
         // Primero, obtiene de forma dinámica el riesgo_id configurado para el plan familiar.
         int riesgoId = obtenerRiesgoIdPorPlan(dto.getActionPlanId());
@@ -221,9 +247,13 @@ public class ActionPlanActionDAO {
         }
     }
 
-    // Qué hace: Actualiza la descripción y el miembro coordinador responsable para una tarea específica.
-    // Por qué existe: Atiende la solicitud del usuario al editar una acción en los modales.
-    // Qué problema resuelve: Modifica únicamente las columnas deseadas sin tocar llaves del plan o momento.
+    /*
+     * Qué hace (la acción): Actualiza la descripción y el integrante responsable de una micro-acción existente.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - sql: Sentencia UPDATE que modifica campos condicionados por la llave primaria única 'id'.
+     * Para qué se usa (el propósito): Guardar los cambios realizados al editar una tarea particular del plan familiar.
+     * Por qué es importante (el impacto o problema que resuelve): Mantiene al día la información y responsabilidades del plan de emergencia familiar en tiempo real.
+     */
     public void actualizar(int id, ActionPlanActionDTO dto) throws SQLException {
         // UPDATE modifica campos específicos del registro en plan_accion.
         // SET descripcion_tarea = ?, coordinador_id = ? actualiza el texto y el responsable.
@@ -254,9 +284,13 @@ public class ActionPlanActionDAO {
         }
     }
 
-    // Qué hace: Elimina físicamente el registro de la tarea de la base de datos por su ID.
-    // Por qué existe: Permite descartar micro-acciones desde el modal de eliminación.
-    // Qué problema resuelve: Borra el registro en MySQL liberando memoria y actualizando la interfaz SPA al recargar.
+    /*
+     * Qué hace (la acción): Elimina físicamente el registro de una tarea de la base de datos.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - ps.executeUpdate(): En este contexto, ejecuta la sentencia de eliminación y retorna el número de filas afectadas.
+     * Para qué se usa (el propósito): Dar de baja tareas que ya no son necesarias o que fueron agregadas por error.
+     * Por qué es importante (el impacto o problema que resuelve): Mantiene la base de datos limpia de registros obsoletos y actualiza la interfaz visual al instante.
+     */
     public void eliminar(int id) throws SQLException {
         // DELETE FROM elimina físicamente registros que cumplan la condición WHERE.
         // WHERE id = ? restringe el borrado al ID exacto de la sub-tarea.

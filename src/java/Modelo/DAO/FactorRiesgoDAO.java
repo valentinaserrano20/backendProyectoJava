@@ -8,18 +8,26 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
-// Qué hace: DAO para gestionar la persistencia en MySQL de los factores de riesgo, sus acciones de reducción y vulnerabilidades.
-// Por qué existe: Separa la lógica de acceso a datos de la lógica de negocio y de los controladores, respetando MVC vanilla.
-// Qué problema resuelve: Centraliza las consultas, inserciones, modificaciones y eliminaciones JDBC, previniendo inyección SQL.
+/*
+ * Qué hace (la acción): Define la clase FactorRiesgoDAO para realizar operaciones de persistencia (CRUD) relativas a riesgos, tareas de mitigación y vulnerabilidades físicas.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - DAO: Objeto de acceso a datos que gestiona exclusivamente las consultas JDBC con MySQL.
+ * Para qué se usa (el propósito): Servir de motor de persistencia del censo de factores de riesgo, sus acciones y vulnerabilidades en la SPA de voluntariado.
+ * Por qué es importante (el impacto o problema que resuelve): Aísla por completo la complejidad SQL relacional de las tablas factores_riesgo, acciones_reduccion y factor_riesgo_vulnerabilidad.
+ */
 public class FactorRiesgoDAO {
 
     // =========================================================================
     // CRUD: FACTORES DE RIESGO
     // =========================================================================
 
-    // Qué hace: Obtiene todos los factores de riesgo registrados (para el Supervisor).
-    // Por qué se implementó: Permite listar todos los riesgos del censo.
-    // Qué problema resuelve: Facilita al supervisor la consulta de todos los factores cargados.
+    /*
+     * Qué hace (la acción): Obtiene el listado completo de todos los factores de riesgo registrados a nivel general.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - LEFT JOIN amenazas: Vincula el factor de riesgo con el nombre de la amenaza relacionada (ej: Sismo, Deslizamiento).
+     * Para qué se usa (el propósito): Mostrar un inventario general de riesgos al supervisor del sistema.
+     * Por qué es importante (el impacto o problema que resuelve): Permite al personal de control tener visibilidad completa sobre los riesgos identificados en el censo territorial.
+     */
     public List<FactorRiesgoDTO> obtenerTodos() throws SQLException {
         // Qué hace: Inicializa la lista dinámica que contendrá los factores de riesgo.
         List<FactorRiesgoDTO> lista = new ArrayList<>();
@@ -55,9 +63,12 @@ public class FactorRiesgoDAO {
         return lista;
     }
 
-    // Qué hace: Obtiene los detalles de un factor de riesgo por su ID único.
-    // Por qué se implementó: Permite cargar los datos de un riesgo en el modal o formulario de edición.
-    // Qué problema resuelve: Recupera la información exacta de un registro para su visualización o modificación.
+    /*
+     * Qué hace (la acción): Obtiene los detalles específicos de un factor de riesgo mediante su ID.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - ps.setInt(1, id): Asigna el ID del riesgo al marcador de posición de la consulta.
+     * Para qué se usa (el propósito): Recuperar la información de un riesgo al cargar el modal de edición.
+     */
     public FactorRiesgoDTO obtenerPorId(int id) throws SQLException {
         // Explicación de consulta SQL:
         // - Información buscada: Atributos de un factor de riesgo específico y su amenaza.
@@ -93,9 +104,12 @@ public class FactorRiesgoDAO {
         return null;
     }
 
-    // Qué hace: Obtiene todos los factores de riesgo colgados de un plan familiar.
-    // Por qué se implementó: Permite listar los riesgos en la grilla visual del plan de emergencia de una familia.
-    // Qué problema resuelve: Filtra y retorna los registros que pertenecen exclusivamente al plan del voluntario.
+    /*
+     * Qué hace (la acción): Obtiene todos los factores de riesgo asociados a un plan familiar.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - WHERE fr.plan_id = ?: Filtra únicamente los factores de riesgo que corresponden a la familia.
+     * Para qué se usa (el propósito): Renderizar en la interfaz del voluntario la grilla de riesgos específicos del hogar censado.
+     */
     public List<FactorRiesgoDTO> obtenerPorPlan(int planId) throws SQLException {
         // Qué hace: Inicializa la lista dinámica que contendrá los factores de riesgo.
         List<FactorRiesgoDTO> lista = new ArrayList<>();
@@ -133,9 +147,13 @@ public class FactorRiesgoDAO {
         return lista;
     }
 
-    // Qué hace: Obtiene un subconjunto de factores de riesgo de un plan familiar aplicando paginación.
-    // Por qué se implementó: Permite a la grilla de riesgos del frontend cargar por páginas.
-    // Qué problema resuelve: Controla el flujo de datos optimizando el rendimiento de red.
+    /*
+     * Qué hace (la acción): Obtiene de forma paginada los factores de riesgo asociados a un plan familiar.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - LIMIT ? OFFSET ?: Cláusulas SQL que limitan el número de registros devueltos y especifican a partir de qué fila iniciar.
+     * Para qué se usa (el propósito): Implementar paginación del lado del servidor en las tablas de riesgos de la SPA.
+     * Por qué es importante (el impacto o problema que resuelve): Evita la sobrecarga de datos en red al traer la información por fragmentos bajo demanda.
+     */
     public List<FactorRiesgoDTO> obtenerPorPlanPaginado(int planId, int limit, int offset) throws SQLException {
         // Qué hace: Inicializa la lista dinámica que contendrá los factores de riesgo.
         List<FactorRiesgoDTO> lista = new ArrayList<>();
@@ -175,9 +193,12 @@ public class FactorRiesgoDAO {
         return lista;
     }
 
-    // Qué hace: Obtiene la cantidad total de factores de riesgo registrados para un plan.
-    // Por qué se implementó: Se requiere para calcular el total de páginas en el componente de paginación del frontend.
-    // Qué problema resuelve: Suministra el total de registros de forma ligera con un COUNT.
+    /*
+     * Qué hace (la acción): Cuenta cuántos factores de riesgo tiene asignados un plan de emergencia.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - SELECT COUNT(*): Función de agregación que cuenta las filas coincidentes.
+     * Para qué se usa (el propósito): Calcular el número de páginas necesarias en el componente paginador del cliente.
+     */
     public int contarPorPlan(int planId) throws SQLException {
         // Explicación de consulta SQL:
         // - Información buscada: Cantidad total de registros asociados a un plan.
@@ -201,9 +222,12 @@ public class FactorRiesgoDAO {
         return 0;
     }
 
-    // Qué hace: Inserta un nuevo factor de riesgo en la base de datos.
-    // Por qué se implementó: Permite guardar el formulario inicial de agregar riesgo de la UI.
-    // Qué problema resuelve: Inserta el registro de manera parametrizada y retorna true si fue exitoso.
+    /*
+     * Qué hace (la acción): Registra un nuevo factor de riesgo en la base de datos MySQL.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - ps.executeUpdate(): Envía la consulta INSERT para guardar permanentemente la información en la tabla factores_riesgo.
+     * Para qué se usa (el propósito): Registrar los riesgos que acechan al hogar evaluado.
+     */
     public boolean crear(FactorRiesgoDTO dto) throws SQLException {
         // Explicación de consulta SQL:
         // - Información buscada: Registrar un nuevo factor de riesgo.
@@ -223,9 +247,12 @@ public class FactorRiesgoDAO {
         }
     }
 
-    // Qué hace: Actualiza los campos de un factor de riesgo.
-    // Por qué se implementó: Permite guardar las modificaciones realizadas en el acordeón "Datos del riesgo".
-    // Qué problema resuelve: Ejecuta la consulta de UPDATE sobre los datos específicos del registro padre.
+    /*
+     * Qué hace (la acción): Modifica los datos descriptivos de un factor de riesgo existente.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - UPDATE: Modifica los campos configurados filtrando por el ID de la fila.
+     * Para qué se usa (el propósito): Guardar las ediciones realizadas sobre los riesgos familiares.
+     */
     public boolean actualizar(int id, FactorRiesgoDTO dto) throws SQLException {
         // Explicación de consulta SQL:
         // - Información buscada: Actualización de atributos de un factor de riesgo.
@@ -246,9 +273,15 @@ public class FactorRiesgoDAO {
         }
     }
 
-    // Qué hace: Elimina un factor de riesgo por su ID, eliminando previamente de forma transaccional sus dependencias.
-    // Por qué se implementó: Habilita el botón "Eliminar" de la UI limpiando relaciones hijas para evitar errores de llave foránea.
-    // Qué problema resuelve: Ejecuta un borrado ACID en cascada.
+    /*
+     * Qué hace (la acción): Elimina de forma transaccional y en cascada un factor de riesgo junto con sus vulnerabilidades y acciones asociadas.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - con.setAutoCommit(false): Abre una transacción explícita de MySQL.
+     *   - con.commit(): Consolida permanentemente el borrado en cascada.
+     *   - con.rollback(): Deshace los cambios de la transacción ante cualquier fallo de base de datos.
+     * Para qué se usa (el propósito): Borrar por completo la ficha de riesgo y todas sus dependencias relacionadas.
+     * Por qué es importante (el impacto o problema que resuelve): Previene violaciones de llaves foráneas e inconsistencias de datos, garantizando que el borrado físico sea exitoso y atómico.
+     */
     public boolean eliminar(int id) throws SQLException {
         Connection con = null;
         PreparedStatement psDelVul = null;
@@ -314,9 +347,12 @@ public class FactorRiesgoDAO {
     // CRUD: ACCIONES DE REDUCCIÓN
     // =========================================================================
 
-    // Qué hace: Obtiene la información estructurada de una acción de reducción específica por su ID.
-    // Por qué se implementó: Permite cargar los datos de una acción para editarla.
-    // Qué problema resuelve: Recupera los datos de la acción uniendo el integrante asignado como responsable.
+    /*
+     * Qué hace (la acción): Obtiene una acción de reducción específica por su ID.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - LEFT JOIN integrantes: Relaciona la acción con el integrante responsable de ejecutarla.
+     * Para qué se usa (el propósito): Recuperar los campos de la acción de mitigación para mostrar en la interfaz de edición.
+     */
     public AccionReduccionDTO obtenerAccionPorId(int id) throws SQLException {
         // Explicación de consulta SQL:
         // - Información buscada: Atributos de una acción de reducción y nombre del integrante asignado.
@@ -354,9 +390,12 @@ public class FactorRiesgoDAO {
         return null;
     }
 
-    // Qué hace: Obtiene la lista completa de acciones de reducción asociadas a un factor de riesgo.
-    // Por qué se implementó: Alimenta la pestaña de tareas de mitigación del riesgo en la UI.
-    // Qué problema resuelve: Recupera todas las tareas vinculadas a un riesgo familiar particular de manera unificada.
+    /*
+     * Qué hace (la acción): Obtiene la lista de acciones de reducción o mitigación configuradas para un factor de riesgo.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - ar.riesgo_id = ?: Filtro que selecciona únicamente las tareas vinculadas al riesgo.
+     * Para qué se usa (el propósito): Mostrar las medidas preventivas adoptadas ante un riesgo en la SPA.
+     */
     public List<AccionReduccionDTO> obtenerAccionesPorRiesgo(int riesgoId) throws SQLException {
         // Qué hace: Inicializa la lista dinámica que contendrá las acciones.
         List<AccionReduccionDTO> lista = new ArrayList<>();
@@ -396,9 +435,12 @@ public class FactorRiesgoDAO {
         return lista;
     }
 
-    // Qué hace: Inserta una nueva acción de reducción en la base de datos.
-    // Por qué se implementó: Permite guardar una nueva tarea del plan de acción para reducir un riesgo.
-    // Qué problema resuelve: Registra la tarea asociando un familiar responsable (soportando responsables nulos).
+    /*
+     * Qué hace (la acción): Registra una nueva acción de reducción para mitigar un riesgo específico.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - ps.setNull(4, Types.INTEGER): Enlaza un valor NULL si la tarea no tiene un responsable familiar asignado de momento.
+     * Para qué se usa (el propósito): Añadir tareas preventivas al plan familiar de emergencia.
+     */
     public boolean crearAccion(AccionReduccionDTO dto) throws SQLException {
         // Explicación de consulta SQL:
         // - Información buscada: Insertar una acción de reducción.
@@ -422,9 +464,12 @@ public class FactorRiesgoDAO {
         }
     }
 
-    // Qué hace: Actualiza los campos de una acción de reducción específica.
-    // Por qué se implementó: Habilita la corrección de tareas, plazos o responsables en la UI.
-    // Qué problema resuelve: Persiste los cambios de la acción controlando la nulidad del responsable.
+    /*
+     * Qué hace (la acción): Modifica la descripción, fecha límite e integrante responsable de una acción de reducción.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - UPDATE ar: Modifica la tarea.
+     * Para qué se usa (el propósito): Guardar los cambios al editar la tarea de mitigación.
+     */
     public boolean actualizarAccion(int id, AccionReduccionDTO dto) throws SQLException {
         // Explicación de consulta SQL:
         // - Información buscada: Modificar una acción de reducción.
@@ -450,9 +495,12 @@ public class FactorRiesgoDAO {
         }
     }
 
-    // Qué hace: Elimina una acción de reducción por su ID único.
-    // Por qué se implementó: Permite descartar una tarea del plan de mitigación.
-    // Qué problema resuelve: Elimina físicamente el registro correspondiente en la tabla.
+    /*
+     * Qué hace (la acción): Elimina físicamente una acción de reducción de la base de datos.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - DELETE FROM: Borra la fila basándose en su ID primario.
+     * Para qué se usa (el propósito): Descartar tareas preventivas del plan familiar.
+     */
     public boolean eliminarAccion(int id) throws SQLException {
         // Explicación de consulta SQL:
         // - Información buscada: Eliminar una acción de reducción.
@@ -472,9 +520,13 @@ public class FactorRiesgoDAO {
     // CRUD: FACTORES DE VULNERABILIDAD
     // =========================================================================
 
-    // Qué hace: Obtiene la información detallada de la vulnerabilidad de un riesgo por su ID único.
-    // Por qué se implementó: Soporta la visualización y edición del grado de vulnerabilidad.
-    // Qué problema resuelve: Recupera la correspondencia de grado y catálogo de vulnerabilidad relacional.
+    /*
+     * Qué hace (la acción): Recupera la asociación de vulnerabilidad a un riesgo de forma detallada mediante su ID.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - LEFT JOIN vulnerabilidades: Junta el id de vulnerabilidad con su denominación textual del catálogo.
+     *   - gradeStrToId: Helper que traduce el ENUM de BD a un ID numérico de grado compatible con el frontend.
+     * Para qué se usa (el propósito): Leer el detalle de un factor de vulnerabilidad física para su visualización o modificación.
+     */
     public FactorVulnerabilidadDTO obtenerVulnerabilidadPorId(int id) throws SQLException {
         // Explicación de consulta SQL:
         // - Información buscada: Grado de vulnerabilidad y nombre del catálogo de vulnerabilidades.
@@ -513,9 +565,12 @@ public class FactorRiesgoDAO {
         return null;
     }
 
-    // Qué hace: Obtiene la lista de vulnerabilidades asignadas a un factor de riesgo particular.
-    // Por qué se implementó: Alimenta la visualización de vulnerabilidades del riesgo en la UI.
-    // Qué problema resuelve: Permite recuperar de forma legible el catálogo de padecimientos de infraestructura del riesgo.
+    /*
+     * Qué hace (la acción): Obtiene la lista de factores de vulnerabilidad física o estructural vinculados a un factor de riesgo.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - frv.riesgo_id = ?: Cláusula que selecciona las vulnerabilidades que aquejan a dicho riesgo.
+     * Para qué se usa (el propósito): Mostrar el diagnóstico detallado de vulnerabilidad en la UI.
+     */
     public List<FactorVulnerabilidadDTO> obtenerVulnerabilidadesPorRiesgo(int riesgoId) throws SQLException {
         // Qué hace: Inicializa la lista dinámica que contendrá las vulnerabilidades.
         List<FactorVulnerabilidadDTO> lista = new ArrayList<>();
@@ -556,9 +611,12 @@ public class FactorRiesgoDAO {
         return lista;
     }
 
-    // Qué hace: Registra una nueva vulnerabilidad asociada a un riesgo.
-    // Por qué se implementó: Permite asociar ítems del catálogo de vulnerabilidades al riesgo evaluado.
-    // Qué problema resuelve: Escribe la relación traduciendo el ID de grado a la cadena ENUM correspondiente de base de datos.
+    /*
+     * Qué hace (la acción): Guarda la asociación de un factor de vulnerabilidad a un riesgo con su grado de impacto.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - gradeIdToStr: Traduce el ID del combo UI al ENUM literal de la base de datos ("Muy Alta", "Alta", "Media", "Baja").
+     * Para qué se usa (el propósito): Registrar la evaluación de vulnerabilidad de un factor de riesgo en la base de datos.
+     */
     public boolean crearVulnerabilidad(FactorVulnerabilidadDTO dto) throws SQLException {
         // Explicación de consulta SQL:
         // - Información buscada: Insertar una asociación de vulnerabilidad a un riesgo.
@@ -576,9 +634,12 @@ public class FactorRiesgoDAO {
         }
     }
 
-    // Qué hace: Actualiza la vulnerabilidad asociada a un riesgo.
-    // Por qué se implementó: Permite modificar el grado o tipo de vulnerabilidad desde el acordeón de la UI.
-    // Qué problema resuelve: Actualiza los valores traduciendo los IDs de la interfaz hacia el ENUM de base de datos.
+    /*
+     * Qué hace (la acción): Modifica el grado y la tipificación de la vulnerabilidad en un factor de riesgo específico.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - UPDATE frv: Actualiza la vulnerabilidad por ID.
+     * Para qué se usa (el propósito): Modificar la evaluación de vulnerabilidad en la base de datos.
+     */
     public boolean actualizarVulnerabilidad(int id, FactorVulnerabilidadDTO dto) throws SQLException {
         // Explicación de consulta SQL:
         // - Información buscada: Modificar el grado o catálogo de la vulnerabilidad.
@@ -597,9 +658,12 @@ public class FactorRiesgoDAO {
         }
     }
 
-    // Qué hace: Elimina una relación de vulnerabilidad de un riesgo por su ID único.
-    // Por qué se implementó: Permite desvincular una vulnerabilidad del riesgo en la UI.
-    // Qué problema resuelve: Elimina físicamente la fila correspondiente de la tabla de unión.
+    /*
+     * Qué hace (la acción): Elimina físicamente la asociación de vulnerabilidad de un riesgo.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - DELETE FROM: Elimina el registro por ID.
+     * Para qué se usa (el propósito): Quitar una vulnerabilidad del factor de riesgo evaluado.
+     */
     public boolean eliminarVulnerabilidad(int id) throws SQLException {
         // Explicación de consulta SQL:
         // - Información buscada: Eliminar una vulnerabilidad asociada al riesgo.
@@ -619,9 +683,11 @@ public class FactorRiesgoDAO {
     // HELPERS DE CONVERSIÓN DE ENUM
     // =========================================================================
 
-    // Qué hace: Helper para convertir la cadena descriptiva de grado en MySQL a su correspondiente identificador numérico de la interfaz.
-    // Por qué existe: Asegura que el frontend reciba un ID numérico que pueda controlar de manera limpia en su selector dropdown.
-    // Qué problema resuelve: Resuelve la disparidad de representación entre el String ENUM de base de datos y el modelo DTO de la vista.
+    /*
+     * Qué hace (la acción): Traduce la cadena ENUM de base de datos a su respectivo ID numérico para el selector web.
+     * Qué significa (conceptos, métodos, tipos involucrados): Asignación condicional que mapea "Muy Alta" -> 1, "Alta" -> 2, etc.
+     * Para qué se usa (el propósito): Adecuar la representación del grado al formato de control dropdown en el frontend.
+     */
     private int gradeStrToId(String gradeStr) {
         if (gradeStr == null) return 3;
         switch (gradeStr) {
@@ -633,9 +699,11 @@ public class FactorRiesgoDAO {
         }
     }
 
-    // Qué hace: Helper para convertir el identificador de grado del DTO a la cadena descriptiva ENUM requerida por la base de datos.
-    // Por qué existe: Permite que las consultas de inserción y actualización utilicen el formato literal exacto del ENUM en MySQL.
-    // Qué problema resuelve: Previene excepciones de inserción por incompatibilidad de tipo ENUM en la base de datos.
+    /*
+     * Qué hace (la acción): Traduce el ID numérico del combo UI al String literal requerido por el ENUM en la base de datos MySQL.
+     * Qué significa (conceptos, métodos, tipos involucrados): Mapea 1 -> "Muy Alta", 2 -> "Alta", etc.
+     * Para qué se usa (el propósito): Formatear los parámetros SQL de inserción y edición para que coincidan con la declaración ENUM física de MySQL.
+     */
     private String gradeIdToStr(int gradeId) {
         switch (gradeId) {
             case 1: return "Muy Alta";

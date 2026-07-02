@@ -1,19 +1,35 @@
 package Modelo.DAO;
 
+/*
+ * Qué hace (la acción): Importa la conexión física de base de datos relacionales, el DTO de recursos comunitarios de emergencia, y las APIs de JDBC y colecciones de Java.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - Modelo.Config.Conexion: Módulo de conexión a MySQL.
+ *   - Modelo.DTO.RecursoDisponibleDTO: Objeto que empaqueta las propiedades de un recurso externo de emergencia (nombre de lugar, teléfono, descripción, distancia).
+ *   - java.sql.*: APIs estándar de interacción relacional (Connection, PreparedStatement, ResultSet, SQLException, Types).
+ * Para qué se usa (el propósito): Proveer las herramientas de conectividad y estructuras necesarias para persistir y consultar la asistencia comunitaria disponible para el hogar.
+ * Por qué es importante (el impacto o problema que resuelve): Permite registrar lugares de apoyo (ej: centros de salud, CAI, bomberos) que la familia puede utilizar en caso de catástrofe.
+ */
 import Modelo.Config.Conexion;
 import Modelo.DTO.RecursoDisponibleDTO;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
-// Qué hace: DAO encargado de realizar operaciones de lectura, escritura y eliminación física en base de datos para la entidad de Recursos Disponibles.
-// Por qué existe: Encapsula el acceso directo a la base de datos MySQL usando sentencias preparadas de JDBC.
-// Qué problema resuelve: Separa el código de acceso a datos de la capa de lógica de negocio y presentación, previniendo la inyección SQL y manteniendo la arquitectura limpia.
+/*
+ * Qué hace (la acción): Define la clase RecursoDisponibleDAO encargada de realizar operaciones CRUD en la tabla 'recursos_disponibles' de MySQL.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - DAO (Data Access Object): Centraliza las operaciones SQL de la entidad RecursoDisponible.
+ * Para qué se usa (el propósito): Gestionar los recursos de asistencia comunitaria disponibles para los hogares censados.
+ * Por qué es importante (el impacto o problema que resuelve): Aísla por completo la complejidad SQL relacional cruzada con las tablas tipos_recurso y servicios_emergencia.
+ */
 public class RecursoDisponibleDAO {
 
-    // Qué hace: Cuenta la cantidad total de recursos comunitarios registrados para un plan familiar específico.
-    // Por qué existe: Suministra el total al servicio para realizar el cálculo de los metadatos de paginación requeridos por el frontend.
-    // Qué problema resuelve: Evita transferir toda la lista de filas por red solo para realizar el conteo de registros.
+    /*
+     * Qué hace (la acción): Consulta la cantidad total de recursos comunitarios asignados a un plan de emergencia familiar en MySQL.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - SELECT COUNT(*): Cuenta registros filtrando por plan_id.
+     * Para qué se usa (el propósito): Suministrar al paginador de la interfaz web la cantidad exacta de registros del plan.
+     */
     public int obtenerTotalRecursos(int planId) throws SQLException {
         // Explicación detallada de la consulta SQL:
         // - Comando SELECT COUNT(*) AS total: Cuenta la cantidad total de registros (filas) de recursos asociados al plan familiar y asigna el alias "total" a la columna resultante para leerla en Java.
@@ -39,9 +55,13 @@ public class RecursoDisponibleDAO {
         return 0;
     }
 
-    // Qué hace: Consulta un listado de recursos comunitarios asociados a un plan familiar, uniendo con el tipo de recurso y servicio de emergencia.
-    // Por qué existe: Alimenta la vista principal del frontend con la información completa de cada recurso registrado.
-    // Qué problema resuelve: Resuelve la necesidad de mostrar información relacional legible (nombre del tipo y servicio de emergencia) en lugar de IDs crudos.
+    /*
+     * Qué hace (la acción): Obtiene una lista paginada de los recursos comunitarios asociados a un plan familiar.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - LEFT JOIN: Une el recurso disponible con el catálogo de tipos de recurso y el de servicios de emergencia.
+     *   - LIMIT ? OFFSET ?: Cláusulas JDBC para recuperar un segmento de la tabla.
+     * Para qué se usa (el propósito): Mostrar los recursos de asistencia del hogar por segmentos dosificados en la UI.
+     */
     public List<RecursoDisponibleDTO> listarRecursosPorPlan(int planId, int limit, int offset) throws SQLException {
         // Explicación detallada de la consulta SQL:
         // - Columnas consultadas: Selecciona las columnas básicas del recurso comunitario y los nombres descriptivos cruzados: 'resource_name' (de tr) y 'service_name' (de se).
@@ -93,9 +113,11 @@ public class RecursoDisponibleDAO {
         }
     }
 
-    // Qué hace: Consulta un recurso comunitario disponible a través de su identificador único ID.
-    // Por qué existe: Permite alimentar los detalles de visualización (modal) o cargar el formulario de edición con los datos correctos del recurso.
-    // Qué problema resuelve: Recupera la información de un único registro de forma directa y atómica en base de datos.
+    /*
+     * Qué hace (la acción): Obtiene la información estructurada de un recurso comunitario disponible por su ID.
+     * Qué significa (conceptos, métodos, tipos involucrados): Mapea las columnas del recurso y los nombres legibles de su tipo y servicio.
+     * Para qué se usa (el propósito): Recuperar los campos de un recurso de emergencia familiar para precargarlos en los formularios de edición de la SPA.
+     */
     public RecursoDisponibleDTO obtenerRecurso(int id) throws SQLException {
         // Explicación detallada de la consulta SQL:
         // - Columnas consultadas: Selecciona la información de un recurso individual por su ID único.
@@ -137,9 +159,12 @@ public class RecursoDisponibleDAO {
         return null;
     }
 
-    // Qué hace: Inserta un nuevo registro de recurso disponible en la tabla correspondiente y devuelve el ID autogenerado.
-    // Por qué existe: Facilita el guardado permanente de un recurso asociado al plan de emergencia de la familia.
-    // Qué problema resuelve: Mapea la información capturada en el DTO hacia las columnas físicas del motor MySQL de forma parametrizada.
+    /*
+     * Qué hace (la acción): Inserta un nuevo recurso comunitario en la tabla 'recursos_disponibles' y retorna el ID autogenerado asignado.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - Statement.RETURN_GENERATED_KEYS: Habilita el retorno del ID autoincremental de la base de datos MySQL.
+     * Para qué se usa (el propósito): Registrar una zona de ayuda en el plan de emergencia familiar.
+     */
     public int crearRecurso(RecursoDisponibleDTO dto) throws SQLException {
         // Explicación detallada de la consulta SQL:
         // - Comando INSERT INTO: Inserta una fila física con los datos del recurso.
@@ -181,9 +206,12 @@ public class RecursoDisponibleDAO {
         throw new SQLException("No se pudo obtener el ID autogenerado del recurso.");
     }
 
-    // Qué hace: Actualiza los campos específicos de un recurso disponible por su identificador único ID.
-    // Por qué existe: Permite modificar la información geográfica, teléfono o tipo de recurso de forma directa.
-    // Qué problema resuelve: Guarda los cambios editados por el voluntario de forma segura sin tocar otros campos.
+    /*
+     * Qué hace (la acción): Modifica la localización, contacto y tipo de recurso de un recurso existente.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - UPDATE: Modifica los campos relacionales del recurso por su ID.
+     * Para qué se usa (el propósito): Salvar los cambios del recurso editado en el frontend.
+     */
     public void actualizarRecurso(int id, RecursoDisponibleDTO dto) throws SQLException {
         // Explicación detallada de la consulta SQL:
         // - Comando UPDATE: Modifica valores existentes en la tabla recursos_disponibles.

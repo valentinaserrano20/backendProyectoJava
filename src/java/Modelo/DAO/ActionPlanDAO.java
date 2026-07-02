@@ -1,17 +1,35 @@
 package Modelo.DAO;
 
+/*
+ * Qué hace (la acción): Importa el conector de base de datos de la configuración del proyecto, la clase DTO que representa un plan de acción y las clases de acceso a datos JDBC estándar.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - Modelo.Config.Conexion: Módulo de conexión a MySQL.
+ *   - Modelo.DTO.ActionPlanDTO: Objeto de transferencia que transporta los metadatos de cabecera del plan (coordinador y riesgo asociado).
+ *   - java.sql.*: Clases e interfaces (Connection, PreparedStatement, ResultSet, SQLException, Types) necesarias para realizar operaciones de base de datos relacionales en Java.
+ * Para qué se usa (el propósito): Proveer los objetos necesarios para interactuar con la base de datos MySQL a través de consultas SQL parametrizadas.
+ * Por qué es importante (el impacto o problema que resuelve): Permite que la clase acceda a los servicios de persistencia, manejando de forma segura y estructurada la información del plan.
+ */
 import Modelo.Config.Conexion;
 import Modelo.DTO.ActionPlanDTO;
 import java.sql.*;
 
-// Qué hace: DAO encargado de realizar operaciones de lectura, escritura y actualización para la cabecera general del Plan de Acción en la tabla plan_accion.
-// Por qué existe: Encapsula el acceso directo a la base de datos MySQL usando sentencias preparadas de JDBC.
-// Qué problema resuelve: Separa las consultas SQL de la capa de servicio, previene la inyección SQL y coordina transacciones complejas de inicialización de tareas.
+/*
+ * Qué hace (la acción): Define la clase ActionPlanDAO para gestionar la persistencia y transaccionalidad de las cabeceras del plan de acción.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - DAO (Data Access Object): Capa encargada de realizar operaciones CRUD en la base de datos sin mezclar la lógica de negocio ni presentación.
+ * Para qué se usa (el propósito): Centralizar las operaciones de inicialización, verificación y actualización de los planes de emergencia familiar.
+ * Por qué es importante (el impacto o problema que resuelve): Encapsula y aísla la lógica de base de datos para la entidad plan de acción, evitando código redundante y mejorando la mantenibilidad.
+ */
 public class ActionPlanDAO {
 
-    // Qué hace: Comprueba si existe al menos una tarea registrada para un plan familiar en la tabla plan_accion.
-    // Por qué existe: Permite alimentar la verificación de existencia (boolean) consumida en los controladores del frontend para activar o desactivar la interfaz de sub-acciones.
-    // Qué problema resuelve: Retorna un indicador simple reduciendo el consumo de memoria al no cargar objetos completos.
+    /*
+     * Qué hace (la acción): Comprueba si existe al menos una tarea registrada para un plan familiar específico.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - SELECT COUNT(*): Cuenta la cantidad de filas coincidentes.
+     *   - ps.setInt(1, planId): Reemplaza el primer marcador '?' por el ID del plan.
+     * Para qué se usa (el propósito): Validar rápidamente en el servidor si un plan familiar ya cuenta con tareas inicializadas o necesita ser creado desde cero.
+     * Por qué es importante (el impacto o problema que resuelve): Evita cargar toda la lista de tareas en memoria cuando solo se necesita una respuesta booleana rápida (true/false).
+     */
     public boolean existePlan(int planId) throws SQLException {
         // SELECT COUNT(*) cuenta el número total de registros coincidentes.
         // WHERE plan_id = ? filtra por el identificador del plan familiar especificado.
@@ -37,9 +55,14 @@ public class ActionPlanDAO {
         return false;
     }
 
-    // Qué hace: Obtiene la cabecera de configuración general (coordinador y riesgo) leyendo el primer registro asociado al plan.
-    // Por qué existe: Carga los datos de preselección en los dropdowns del formulario superior en las vistas SPA.
-    // Qué problema resuelve: Mapea la información cruda de la base de datos hacia un objeto estructurado DTO.
+    /*
+     * Qué hace (la acción): Recupera la información básica (cabecera) del plan de acción de una familia, mapeándola a un DTO.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - LIMIT 1: Limita el resultado a la primera fila que coincida con el plan_id.
+     *   - ActionPlanDTO: Estructura de datos utilizada para almacenar y transferir el ID de la tarea, del plan, del riesgo y del coordinador.
+     * Para qué se usa (el propósito): Suministrar al frontend la configuración de cabecera seleccionada para un plan.
+     * Por qué es importante (el impacto o problema que resuelve): Permite cargar los selectores de la cabecera (como el factor de riesgo y el coordinador familiar) en los formularios correspondientes de la interfaz visual.
+     */
     public ActionPlanDTO obtenerPlan(int planId) throws SQLException {
         // SELECT recupera las columnas id, plan_id, riesgo_id y coordinador_id.
         // WHERE plan_id = ? filtra las tareas del plan específico.
@@ -76,9 +99,15 @@ public class ActionPlanDAO {
         return null;
     }
 
-    // Qué hace: Inicializa transaccionalmente el plan de acción insertando 3 tareas base por defecto (antes, durante y después).
-    // Por qué existe: Asegura que el plan de acción familiar inicie con las tareas guías necesarias para que la UI de la SPA funcione fluidamente.
-    // Qué problema resuelve: Crea la estructura requerida en base de datos en una única transacción atómica para prevenir estados corruptos o parciales.
+    /*
+     * Qué hace (la acción): Inicializa un nuevo plan de acción insertando tres tareas guías predefinidas (Antes, Durante y Después) en una transacción atómica.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - con.setAutoCommit(false): Deshabilita la confirmación automática de consultas de JDBC para iniciar una transacción manual explícita.
+     *   - con.commit(): Aplica y consolida todos los cambios de la transacción de manera permanente en el motor de base de datos MySQL.
+     *   - con.rollback(): Deshace todas las operaciones realizadas dentro de la transacción si ocurre un error, volviendo al estado anterior.
+     * Para qué se usa (el propósito): Crear la estructura base sugerida del plan familiar de forma segura y consistente cuando se configura por primera vez.
+     * Por qué es importante (el impacto o problema que resuelve): Garantiza la atomicidad de la operación; si falla la inserción de alguna de las tres tareas base, ninguna se guardará, evitando dejar un plan parcialmente creado en la base de datos.
+     */
     public void crear(int planId, int coordinatorId, int riskFactorId) throws SQLException {
         // INSERT INTO agrega nuevos registros en plan_accion.
         // Las columnas momento, descripcion_tarea, plan_id, riesgo_id y coordinador_id reciben valores mediante marcadores '?'.
@@ -137,9 +166,14 @@ public class ActionPlanDAO {
         }
     }
 
-    // Qué hace: Actualiza el coordinador y factor de riesgo para todas las tareas del plan de acción.
-    // Por qué existe: Permite modificar la cabecera del plan (por ejemplo, cambiar el líder de emergencia familiar) propagando el cambio a todas las tareas de la matriz.
-    // Qué problema resuelve: Actualiza de forma masiva los registros asociados mediante una consulta preparada única.
+    /*
+     * Qué hace (la acción): Actualiza de manera masiva el coordinador familiar y el factor de riesgo para todas las tareas que pertenecen al plan especificado.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - UPDATE: Sentencia SQL para modificar registros existentes.
+     *   - WHERE plan_id = ?: Cláusula que limita la actualización masiva a las filas que pertenecen únicamente a ese plan familiar.
+     * Para qué se usa (el propósito): Modificar la configuración de cabecera del plan (coordinador o riesgo) y propagar ese cambio automáticamente a todas sus tareas.
+     * Por qué es importante (el impacto o problema que resuelve): Evita que el usuario tenga que actualizar la cabecera tarea por tarea, realizando una actualización masiva eficiente en una sola consulta.
+     */
     public void actualizar(int planId, int coordinatorId, int riskFactorId) throws SQLException {
         // UPDATE modifica los campos de los registros existentes en plan_accion.
         // SET coordinador_id = ?, riesgo_id = ? actualiza los valores correspondientes.

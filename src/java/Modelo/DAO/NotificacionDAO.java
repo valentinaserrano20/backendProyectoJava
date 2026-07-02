@@ -1,5 +1,14 @@
 package Modelo.DAO;
 
+/*
+ * Qué hace (la acción): Importa el gestor de conexiones a bases de datos relacionales, el DTO de notificaciones y las clases JDBC y colecciones estándar de Java.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - Modelo.Config.Conexion: Módulo de conexión a MySQL.
+ *   - Modelo.DTO.NotificacionDTO: Almacena las propiedades de las alertas y avisos del usuario (título, mensaje, estado).
+ *   - java.sql.*: APIs estándar de interacción relacional (PreparedStatement, Connection, ResultSet, SQLException).
+ * Para qué se usa (el propósito): Proveer las herramientas de conectividad y objetos necesarios para guardar e interactuar con la bandeja de entrada de alertas de los usuarios.
+ * Por qué es importante (el impacto o problema que resuelve): Permite persistir los avisos y advertencias de planes de evacuación para que los usuarios reciban alertas en tiempo real en la UI.
+ */
 import Modelo.Config.Conexion;
 import Modelo.DTO.NotificacionDTO;
 import java.sql.Connection;
@@ -9,16 +18,21 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
-// Qué hace: DAO para Notificaciones. Maneja las operaciones de persistencia (creación, lectura, actualización y eliminación) en base de datos.
-// Por qué existe: Separa la gestión directa de la tabla notificaciones en MySQL de la lógica de negocio y controladores del sistema.
-// Qué problema resuelve: Centraliza las consultas JDBC de alertas y previene la inyección SQL mediante sentencias preparadas parametrizadas.
+/*
+ * Qué hace (la acción): Define la clase NotificacionDAO encargada de realizar operaciones CRUD en la tabla 'notificaciones' de MySQL.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - DAO (Data Access Object): Centraliza las operaciones SQL de la entidad Notificación.
+ * Para qué se usa (el propósito): Gestionar la bandeja de alertas, mensajes y advertencias dirigidas a voluntarios y supervisores.
+ * Por qué es importante (el impacto o problema que resuelve): Aísla por completo el código de base de datos para la entidad notificaciones, ofreciendo soporte para el control de lecturas.
+ */
 public class NotificacionDAO {
 
-    // Sirve para: Crear una nueva notificación para un usuario específico.
-    // Qué hace: Realiza un INSERT parametrizado en la tabla notificaciones.
-    // Explicación de consulta SQL:
-    // - Información buscada: Registro de campos de notificación en notificaciones.
-    // - Tablas participantes: notificaciones.
+    /*
+     * Qué hace (la acción): Inserta un nuevo registro de notificación en la tabla 'notificaciones' de MySQL.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - INSERT INTO: Agrega la fila con el usuario_id, título, mensaje, tipo, estado de leída, enlace y entidad_id correspondiente.
+     * Para qué se usa (el propósito): Enviar y guardar alertas para que el usuario destinatario las visualice al iniciar sesión.
+     */
     public void crear(NotificacionDTO notificacion) throws SQLException {
         // Sentencia SQL que especifica las columnas de la tabla notificaciones que recibirán los valores.
         String sql = "INSERT INTO notificaciones (usuario_id, titulo, mensaje, tipo, leida, enlace, entidad_id) "
@@ -93,12 +107,12 @@ public class NotificacionDAO {
         return notificaciones;
     }
 
-    // Sirve para: Obtener las notificaciones no leídas de un usuario.
-    // Qué hace: Realiza una consulta SELECT a la tabla notificaciones trayendo los registros pendientes de lectura.
-    // Explicación de consulta SQL:
-    // - Columnas seleccionadas: id, usuario_id, titulo, mensaje, tipo, leida, fecha_creacion, enlace y entidad_id.
-    // - Filtro aplicado: WHERE usuario_id = ? AND leida = false (notificaciones pertenecientes al usuario que no han sido vistas).
-    // - Ordenamiento: ORDER BY fecha_creacion DESC (orden cronológico inverso).
+    /*
+     * Qué hace (la acción): Consulta y devuelve el listado de notificaciones no leídas de un usuario.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - WHERE leida = false: Filtra los registros que no han sido leídos.
+     * Para qué se usa (el propósito): Mostrar las alertas pendientes de revisión en la bandeja rápida del frontend.
+     */
     public List<NotificacionDTO> obtenerNoLeidas(int usuarioId) throws SQLException {
         String sql = "SELECT id, usuario_id, titulo, mensaje, tipo, leida, fecha_creacion, enlace, entidad_id "
                    + "FROM notificaciones WHERE usuario_id = ? AND leida = false ORDER BY fecha_creacion DESC";

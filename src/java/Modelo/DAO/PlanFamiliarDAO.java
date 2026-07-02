@@ -1,9 +1,25 @@
 package Modelo.DAO;
 
+/*
+ * Qué hace (la acción): Importa el administrador de conexiones de base de datos relacionales, el DTO de registro inicial de planes y fichas de identificación, y las clases JDBC de Java.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - Modelo.Config.Conexion: Establece conexiones de base de datos MySQL.
+ *   - Modelo.DTO.RegistroPlanDTO: DTO para recolectar y transferir la información de registro del plan (apellidos, zona, voluntario).
+ *   - java.sql.*: APIs de Java relacionales para conectividad JDBC.
+ * Para qué se usa (el propósito): Proveer el soporte de conexión y mapeo DTO para iniciar y administrar el censo de planes familiares.
+ * Por qué es importante (el impacto o problema que resuelve): Permite persistir la información básica estructural del plan familiar en MySQL.
+ */
 import Modelo.Config.Conexion;
 import Modelo.DTO.RegistroPlanDTO;
 import java.sql.*;
 
+/*
+ * Qué hace (la acción): Define la clase PlanFamiliarDAO encargada de realizar operaciones CRUD relativas a planes familiares de emergencia e identificación de viviendas en MySQL.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - DAO: Objeto de acceso a datos que gestiona exclusivamente las consultas JDBC con MySQL.
+ * Para qué se usa (el propósito): Proveer persistencia para las cabeceras de planes familiares, su localización física, datos demográficos, asignaciones y auditoría.
+ * Por qué es importante (el impacto o problema que resuelve): Aísla por completo el código de base de datos relacional del plan de emergencia, gestionando transacciones ACID de inserciones múltiples y verificaciones de roles de acceso.
+ */
 public class PlanFamiliarDAO {
 
     // Sirve para: Crear la cabecera de un nuevo plan familiar y su respectiva ficha de identificación en una transacción atómica.
@@ -387,9 +403,13 @@ public class PlanFamiliarDAO {
         return 0;
     }
 
-    // Qué hace: Retorna todos los planes de emergencia familiar en el sistema de forma paginada para supervisión.
-    // Por qué existe: Permite al supervisor visualizar la bandeja global de planes y los últimos planes recibidos.
-    // Qué problema resuelve: Filtra los planes no enviados (estados 2 y 3) y recupera el nombre del voluntario responsable.
+    /*
+     * Qué hace (la acción): Recupera la bandeja global de planes de emergencia familiares enviados de forma paginada para supervisión.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - CONCAT(u.nombre, ' ', u.apellido): Junta nombre y apellido del voluntario responsable del levantamiento.
+     *   - estado_id NOT IN (2, 3): Filtra para omitir planes en desarrollo o borradores.
+     * Para qué se usa (el propósito): Cargar el panel global de censos territoriales para control de calidad de los supervisores.
+     */
     public java.util.List<java.util.Map<String, Object>> listarTodosLosPlanes(int limit, int offset) throws SQLException {
         // Qué hace: Inicializa la lista que contendrá los mapas de datos de cada plan familiar.
         // Por qué existe: Provee el contenedor estructurado para retornar la información al servicio y luego al controlador JS.
@@ -464,4 +484,4 @@ public class PlanFamiliarDAO {
         map.put("date_create", rs.getString("date_create"));
         return map;
     }
-}
+}

@@ -1,19 +1,37 @@
 package Modelo.DAO;
 
+/*
+ * Qué hace (la acción): Importa el gestor de conexiones a bases de datos relacionales, el DTO que almacena las propiedades de los archivos gráficos y las clases e interfaces del paquete java.sql e java.util.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - Modelo.Config.Conexion: Establece conexiones de base de datos MySQL.
+ *   - Modelo.DTO.ImagenDTO: Almacena metadatos del archivo de imagen (ruta, descripción, tipo de gráfico).
+ *   - java.sql.*: Librería estándar de Java para interacción con bases de datos SQL.
+ * Para qué se usa (el propósito): Habilitar la recuperación y almacenamiento de croquis, mapas de georreferenciación y croquis de entorno del plan familiar.
+ * Por qué es importante (el impacto o problema que resuelve): Permite registrar las rutas locales o URL de los archivos subidos para que la aplicación muestre planos de evacuación dinámicos.
+ */
 import Modelo.Config.Conexion;
 import Modelo.DTO.ImagenDTO;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
-// Qué hace: DAO encargado de realizar operaciones de lectura, escritura y eliminación física en base de datos para la entidad de Imágenes (tabla imagenes).
-// Por qué existe: Encapsula el acceso directo a la base de datos MySQL usando sentencias preparadas de JDBC.
-// Qué problema resuelve: Separa el código de acceso a datos de la lógica de negocio, previniendo la inyección SQL, asegurando el cierre de conexiones y mapeando los tipos de gráficos.
+/*
+ * Qué hace (la acción): Define la clase ImagenDAO que implementa operaciones CRUD físicas en la tabla 'imagenes' de MySQL.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - DAO (Data Access Object): Centraliza las operaciones SQL de la entidad Imagen.
+ * Para qué se usa (el propósito): Administrar los archivos gráficos adjuntos a las viviendas familiares dentro de los planes de emergencia.
+ * Por qué es importante (el impacto o problema que resuelve): Aísla por completo el código de base de datos para la entidad imágenes, controlando discrepancias de nombres entre el frontend y la base de datos.
+ */
 public class ImagenDAO {
 
-    // Qué hace: Convierte el tipo de gráfico usado en el frontend al valor enum almacenado físicamente en la base de datos.
-    // Por qué existe: El DER de la base de datos utiliza el valor "mapa" en el enum, mientras que el frontend y los endpoints consumen "georeferenciacion".
-    // Qué problema resuelve: Garantiza compatibilidad estricta con las restricciones del enum en MySQL sin obligar a cambiar la estructura de la base de datos.
+    /*
+     * Qué hace (la acción): Traduce el término del tipo de gráfico manejado en la aplicación al equivalente literal del ENUM de la base de datos.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - "georeferenciacion": Término usado en el frontend.
+     *   - "mapa": Término literal configurado en el ENUM físico de MySQL.
+     * Para qué se usa (el propósito): Garantizar la compatibilidad relacional al persistir datos sin requerir una alteración física al esquema de base de datos.
+     * Por qué es importante (el impacto o problema que resuelve): Evita fallos de inserción y de violación de restricciones de ENUM en MySQL por discrepancias de nomenclatura.
+     */
     private String aValorBD(String tipoJava) {
         // Qué hace: Si el valor de java equivale a "georeferenciacion" (ignorando mayúsculas), lo traduce al término enum "mapa" de la base de datos.
         if ("georeferenciacion".equalsIgnoreCase(tipoJava)) {
@@ -23,9 +41,11 @@ public class ImagenDAO {
         return tipoJava;
     }
 
-    // Qué hace: Convierte el valor enum de la base de datos al tipo de gráfico consumido por la SPA en el frontend.
-    // Por qué existe: Permite que el frontend reciba "georeferenciacion" en lugar de "mapa", manteniendo coherencia con las rutas en español.
-    // Qué problema resuelve: Oculta la discrepancia del modelo físico relacional de cara a la API de presentación.
+    /*
+     * Qué hace (la acción): Traduce el valor literal del ENUM de base de datos al formato esperado por el frontend.
+     * Qué significa (conceptos, métodos, tipos involucrados): Mapea "mapa" -> "georeferenciacion".
+     * Para qué se usa (el propósito): Devolver al frontend una nomenclatura limpia en español de las rutas e interfaces geográficas.
+     */
     private String aValorJava(String tipoBD) {
         // Qué hace: Si el valor de base de datos es "mapa" (ignorando mayúsculas), lo traduce a "georeferenciacion" para consumo de la UI.
         if ("mapa".equalsIgnoreCase(tipoBD)) {
@@ -35,9 +55,14 @@ public class ImagenDAO {
         return tipoBD;
     }
 
-    // Qué hace: Cuenta la cantidad total de imágenes registradas para un plan familiar y tipo específico.
-    // Por qué existe: Suministra el total al servicio para realizar el cálculo de los metadatos de paginación de los gráficos de vivienda.
-    // Qué problema resuelve: Evita transferir todas las filas por red solo para realizar el conteo de registros.
+    /*
+     * Qué hace (la acción): Cuenta el total de imágenes subidas para un plan familiar y tipo de gráfico específico.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - SELECT COUNT(*): Cuenta registros coincidentes.
+     *   - aValorBD(tipo): Traduce el tipo de gráfico antes de vincular el parámetro SQL.
+     * Para qué se usa (el propósito): Proveer el conteo necesario para paginar el listado de croquis de la vivienda.
+     * Por qué es importante (el impacto o problema que resuelve): Permite calcular la paginación del lado del servidor sin sobrecargar la memoria del servidor cargando objetos completos.
+     */
     public int contarPorPlanYTipo(int planId, String tipo) throws SQLException {
         // Explicación de consulta SQL:
         // - SELECT COUNT(*) AS total cuenta el número total de filas.
@@ -65,9 +90,13 @@ public class ImagenDAO {
         return 0;
     }
 
-    // Qué hace: Consulta un listado paginado de imágenes asociadas a un plan familiar y tipo de gráfico.
-    // Por qué existe: Alimenta la vista principal del listado de croquis de la vivienda en el frontend.
-    // Qué problema resuelve: Permite recuperar conjuntos limitados de imágenes de forma paginada para mejorar el tiempo de carga del cliente.
+    /*
+     * Qué hace (la acción): Recupera un subconjunto paginado de imágenes para un plan y tipo de gráfico.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - LIMIT ? OFFSET ?: Permite extraer únicamente un número limitado de registros a partir de una posición inicial.
+     * Para qué se usa (el propósito): Listar los croquis de vivienda por páginas en la interfaz SPA.
+     * Por qué es importante (el impacto o problema que resuelve): Optimiza significativamente el tiempo de carga del cliente al traer sólo las imágenes solicitadas.
+     */
     public List<ImagenDTO> listarPorPlanYTipo(int planId, String tipo, int limit, int offset) throws SQLException {
         // Explicación de consulta SQL:
         // - SELECT recupera las columnas id, tipo_grafico, ruta_archivo, descripcion y plan_id.
@@ -116,9 +145,11 @@ public class ImagenDAO {
         }
     }
 
-    // Qué hace: Consulta una imagen específica a través de su identificador único ID.
-    // Por qué existe: Permite alimentar la visualización modal en grande o el formulario de edición de descripción.
-    // Qué problema resuelve: Recupera la información de un único registro de forma atómica y segura mediante JDBC.
+    /*
+     * Qué hace (la acción): Obtiene una única imagen de base de datos a partir de su ID.
+     * Qué significa (conceptos, métodos, tipos involucrados): Mapea las columnas id, tipo_grafico, ruta_archivo, descripcion y plan_id a un DTO.
+     * Para qué se usa (el propósito): Mostrar un croquis particular en una ventana flotante o modal en grande.
+     */
     public ImagenDTO obtenerPorId(int id) throws SQLException {
         // Explicación de consulta SQL:
         // - SELECT recupera los atributos del registro de imagen.
@@ -151,9 +182,11 @@ public class ImagenDAO {
         return null;
     }
 
-    // Qué hace: Consulta la imagen única de entorno o georreferenciación vinculada a un plan familiar.
-    // Por qué existe: Módulos de entorno y mapa son de cardinalidad 1-a-1 por plan, requiriendo recuperar el registro único sin ID de imagen.
-    // Qué problema resuelve: Facilita la obtención directa de la imagen correspondiente usando únicamente el ID del plan.
+    /*
+     * Qué hace (la acción): Obtiene la imagen de tipo georreferenciación (mapa) o entorno asociada de forma directa a un plan.
+     * Qué significa (conceptos, métodos, tipos involucrados): Relación de cardinalidad de una sola imagen de ese tipo por plan familiar.
+     * Para qué se usa (el propósito): Cargar el mapa georreferenciado o la foto de la fachada del hogar en sus pestañas de presentación directa.
+     */
     public ImagenDTO obtenerPorPlanYTipo(int planId, String tipo) throws SQLException {
         // Explicación de consulta SQL:
         // - SELECT recupera las columnas de la imagen asociada al plan.
@@ -189,9 +222,13 @@ public class ImagenDAO {
         return null;
     }
 
-    // Qué hace: Inserta una nueva fila de imagen en la tabla imagenes de la base de datos y retorna su ID autogenerado.
-    // Por qué existe: Registra de forma definitiva la ruta física del archivo subido y su descripción en MySQL.
-    // Qué problema resuelve: Mapea el objeto DTO en memoria hacia las columnas de la tabla de forma parametrizada y protegida.
+    /*
+     * Qué hace (la acción): Registra una nueva imagen en la base de datos MySQL y retorna el identificador primario asignado.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - Statement.RETURN_GENERATED_KEYS: Habilita el retorno del ID autoincremental de la base de datos MySQL.
+     * Para qué se usa (el propósito): Guardar la ruta física del croquis de evacuación o fachada subida al servidor.
+     * Por qué es importante (el impacto o problema que resuelve): Permite asociar lógicamente la imagen a la ficha del plan de emergencia, retornando el ID para confirmación en el cliente.
+     */
     public int crear(ImagenDTO dto) throws SQLException {
         // Explicación de consulta SQL:
         // - INSERT INTO registra un nuevo registro de imagen en imagenes.
@@ -226,9 +263,12 @@ public class ImagenDAO {
         throw new SQLException("No se pudo obtener el ID autogenerado de la imagen.");
     }
 
-    // Qué hace: Modifica la descripción de una imagen existente a través de su ID.
-    // Por qué existe: Habilita el guardado del formulario de edición de descripción para el croquis de vivienda.
-    // Qué problema resuelve: Ejecuta la actualización parcial en base de datos sin alterar la ruta del archivo.
+    /*
+     * Qué hace (la acción): Modifica la descripción textual o anotaciones de una imagen por su ID.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - UPDATE imagenes: Modifica únicamente la columna descriptiva.
+     * Para qué se usa (el propósito): Guardar modificaciones de pie de foto o detalles de los croquis de vivienda.
+     */
     public void actualizarDescripcion(int id, String descripcion) throws SQLException {
         // Explicación de consulta SQL:
         // - UPDATE modifica la columna descripcion de la tabla imagenes.
@@ -249,9 +289,12 @@ public class ImagenDAO {
         }
     }
 
-    // Qué hace: Actualiza la ruta del archivo de una imagen existente en la base de datos por su ID.
-    // Por qué existe: Permite cambiar el archivo físico de un gráfico único (entorno o georreferenciación) sin alterar su identificador único en base de datos.
-    // Qué problema resuelve: Sobrescribe la referencia de ruta de manera segura mediante JDBC.
+    /*
+     * Qué hace (la acción): Actualiza la ruta del archivo físico de una imagen (croquis único).
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - UPDATE imagenes SET ruta_archivo: Sobrescribe la ubicación del archivo.
+     * Para qué se usa (el propósito): Reemplazar el archivo de imagen de mapa o fachada del hogar conservando el mismo ID de registro.
+     */
     public void actualizarRuta(int id, String ruta) throws SQLException {
         // Explicación de consulta SQL:
         // - UPDATE modifica la columna ruta_archivo.
@@ -272,9 +315,12 @@ public class ImagenDAO {
         }
     }
 
-    // Qué hace: Elimina físicamente el registro de la imagen de la base de datos MySQL por su ID.
-    // Por qué existe: Permite dar de baja un croquis de vivienda cargado por error.
-    // Qué problema resuelve: Borra el registro en cascada o de forma directa en el motor SQL de forma atómica.
+    /*
+     * Qué hace (la acción): Elimina físicamente el registro de la imagen de la base de datos.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - DELETE FROM: Sentencia de eliminación física.
+     * Para qué se usa (el propósito): Borrar croquis de evacuación o fotos de entorno descartadas por los voluntarios.
+     */
     public void eliminar(int id) throws SQLException {
         // Explicación de consulta SQL:
         // - DELETE FROM elimina físicamente registros que cumplan la condición WHERE.

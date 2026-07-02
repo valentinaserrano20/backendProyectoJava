@@ -15,12 +15,27 @@ import org.json.JSONObject;
 // UTILIDAD PARA MANEJO DE JSON
 // =========================================
 
+/**
+ * Qué hace: Clase utilitaria dedicada al procesamiento y lectura de datos en formato JSON provenientes del cliente.
+ * Por qué existe: Los Servlets Java estándar no poseen un mecanismo nativo para parsear cuerpos de petición con Content-Type "application/json" a objetos manejables, por lo que esta clase unifica esa lectura.
+ * Qué pasaría si no estuviera: Cada Servlet que reciba JSON (como los controladores de registro, test de vulnerabilidad o mascotas) tendría que implementar manualmente la lectura del BufferedReader, duplicando código.
+ */
 public class JSONUtil {
 
     // =========================================
     // LEER JSON DEL BODY DEL REQUEST
     // =========================================
 
+    /**
+     * Qué hace: Lee secuencialmente el cuerpo (Body) de una petición HttpServletRequest y lo transforma en un objeto de tipo JSONObject.
+     * Qué significa: Lee el flujo de entrada de caracteres a través del lector de la petición, acumula el texto completo en memoria y lo parsea sintácticamente.
+     * Para qué se usa: Permite que los servlets obtengan de forma estructurada los parámetros enviados por Axios o Fetch desde el frontend de la SPA.
+     * Por qué es importante: Soporta el intercambio asíncrono de datos moderno (REST/JSON) en lugar del envío clásico de formularios multiparte.
+     * 
+     * @param request La petición HTTP entrante.
+     * @return Un JSONObject que contiene las propiedades enviadas en el body.
+     * @throws IOException Si ocurre un fallo de lectura del flujo de datos de red.
+     */
     public static JSONObject leerJson(HttpServletRequest request) throws IOException {
         // Instanciamos un StringBuilder para acumular de forma eficiente todo el texto del cuerpo (body) de la petición HTTP recibida
         StringBuilder sb = new StringBuilder();

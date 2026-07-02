@@ -1,22 +1,36 @@
 package Modelo.DAO;
 
+/*
+ * Qué hace (la acción): Importa la conexión física de base de datos MySQL, utilidades JDBC estándar, colecciones en Java y las clases JSONObject / JSONArray para parsear información en formato JSON.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - org.json.JSONObject / JSONArray: Librería para procesar y estructurar datos en formato JSON directo desde y hacia las peticiones HTTP.
+ *   - java.sql.*: Clases para gestionar consultas preparadas, conexiones y lectura de datos relacionales en MySQL.
+ * Para qué se usa (el propósito): Servir como base técnica para ejecutar consultas y serializar resultados de forma genérica para la capa de datos maestros.
+ * Por qué es importante (el impacto o problema que resuelve): Permite que un solo DAO administre múltiples catálogos dinámicamente mediante el uso de estructuras de datos flexibles como Maps y JSON.
+ */
 import Modelo.Config.Conexion;
 import java.sql.*;
 import java.util.*;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-// Qué hace: DAO genérico CRUD para todas las tablas paramétricas del módulo de datos maestros.
-// Por qué existe: Unifica el acceso a la base de datos de las 12 entidades paramétricas sin duplicar código.
-// Qué problema resuelve: Provee métodos reutilizables de consulta, inserción, actualización, eliminación y auditoría.
+/*
+ * Qué hace (la acción): Define la clase DatoMaestroDAO que implementa operaciones CRUD y auditoría genéricas sobre las doce tablas paramétricas del sistema.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - CRUD genérico: Operaciones de Crear, Leer, Actualizar y Borrar estructuradas dinámicamente por nombre de entidad.
+ * Para qué se usa (el propósito): Simplificar y unificar la persistencia de datos maestros evitando escribir doce clases DAO distintas.
+ * Por qué es importante (el impacto o problema que resuelve): Reduce significativamente las líneas de código duplicadas y centraliza el mantenimiento de la integridad referencial y auditoría de catálogos.
+ */
 public class DatoMaestroDAO {
-    // Sirve para: Registrar una acción de inserción, actualización o eliminación en la bitácora de auditoría de datos maestros.
-    // Qué hace: Inserta una fila en la tabla historial_datos_maestros con el detalle del cambio realizado.
-    // Explicación de consulta SQL:
-    // - Operación: Inserción de registro.
-    // - Tabla afectada: historial_datos_maestros.
-    // - Columnas insertadas: tabla_afectada, accion, valor_anterior, valor_nuevo, usuario_id.
-    // - Valores insertados: tabla paramétrica, acción de control, valores antiguos, valores nuevos e ID del operador.
+
+    /*
+     * Qué hace (la acción): Registra de manera cronológica en la bitácora de auditoría cualquier cambio (inserción, edición, desactivación) realizado sobre los datos maestros.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - historial_datos_maestros: Tabla de auditoría interna de la base de datos.
+     *   - ps.executeUpdate(): Ejecuta la inserción física del registro de auditoría.
+     * Para qué se usa (el propósito): Monitorear qué supervisor u operador realizó cambios sobre la configuración paramétrica del sistema.
+     * Por qué es importante (el impacto o problema que resuelve): Cumple con los requerimientos de seguridad y trazabilidad del sistema, permitiendo identificar responsables y valores anteriores en caso de fallos.
+     */
     public void registrarAuditoria(String tabla, String accion, String valorAnterior, String valorNuevo, int usuarioId) throws SQLException {
         String sql = "INSERT INTO historial_datos_maestros (tabla_afectada, accion, valor_anterior, valor_nuevo, usuario_id) VALUES (?, ?, ?, ?, ?)";
         // Qué hace: Abre la conexión JDBC limpia y prepara el statement de inserción.
@@ -33,16 +47,14 @@ public class DatoMaestroDAO {
         }
     }
 
-    // Sirve para: Obtener el historial cronológico de cambios realizados sobre un registro específico de un catálogo.
-    // Qué hace: Realiza una consulta SELECT a historial_datos_maestros uniendo con usuarios y roles para recuperar el nombre del operador.
-    // Explicación de consulta SQL:
-    // - Información buscada: h.accion, h.valor_anterior, h.valor_nuevo, h.fecha, nombre completo del operador y nombre de su rol.
-    // - Tablas participantes: historial_datos_maestros h (principal), usuarios u (operador), roles r (rol del operador).
-    // - Relaciones (JOINs):
-    //   1. JOIN usuarios u ON h.usuario_id = u.id (obtiene los datos del supervisor operador).
-    //   2. JOIN roles r ON u.rol_id = r.id (obtiene el nombre legible del rol del supervisor).
-    // - Filtros aplicados: h.tabla_afectada = ? (el nombre del catálogo consultado).
-    // - Ordenamiento: ORDER BY h.fecha DESC (cronológico inverso).
+    /*
+     * Qué hace (la acción): Recupera el historial de modificaciones realizadas exclusivamente sobre un registro específico de un catálogo particular.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - CONCAT(u.nombre, ' ', u.apellido): Junta nombre y apellido del usuario auditor en una sola columna.
+     *   - SimpleDateFormat("dd/MM/yyyy HH:mm"): Formatea la fecha y hora para que sea fácilmente legible por el usuario en el frontend.
+     * Para qué se usa (el propósito): Cargar el panel de trazabilidad de cambios en los formularios de edición de datos maestros.
+     * Por qué es importante (el impacto o problema que resuelve): Permite ver el ciclo de vida del dato desde su creación hasta su último estado sin tener que buscar manualmente en los logs del servidor.
+     */
     public List<Map<String, Object>> obtenerHistorial(String tabla, int registroId) throws SQLException {
         String sql = "SELECT h.accion, h.valor_anterior, h.valor_nuevo, h.fecha, "
                    + "CONCAT(u.nombre, ' ', u.apellido) as user_name, r.nombre as rol_nombre "
@@ -93,16 +105,13 @@ public class DatoMaestroDAO {
         return resultado;
     }
 
-    // =========================================================================
-    // MÉTODOS AUXILIARES PARA SECCIONALES VIRTUALES
-    // =========================================================================
-    
-    // Sirve para: Obtener el catálogo virtual de seccionales recuperando las distintas seccionales de las organizaciones.
-    // Qué hace: Ejecuta un SELECT DISTINCT de la columna seccional en la tabla organizaciones.
-    // Explicación de consulta SQL:
-    // - Información buscada: La lista única de valores en la columna seccional.
-    // - Tablas participantes: organizaciones.
-    // - Ordenamiento: ORDER BY seccional ASC.
+    /*
+     * Qué hace (la acción): Extrae la lista única de seccionales geográficas (ej: Santander, Bucaramanga) basándose en las organizaciones registradas.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - SELECT DISTINCT seccional: Filtra duplicados para que cada seccional aparezca una sola vez.
+     * Para qué se usa (el propósito): Alimentar la lista de seccionales disponibles sin tener una tabla exclusiva para ello.
+     * Por qué es importante (el impacto o problema que resuelve): Mantiene la consistencia de datos geográficos basándose directamente en la distribución de las organizaciones vigentes.
+     */
     public List<String> obtenerNombresSeccionales() throws SQLException {
         String sql = "SELECT DISTINCT seccional FROM organizaciones ORDER BY seccional ASC";
         List<String> seccionales = new ArrayList<>();
@@ -118,8 +127,12 @@ public class DatoMaestroDAO {
         return seccionales;
     }
 
-    // Sirve para: Obtener un ID virtual indexado (1-based) para una seccional de texto.
-    // Qué hace: Compara la seccional con la lista ordenada y retorna su índice + 1.
+    /*
+     * Qué hace (la acción): Determina el ID virtual (1-based) asignado a un nombre de seccional.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - i + 1: Conversión del índice base cero a una clave numérica base uno.
+     * Para qué se usa (el propósito): Mapear el texto plano de seccionales a identificadores numéricos que el cliente web pueda manejar fácilmente en el select.
+     */
     public int obtenerIdSeccional(String seccional) throws SQLException {
         List<String> lista = obtenerNombresSeccionales();
         for (int i = 0; i < lista.size(); i++) {
@@ -130,8 +143,12 @@ public class DatoMaestroDAO {
         return -1;
     }
 
-    // Sirve para: Obtener el nombre de la seccional a partir de su ID virtual indexado (1-based).
-    // Qué hace: Retorna la seccional en la posición (id - 1) de la lista de seccionales.
+    /*
+     * Qué hace (la acción): Recupera el nombre de la seccional correspondiente a un ID virtual.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - lista.get(id - 1): Obtiene el elemento restando 1 al ID virtual recibido.
+     * Para qué se usa (el propósito): Traducir el ID numérico enviado por el frontend al String correspondiente al persistir en base de datos.
+     */
     public String obtenerNombreSeccionalPorId(int id) throws SQLException {
         List<String> lista = obtenerNombresSeccionales();
         if (id >= 1 && id <= lista.size()) {
@@ -648,11 +665,14 @@ public class DatoMaestroDAO {
         }
     }
 
-    // Sirve para: Eliminar físicamente un registro en base de datos.
-    // Qué hace: Realiza una validación previa de llaves foráneas para evitar caídas y luego ejecuta una sentencia DELETE física sobre la tabla seleccionada.
-    // Explicación de sentencias DELETE:
-    // - Para 'sectionals': Valida si hay usuarios vinculados a organizaciones de la seccional (SELECT COUNT(*)). Si no, elimina todas las organizaciones pertenecientes a esa seccional (DELETE FROM organizaciones WHERE seccional = ?).
-    // - Para otras entidades: Valida dependencias de FK mediante el helper validarDependenciasFK() y ejecuta DELETE FROM {tabla} WHERE id = ?.
+    /*
+     * Qué hace (la acción): Elimina de manera física el registro seleccionado previa validación relacional de sus dependencias en otras tablas.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - DELETE FROM: Elimina el registro físico de la base de datos MySQL.
+     *   - validarDependenciasFK: Método que lanza excepciones si el registro cuenta con registros dependientes activos.
+     * Para qué se usa (el propósito): Depurar registros agregados por error que no cuenten con relaciones pendientes en el sistema.
+     * Por qué es importante (el impacto o problema que resuelve): Garantiza que no se violen llaves foráneas o restricciones físicas en MySQL, arrojando errores controlados y legibles.
+     */
     public void eliminar(String entidad, int id) throws SQLException {
         if (entidad.equalsIgnoreCase("sectionals")) {
             String name = obtenerNombreSeccionalPorId(id);

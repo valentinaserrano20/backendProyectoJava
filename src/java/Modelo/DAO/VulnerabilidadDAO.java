@@ -1,5 +1,15 @@
 package Modelo.DAO;
 
+/*
+ * Qué hace (la acción): Importa la conexión física de base de datos relacionales, las entidades y DTOs del test de vulnerabilidad familiar y las APIs de JDBC y colecciones de Java.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - Modelo.Config.Conexion: Módulo de conexión a MySQL.
+ *   - Modelo.Entidades.PreguntaTest: Entidad que encapsula una pregunta de evaluación (enunciado, orden, es_evaluable).
+ *   - Modelo.DTO.RespuestaTestDTO: Objeto para transferir la respuesta booleana del usuario a cada pregunta.
+ *   - java.sql.*: APIs estándar de interacción relacional JDBC de Java.
+ * Para qué se usa (el propósito): Proveer el soporte de conexión y objetos para listar, calificar y persistir la evaluación de riesgo de la vivienda familiar.
+ * Por qué es importante (el impacto o problema que resuelve): Permite al sistema diagnosticar si la vivienda de una familia es calificada como Vulnerable o No Vulnerable según sus factores constructivos y ambientales.
+ */
 import Modelo.Config.Conexion;
 import Modelo.Entidades.PreguntaTest;
 import Modelo.DTO.RespuestaTestDTO;
@@ -7,17 +17,20 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
-// Qué hace: Clase de Acceso a Datos (DAO) para el módulo del Test de Vulnerabilidad del Plan Familiar.
-// Por qué existe: Provee métodos específicos para interactuar con las tablas de preguntas del censo y guardar las respuestas relacionales correspondientes.
-// Qué problema resuelve: Encapsula la lógica de calificación de vulnerabilidad y la actualización de estados del plan familiar de forma transaccional.
+/*
+ * Qué hace (la acción): Define la clase VulnerabilidadDAO encargada de realizar operaciones de persistencia e inserción en lote (batch) para las preguntas y respuestas del test de riesgo en MySQL.
+ * Qué significa (conceptos, métodos, tipos involucrados):
+ *   - DAO: Objeto de acceso a datos que gestiona exclusivamente las consultas JDBC con MySQL.
+ * Para qué se usa (el propósito): Manejar el cuestionario evaluativo de riesgos, calcular el grado de vulnerabilidad del hogar y guardar el historial de seguimiento del supervisor.
+ * Por qué es important (el impacto o problema que resuelve): Permite registrar de manera transaccional e indivisible las respuestas del test y recalcular de forma ACID el estado del plan de emergencia de la familia.
+ */
 public class VulnerabilidadDAO {
 
-    // Sirve para: Recuperar la lista completa de preguntas activas de la base de datos como entidades.
-    // Qué hace: Realiza una consulta SELECT a la tabla preguntas_test trayendo los registros activos ordenados.
-    // Explicación de consulta SQL:
-    // - Información buscada: Columnas id, enunciado, es_evaluable, orden y activo de las preguntas de vulnerabilidad.
-    // - Tablas participantes: preguntas_test.
-    // - Filtros aplicados: activo = true (solo preguntas habilitadas), ordenadas de forma ascendente por el campo orden.
+    /*
+     * Qué hace (la acción): Consulta y devuelve la lista completa de preguntas activas de la base de datos, ordenadas por su orden predefinido.
+     * Qué significa (conceptos, métodos, tipos involucrados): SELECT con filtro activo = true ordenadas ascendentemente (ORDER BY orden ASC).
+     * Para qué se usa (el propósito): Recuperar el cuestionario de vulnerabilidad completo para renderizarlo en la vista del test del voluntario.
+     */
     public List<PreguntaTest> obtenerPreguntasActivas() throws SQLException {
         // Qué hace: Inicializa la lista que almacenará las entidades de preguntas recuperadas.
         List<PreguntaTest> lista = new ArrayList<>();
@@ -144,11 +157,16 @@ public class VulnerabilidadDAO {
         return lista;
     }
 
-    // Sirve para: Guardar el lote de respuestas y calificar/actualiza el plan en una sola transacción atómica.
-    // Qué hace: Realiza inserciones en lote (batch) de respuestas y actualiza el tipo de familia del plan familiar según la puntuación.
-    // - sqlRespuesta: Inserción de respuestas en la tabla respuestas_test. Si ya existe un registro de respuesta para la combinación de plan y pregunta, actualiza su valor (ON DUPLICATE KEY UPDATE).
-    // - sqlConteo: Realiza una consulta SELECT COUNT(*) cruzando la tabla de respuestas con la tabla de preguntas mediante un INNER JOIN. El JOIN es de tipo INNER porque nos interesa únicamente contar aquellas respuestas que corresponden a preguntas evaluables que existen en el catálogo de preguntas (es decir, donde el id de la pregunta exista en ambas tablas). Se filtran las respuestas afirmativas (rt.valor = true) y evaluables (pt.es_evaluable = true) asociadas al plan familiar indicado. Retorna una única fila con la cuenta entera de factores de riesgo.
-    // - sqlActualizarPlan: Modifica de forma física el estado del plan familiar a 3 (En desarrollo) y asigna su tipo de familia (tipo_familia_id) por su ID único.
+    /*
+     * Qué hace (la acción): Registra de manera transaccional e indivisible las respuestas del censo, evalúa el total de puntos de riesgo y actualiza el tipo de familia del plan a Vulnerable o No Vulnerable.
+     * Qué significa (conceptos, métodos, tipos involucrados):
+     *   - ON DUPLICATE KEY UPDATE: Cláusula de MySQL que sobrescribe la respuesta anterior si el plan ya había respondido esa misma pregunta.
+     *   - executeBatch(): Ejecuta en lote las respuestas para minimizar los accesos de red a la base de datos.
+     *   - Puntos de riesgo >= 5: Califica a la familia como Vulnerable (tipo_familia_id = 1), en caso contrario No Vulnerable (tipo_familia_id = 2).
+     *   - con.rollback(): Deshace todas las operaciones del test si ocurre algún fallo intermedio de base de datos.
+     * Para qué se usa (el propósito): Guardar el cuestionario de vulnerabilidad completo de una familia y clasificar su grado de riesgo en la cabecera del plan.
+     * Por qué es importante (el impacto o problema que resuelve): Garantiza que si falla la actualización del plan familiar, las respuestas tampoco se inserten, evitando inconsistencias o planes sin calificar.
+     */
     public boolean guardarTestYActualizarPlan(int planId, List<RespuestaTestDTO> respuestas) throws SQLException {
         String sqlRespuesta = "INSERT INTO respuestas_test (valor, plan_id, pregunta_id) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE valor = ?";
         String sqlConteo = "SELECT COUNT(*) FROM respuestas_test rt JOIN preguntas_test pt ON rt.pregunta_id = pt.id " +
@@ -251,9 +269,12 @@ public class VulnerabilidadDAO {
         }
     }
 
-    // Sirve para: Registrar una bitácora de seguimiento cada vez que el plan cambia de estado.
-    // Qué hace: Inserta observaciones, el ID del plan, el ID del supervisor gestor y el nuevo estado en seguimiento_plan.
-    // Por qué es importante: Permite auditar el flujo del plan familiar y mostrar observaciones al voluntario en caso de rechazo.
+    /*
+     * Qué hace (la acción): Inserta un registro en la tabla de bitácora 'seguimiento_plan' cada vez que el plan familiar cambia de estado.
+     * Qué significa (conceptos, métodos, tipos involucrados): INSERT de observaciones, plan_id, usuario_gestor_id, estado_id y leido.
+     * Para qué se usa (el propósito): Guardar la justificación y comentarios técnicos del supervisor al aprobar o rechazar el censo familiar.
+     * Por qué es importante (el impacto o problema que resuelve): Permite que el voluntario lea los motivos detallados de por qué fue rechazado su plan familiar y realice los ajustes correspondientes.
+     */
     public void registrarSeguimiento(int planId, int usuarioId, int estadoId, String observaciones) throws SQLException {
         // Explicación de consulta SQL:
         // - Información buscada: Registrar una fila en seguimiento_plan.
